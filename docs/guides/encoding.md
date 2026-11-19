@@ -470,6 +470,64 @@ binary payload intact for lossless round-trip.
 marker stands in for a rung that laddercodec could not decode, and CLICK has no
 instruction for it ([Decoding](decoding.md#rungs-that-dont-decode)).
 
+## Add The Addresses Before You Paste
+
+```python
+from laddercodec import Contact, Copy, Rung, addresses, encode
+
+rung = Rung([[Contact("X001")] + ["-"] * 30], [Copy('"HALLO"', "TXT1")], None)
+binary = encode(rung)
+
+addresses(binary)  # ['X001', 'TXT1', 'TXT5']
+```
+
+`addresses()` returns every address that the rungs store, and the ends that they imply.
+
+When CLICK pastes rungs, it drops each operand whose address is not in the project's
+address database, `SC_.mdb`. It keeps the operand if the address is there. Add each address
+that `addresses()` returns to the project before you paste.
+
+The list holds every address that the payload stores, whether or not the paste needs it. An
+extra address costs you one row in `SC_.mdb`, and a missing one loses an operand. Each
+address appears once, in display form and in the order that the payload first uses it. You
+can pass a `Rung`, a list of rungs, or clipboard bytes from `encode()` or from CLICK.
+`addresses()` returns the same list for a rung and for its encoded bytes.
+
+The list holds these addresses too:
+
+- the end that a Copy of text stores, such as TXT5 for `"HALLO"` into TXT1
+- the end of a Send's source or a Receive's destination, such as DS5 for 5 registers from
+  DS1
+- a Send's or a Receive's remote start, which is an address in the other PLC
+- a time drum's done bit, such as T4 for the accumulator TD4
+- the index of a pointer, such as DS1 in `TXT[DS1]`
+- each address in a Math formula
+- the addresses in an Email's indexed arrays
+- the addresses in a `RawInstruction` and in an `UnknownCondition`
+
+For a range, CLICK needs only its two ends in the project. The list holds both ends of
+each range, such as TXT1 and TXT10 for a Search of TXT1..TXT10. It leaves out the
+addresses between them.
+
+For a pointer, the list holds the index. A Copy of `DS[DS2]` into DS10 lists DS2 and DS10.
+The address that the pointer reaches is known only when the PLC runs, so the list can't
+hold it.
+
+A time drum's done bit is the T address with the number of its accumulator. The list holds
+it whether or not the drum's bytes store it.
+
+The list leaves out text in quotes. A Copy of `"DS1"` into TXT1 lists TXT1 and TXT3, and no
+DS1.
+
+An Email's To, Cc and Bcc name an entry in the project's address book by its number. The
+entry's name and address are not in the payload, so `addresses()` can't list them. Paste
+into a project whose address book holds the same entries.
+
+If `addresses()` can't read a row of the bytes, it issues an `UndecodedRungWarning` that
+names the row. The list then lacks the addresses in that row and every row after it. If it
+can't read the fields of a cell, it issues an `UndecodedRungWarning` that names the cell,
+and the list lacks the addresses in that cell.
+
 ## If a paste fails
 
 If CLICK crashes on a paste or draws the rung wrong, open an issue at

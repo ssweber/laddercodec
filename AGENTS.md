@@ -61,6 +61,7 @@ src/laddercodec/
 ├── undecoded.py          # UndecodedRungWarning, marker_rung(): the rung decoders and write_csv put in place of one they can't read
 ├── refused.py            # RefusedFieldWarning, warn_refused(): a decoded instruction that holds a value its checks refuse
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
+├── paste.py              # addresses(): the addresses that a CLICK project must hold before a paste
 ├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
 ├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),

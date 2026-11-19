@@ -8,7 +8,8 @@ people and programs can read and edit. ``csv_rows()`` returns the rows that ``wr
 writes after the header. ``check()`` lists the places in your rungs where the
 lines connect in a way that CLICK's Syntax Check refuses or may refuse. It also lists each
 marker that stands in for a rung that laddercodec could not decode. ``lay_out()`` returns
-the rungs that CLICK's Syntax Check draws for a ``Circuit``.
+the rungs that CLICK's Syntax Check draws for a ``Circuit``. ``addresses()`` lists every
+address that the rungs use, so that a CLICK project can hold them before you paste.
 """
 
 from .circuit import Box, Branch, Circuit, Parallel, Series, Term, lay_out
@@ -102,6 +103,7 @@ from .model import (
 )
 from .operands.constants import constant_text
 from .operands.unchecked import replace
+from .paste import addresses
 from .refused import RefusedFieldWarning
 from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
@@ -118,6 +120,7 @@ __all__ = [
     "CsvLocation",
     "find_v4_only",
     "is_v4_only",
+    "addresses",
     "check",
     "Finding",
     "lay_out",

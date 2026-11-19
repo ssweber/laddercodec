@@ -237,10 +237,12 @@ NUL as `$00`.
 A quoted text or `$hh` source has no conversion type. A source that is not a real or DF has
 no real numbering (type `3` or `4`). Decode leaves such a save raw.
 
-CLICK's dialog saves the end that the text fills (`"HALLO"` into TXT1 ends in TXT5). Its
-paste keeps the text and drops `0x6077`, even from its own clipboard. Decode reads quoted
-text with its end or with none, and keeps the OBJ-003 refusal for text past TXT1000. The
-encoder writes the end. Captures: `tests/fixtures/v4_captures/copy_forms/`.
+CLICK's dialog saves the end that the text fills (`"HALLO"` into TXT1 ends in TXT5). When
+CLICK pastes the Copy, it keeps `0x6077` if the end's address is in the project, and drops
+it if it is not. [`addresses()`](../guides/encoding.md#add-the-addresses-before-you-paste)
+lists the end with the other addresses. Decode reads quoted text with its end or with none,
+and keeps the OBJ-003 refusal for text past TXT1000. The encoder writes the end. Captures:
+`tests/fixtures/v4_captures/copy_forms/`.
 
 A decoded single Copy writes the blob it was decoded from while you leave it unchanged, if
 either of these holds:

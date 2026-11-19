@@ -876,7 +876,7 @@ def decode(data: bytes) -> list[Rung]:
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
     failed: list[tuple[int, str]] = []
     if is_multi:
-        rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
+        rungs = _decode_multi(data, row_infos, total_grid_rows, rung0_rtf, failed)
         warn_legacy(rungs)
         warn_refused(rungs)
         warn_comments(failed)
@@ -968,7 +968,7 @@ def decode_rungs(data: bytes) -> list[Rung]:
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
     failed: list[tuple[int, str]] = []
-    rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
+    rungs = _decode_multi(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy(rungs)
     warn_refused(rungs)
     warn_comments(failed)
@@ -984,46 +984,56 @@ def _decode_single(
     failed: list[tuple[int, str]],
 ) -> Rung:
     """Decode a single-rung buffer from pre-walked grid info."""
-    # A single-rung buffer counts one grid row more than the rung has:
-    # total_grid_rows = logical_rows + 1.
-    logical_rows = total_grid_rows - 1
-    data_rows = [ri for ri in row_infos if ri[0] != _PREAMBLE][:logical_rows]
-
-    if len(data_rows) < logical_rows and all(ri[0] == _DATA for ri in data_rows):
-        error = f"expected {logical_rows} data rows, found {len(data_rows)}"
-        data_rows.append((_LOST, -1, error))
+    [(_, data_rows)] = _rung_rows(row_infos, False, total_grid_rows)
     return _build_rung(data, data_rows, rung0_rtf, 0, failed)
 
 
 def _decode_multi(
     data: bytes,
     row_infos: list[_RowInfo],
+    total_grid_rows: int,
     rung0_rtf: bytes | None,
     failed: list[tuple[int, str]],
 ) -> list[Rung]:
     """Decode a multi-rung buffer from pre-walked grid info."""
-    # Group DATA rows into rungs, split by PREAMBLE boundaries.
-    # Rung 0: DATA rows before first PREAMBLE (comment from fixed preamble).
-    # Rung N>0: DATA rows after PREAMBLE[N] (comment from that preamble).
     rungs: list[Rung] = []
-    current_data: list[_RowInfo] = []  # the current rung's data rows
-    current_rtf: bytes | None = rung0_rtf  # rung 0's comment is in the fixed preamble
+    for index, (rtf, data_rows) in enumerate(_rung_rows(row_infos, True, total_grid_rows)):
+        # Rung 0's comment is in the fixed preamble at 0x0260.
+        comment = rung0_rtf if index == 0 else rtf
+        rungs.append(_build_rung(data, data_rows, comment, index, failed))
+    return rungs
 
-    for info in row_infos:
-        tag, _, extra = info
-        if tag == _PREAMBLE:
-            # Build the rung that this preamble row ends.  A rung with no data rows becomes
-            # a marker for it and every later rung, so return without reading further.
-            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
-            if not current_data:
-                return rungs
-            current_data = []
-            current_rtf = extra if isinstance(extra, bytes) else None
+
+def _rung_rows(
+    row_infos: list[_RowInfo], is_multi: bool, total_grid_rows: int
+) -> list[tuple[bytes | None, list[_RowInfo]]]:
+    """Group the walked rows into rungs, and return each rung's comment and data rows.
+
+    The comment is the RTF that the rung's preamble row holds, or None. Rung 0 has no
+    preamble row, so its comment here is always None. If the walk stopped in a rung, that
+    rung's rows end with its LOST row. A rung with no data rows is the last in the list,
+    and no row after it is grouped.
+
+    A single-rung buffer (*is_multi* False) counts one grid row more than the rung has. If
+    the walk found fewer data rows than that, the rows end with a LOST row. A multi-rung
+    buffer does not use *total_grid_rows*.
+    """
+    if not is_multi:
+        logical_rows = total_grid_rows - 1
+        data_rows = [info for info in row_infos if info[0] != _PREAMBLE][:logical_rows]
+        if len(data_rows) < logical_rows and all(info[0] == _DATA for info in data_rows):
+            error = f"expected {logical_rows} data rows, found {len(data_rows)}"
+            data_rows.append((_LOST, -1, error))
+        return [(None, data_rows)]
+
+    rungs: list[tuple[bytes | None, list[_RowInfo]]] = [(None, [])]
+    for tag, cursor, extra in row_infos:
+        if tag != _PREAMBLE:
+            rungs[-1][1].append((tag, cursor, extra))
+        elif not rungs[-1][1]:
+            break
         else:
-            current_data.append(info)
-
-    # Flush the last rung (data rows after the final preamble).
-    rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
+            rungs.append((extra if isinstance(extra, bytes) else None, []))
     return rungs
 
 
