@@ -598,10 +598,10 @@ _RECEIVE_984_KINDS = {
 _SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
 
 
-def _check_slave_id(
-    check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int
-) -> None:
-    """Refuse a numeric Slave ID below *rtu_low* on an RTU target.
+def _check_target(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
+    """Refuse a blank target, and a numeric Slave ID below *rtu_low* on an RTU target.
+
+    The target is ``""`` when it is blank, as in the CSV token ``send(target=,...)``.
 
     A Receive passes 1 and a Send passes 0. A DS address always passes. The target checks
     the upper limits, 247 for RTU and 255 for TCP, when it is built.
@@ -609,6 +609,11 @@ def _check_slave_id(
     The target runs its own checks when it is built, and their refusals name the target's
     field, such as ``ModbusTcpTarget.port``. The refusal of a Slave ID below 1 on a Receive
     names ``Receive.target``."""
+    if target == "":
+        check.refuse(
+            "target", says("is blank", "it needs a value"), Reason.MISSING, code=Code.BLANK_FIELD
+        )
+        return
     device_id = target.device_id
     if isinstance(device_id, str):
         return
@@ -1019,7 +1024,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     that the Send is written with and the default function code. Return None if a refusal
     leaves either code unknown."""
     who = "Send"
-    _check_slave_id(check, send.target, 0)
+    _check_target(check, send.target, 0)
     _check_function_code(check, send.function_code, tuple(_SD_FC_SUBTYPE))
     remote, quantity = send.remote_start, send.quantity
     _check_int_quantity(check, quantity)
@@ -1194,7 +1199,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
     that the Receive is written with and the default function code. Return None if a
     refusal leaves either code unknown."""
     who = "Receive"
-    _check_slave_id(check, receive.target, 1)
+    _check_target(check, receive.target, 1)
     _check_function_code(check, receive.function_code, tuple(_RD_FC_SUBTYPE))
     remote, quantity = receive.remote_start, receive.quantity
     _check_int_quantity(check, quantity)
@@ -1734,6 +1739,8 @@ class Send(Instruction):
 
 
 def _target_to_csv(target: ModbusRtuTarget | ModbusTcpTarget) -> str:
+    if target == "":
+        return ""  # a blank target is written blank, so that it reads back blank
     if isinstance(target, ModbusRtuTarget):
         return (
             f'ModbusRtuTarget(name="{target.name}"'
@@ -2077,7 +2084,8 @@ def parse_af_call(call: AfCall) -> Receive | Send:
         if name not in kw:
             raise CsvReadError(f"{call.name} needs a {name}= keyword")
 
-    target = _parse_target(kw["target"])
+    # The Send or Receive refuses a blank target as missing.
+    target = _parse_target(kw["target"]) if kw["target"] else cast("ModbusTcpTarget", "")
     remote_start = _parse_remote_start(kw["remote_start"])
     cls = "Receive" if call.name == "receive" else "Send"
     word_swap = check_csv_flag(kw, "word_swap", f"{cls}.word_swap")

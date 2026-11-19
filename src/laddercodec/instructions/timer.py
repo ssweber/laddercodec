@@ -163,10 +163,11 @@ class Timer(PinnedInstruction):
                 f"{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}"
             )
         done, accumulator = args
-        preset = kwargs.get("preset", "")
-        unit = kwargs.get("unit", "")
-        if not preset or not unit:
+        if "preset" not in kwargs or "unit" not in kwargs:
             raise CsvReadError(f"{kind} missing preset or unit kwargs: {token!r}")
+        # The Timer refuses a blank preset or unit as missing.
+        preset = kwargs["preset"]
+        unit = kwargs["unit"]
         return cls(
             kind=kind,
             done=done,

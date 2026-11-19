@@ -273,6 +273,9 @@ class Search(Instruction):
 
     def to_csv(self) -> str:
         expr = f"{self.table_start}..{self.table_end} {self.op} {self.value}"
+        if (self.table_start, self.table_end, self.op, self.value) == ("", "", "", ""):
+            # A blank expression reads back as these four fields blank.
+            expr = ""
         kw = [f"result={self.result}", f"found={self.found}"]
         if self.continuous:
             kw.append("continuous=1")
@@ -365,27 +368,35 @@ def parse_af_call(call: AfCall) -> Search:
         raise CsvReadError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
-    # DOTALL: a text value may hold a line break.
-    m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr, re.DOTALL)
-    if not m:
-        raise CsvReadError(
-            f"Could not read the search expression {expr!r}. Write the table, an operator "
-            "and a value, such as DS1..DS10 == DS20."
-        )
+    # A blank expression leaves the table, the operator and the value blank. The Search
+    # refuses each of them as missing.
+    parts = ("", "", "", "")
+    if expr.strip():
+        # DOTALL: a text value may hold a line break.
+        m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr, re.DOTALL)
+        if not m:
+            raise CsvReadError(
+                f"Could not read the search expression {expr!r}. Write the table, an operator "
+                "and a value, such as DS1..DS10 == DS20."
+            )
+        parts = (m.group(1).strip(), m.group(2).strip(), m.group(3), m.group(4).strip())
+    table_start, table_end, op, value = parts
 
+    # The Search refuses a blank result or found as missing.
     result = call.kwargs.get("result")
     found = call.kwargs.get("found")
-    if not result or not found:
+    if result is None or found is None:
         raise CsvReadError(
             "search needs result= and found=, such as "
             "search(DS1..DS10 == DS20,result=DS30,found=C1)."
         )
 
     return Search(
-        table_start=m.group(1).strip(),
-        table_end=m.group(2).strip(),
-        op=cast(CompareOp, m.group(3)),  # the regex matches only the six operators
-        value=m.group(4).strip(),
+        table_start=table_start,
+        table_end=table_end,
+        # The regex matches only the six operators. The Search refuses a blank one.
+        op=cast(CompareOp, op),
+        value=value,
         result=result,
         found=found,
         continuous=check_csv_flag(call.kwargs, "continuous", "Search.continuous"),

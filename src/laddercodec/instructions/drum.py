@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, cast, get_args
+from typing import TYPE_CHECKING, Literal, TypeVar, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
@@ -41,7 +41,11 @@ from .family import AfInstructionFamilySpec
 from .timer import TimeUnit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ..csv.ast import AfCall
+
+_L = TypeVar("_L")
 
 DrumKind = Literal["event_drum", "time_drum", "time_event_drum"]
 """The kind of a drum. Each kind is also the name of its CSV call."""
@@ -100,6 +104,21 @@ _DRUM_UNIT_TO_INDEX: dict[TimeUnit, str] = {
 _DRUM_INDEX_TO_UNIT: dict[str, TimeUnit] = {v: k for k, v in _DRUM_UNIT_TO_INDEX.items()}
 
 _DRUM_KINDS: tuple[DrumKind, ...] = get_args(DrumKind)
+
+#: The list fields that each kind of drum uses.
+_KIND_LISTS: dict[str, tuple[str, ...]] = {
+    "event_drum": ("outputs", "events", "pattern"),
+    "time_drum": ("outputs", "presets", "pattern"),
+    "time_event_drum": ("outputs", "presets", "events", "pattern"),
+}
+
+
+def _is_blank(value: object) -> bool:
+    """Return True if *value* is ``""``.
+
+    A list field holds ``""`` when it is blank."""
+    return value == ""
+
 
 # ---------------------------------------------------------------------------
 # Pattern encoding
@@ -291,6 +310,10 @@ class Drum(PinnedInstruction):
     ``presets``, and a time & event drum has both, one of each per step.  The drum refuses
     the list that its kind does not use.  A time & event step may leave either one blank,
     as ``""`` here and ``None`` in CSV.  The lists are stored as tuples.
+
+    A list field that is ``""`` is blank, as in the CSV token ``event_drum(outputs=,...)``.
+    The drum refuses a blank list that its kind uses, with the reason ``missing``.  It
+    stores a blank list that its kind does not use as an empty tuple.
     """
 
     kind: DrumKind
@@ -313,9 +336,14 @@ class Drum(PinnedInstruction):
         with Refusals(self) as check:
             check.flag("jog_enabled", "jump_enabled")
             check.run(self._check_pin_rows)
+            # A blank list that the kind uses stays "", so that it is refused as missing.
+            uses = _KIND_LISTS[self.kind] if self.kind in _DRUM_KINDS else ()
+            blank = [name for name in uses if _is_blank(getattr(self, name))]
             for name in ("outputs", "presets", "events"):
-                check.run(normalize_items, self, name)
-            self._freeze_pattern()
+                if name not in blank:
+                    check.run(normalize_items, self, name)
+            if "pattern" not in blank:
+                self._freeze_pattern()
             check.normalize("current_step", "completion_flag", "accumulator", "jump_step")
             kind = self.kind
             if kind not in _DRUM_KINDS:
@@ -352,6 +380,14 @@ class Drum(PinnedInstruction):
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
                     )
+                # A blank list is refused once, here. The size and pattern checks skip it.
+                for name in blank:
+                    check.refuse(
+                        name,
+                        says("is blank", "it needs a value"),
+                        Reason.MISSING,
+                        code=Code.BLANK_FIELD,
+                    )
             steps, outputs = self.num_steps, self.num_outputs
             steps_field = "events" if kind == "event_drum" else "presets"
             sizes_ok = True
@@ -375,7 +411,7 @@ class Drum(PinnedInstruction):
                     Reason.RANGE,
                     code=Code.DRUM_SIZE_OUT_OF_RANGE,
                 )
-            if sizes_ok:
+            if sizes_ok and not check.refused("pattern"):
                 self._check_pattern(check, steps, outputs)
             addresses = [
                 check(f"outputs[{i}]", check_address, banks={"Y", "C"})
@@ -529,34 +565,40 @@ class Drum(PinnedInstruction):
         return self.kind == "time_event_drum" or self.has_register_preset
 
     def to_csv(self) -> str:
-        outputs_str = ",".join(self.outputs)
-        pattern_str = ",".join("[" + ",".join(str(v) for v in step) + "]" for step in self.pattern)
+        def listed(name: str, items: str) -> str:
+            # A blank list is written blank, as in outputs=, so that it reads back blank.
+            return "" if _is_blank(getattr(self, name)) else f"[{items}]"
+
+        outputs_str = listed("outputs", ",".join(self.outputs))
+        pattern_str = listed(
+            "pattern", ",".join("[" + ",".join(str(v) for v in step) + "]" for step in self.pattern)
+        )
         if self.kind == "event_drum":
-            events_str = ",".join(self.events)
+            events_str = listed("events", ",".join(self.events))
             return (
-                f"event_drum(outputs=[{outputs_str}],"
-                f"events=[{events_str}],"
-                f"pattern=[{pattern_str}],"
+                f"event_drum(outputs={outputs_str},"
+                f"events={events_str},"
+                f"pattern={pattern_str},"
                 f"current_step={self.current_step},"
                 f"completion_flag={self.completion_flag})"
             )
         if self.kind == "time_event_drum":
             return (
-                f"time_event_drum(outputs=[{outputs_str}],"
-                f"presets=[{_format_optional_list(self.presets)}],"
-                f"events=[{_format_optional_list(self.events)}],"
+                f"time_event_drum(outputs={outputs_str},"
+                f"presets={listed('presets', _format_optional_list(self.presets))},"
+                f"events={listed('events', _format_optional_list(self.events))},"
                 f"unit={self.unit},"
-                f"pattern=[{pattern_str}],"
+                f"pattern={pattern_str},"
                 f"current_step={self.current_step},"
                 f"accumulator={self.accumulator},"
                 f"completion_flag={self.completion_flag})"
             )
-        presets_str = ",".join(self.presets)
+        presets_str = listed("presets", ",".join(self.presets))
         return (
-            f"time_drum(outputs=[{outputs_str}],"
-            f"presets=[{presets_str}],"
+            f"time_drum(outputs={outputs_str},"
+            f"presets={presets_str},"
             f"unit={self.unit},"
-            f"pattern=[{pattern_str}],"
+            f"pattern={pattern_str},"
             f"current_step={self.current_step},"
             f"accumulator={self.accumulator},"
             f"completion_flag={self.completion_flag})"
@@ -844,15 +886,24 @@ def from_tags(
 # ---------------------------------------------------------------------------
 
 
+def _list_arg(call: AfCall, key: str, parse: Callable[[str], _L]) -> _L:
+    """Return the list in keyword *key* of *call*, read with *parse*.
+
+    An absent keyword reads as an empty list.  A blank one, as in ``outputs=``, reads as
+    ``""``.  The Drum refuses ``""`` as missing."""
+    text = call.kwargs.get(key, "[]")
+    return parse(text) if text else cast("_L", "")
+
+
 def parse_af_call(call: AfCall) -> Drum:
     """Parse an AF AST call into a Drum.
 
-    Raise ``CsvReadError`` if the call lacks a keyword it needs or leaves it blank, such as
-    ``unit`` or a time & event drum's ``accumulator``.  A value that the Drum refuses
-    raises the Drum's ``FieldError``."""
-    outputs = _parse_simple_list(call.kwargs.get("outputs", "[]"))
+    Raise ``CsvReadError`` if the call lacks a keyword it needs, such as ``unit`` or a
+    time & event drum's ``accumulator``.  A value that the Drum refuses raises the Drum's
+    ``FieldError``.  The Drum refuses a blank value, such as ``unit=``, as missing."""
+    outputs = _list_arg(call, "outputs", _parse_simple_list)
     # A cell that is not 0 or 1 stays text, which the Drum refuses.
-    pattern = cast("tuple[tuple[int, ...], ...]", _parse_pattern(call.kwargs.get("pattern", "[]")))
+    pattern = cast("tuple[tuple[int, ...], ...]", _list_arg(call, "pattern", _parse_pattern))
     current_step = call.kwargs.get("current_step", "")
     completion_flag = call.kwargs.get("completion_flag", "")
 
@@ -860,7 +911,7 @@ def parse_af_call(call: AfCall) -> Drum:
         return Drum(
             kind="event_drum",
             outputs=outputs,
-            events=_parse_simple_list(call.kwargs.get("events", "[]")),
+            events=_list_arg(call, "events", _parse_simple_list),
             pattern=pattern,
             current_step=current_step,
             completion_flag=completion_flag,
@@ -868,21 +919,21 @@ def parse_af_call(call: AfCall) -> Drum:
             unit=cast("TimeUnit | Literal['']", call.kwargs.get("unit", "")),
         )
 
-    # The Drum refuses a unit that is not a TimeUnit.
-    unit = cast("TimeUnit | Literal['']", call.kwargs.get("unit", ""))
-    if not unit:
+    if "unit" not in call.kwargs:
         raise CsvReadError(f"{call.name} needs unit=")
+    # The Drum refuses a unit that is not a TimeUnit.
+    unit = cast("TimeUnit | Literal['']", call.kwargs["unit"])
     accumulator = call.kwargs.get("accumulator", "")
 
     if call.name == "time_event_drum":
-        presets = _parse_optional_list(call.kwargs.get("presets", "[]"))
-        events = _parse_optional_list(call.kwargs.get("events", "[]"))
-        if len(presets) != len(events):
+        presets = _list_arg(call, "presets", _parse_optional_list)
+        events = _list_arg(call, "events", _parse_optional_list)
+        if not _is_blank(presets) and not _is_blank(events) and len(presets) != len(events):
             raise CsvReadError(
                 f"time_event_drum needs one preset and one event per step "
                 f"(None for unused): {len(presets)} presets, {len(events)} events"
             )
-        if not accumulator:
+        if "accumulator" not in call.kwargs:
             raise CsvReadError("time_event_drum needs accumulator=")
         return Drum(
             kind="time_event_drum",
@@ -899,7 +950,7 @@ def parse_af_call(call: AfCall) -> Drum:
     return Drum(
         kind="time_drum",
         outputs=outputs,
-        presets=_parse_simple_list(call.kwargs.get("presets", "[]")),
+        presets=_list_arg(call, "presets", _parse_simple_list),
         pattern=pattern,
         current_step=current_step,
         completion_flag=completion_flag,

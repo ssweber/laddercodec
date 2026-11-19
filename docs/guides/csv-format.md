@@ -596,14 +596,17 @@ A range with a blank end reads the same way. `write_csv` writes a range with bot
 ends blank as `..`, and a range with one end blank as `..DS4` or `DS1..`.
 Elsewhere `..` is the value written (`copy(..,DS1)` is refused as an address).
 
-These blanks are still syntax errors, with no `field`:
+A blank list, target or search expression reads the same way:
 
-- a Timer or time drum `unit=`
-- a Math `mode=`
-- a drum list
-- a whole Modbus `target=`
-- a search expression
-- a blank argument that the token has no field for (`toggle(C1,on_acc=)`)
+- `event_drum(outputs=,...)` leaves `Drum.outputs` blank. An empty list,
+  `outputs=[]`, is a different value, and it is refused for its size.
+- `send(target=,...)` leaves `Send.target` blank.
+- `search(,result=DS1,found=C1)` leaves `Search.table_start`,
+  `Search.table_end`, `Search.op` and `Search.value` blank. The `FieldError`
+  holds a refusal of each of the four.
+
+A blank argument that the token has no field for, such as `on_acc=` in
+`toggle(C1,on_acc=)`, is still a syntax error, with no `field`.
 
 A token that is broken in another way is also a syntax error. A blank flag
 (`oneshot=`, `maintained=`) is `missing` in every instruction.
@@ -800,7 +803,8 @@ currently emit:
     - for each step, an event (event drum) or a duration (time drum). A time and
       event step needs a duration or an event.
   - Drum errors:
-    - A time drum or a time and event drum without a `unit=` is a syntax error.
+    - A time drum or a time and event drum without a `unit=` is a syntax error. A
+      blank `unit=` on them is a `FieldError` (`missing`).
     - A time and event drum without an `accumulator=` is a syntax error. A blank
       `accumulator=` on a time and event drum is a `FieldError` (`missing`).
     - A `unit=` that is not `Tms`, `Ts`, `Tm`, `Th` or `Td` raises `FieldError`. So

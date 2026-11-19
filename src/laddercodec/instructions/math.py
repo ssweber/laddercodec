@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
@@ -246,6 +246,13 @@ class Math(Instruction):
                     formula = check.run(parse, self.expression, self.mode)
                     if formula is not None:
                         object.__setattr__(self, "expression", formula.written)
+            else:
+                # A blank result or formula is refused in either mode. The decimal checks
+                # refuse it with the same message as the hex checks.
+                if self.dest == "":
+                    check("dest", check_address, RESULT_BANKS["decimal"], bank_id="OBJ-004")
+                if self.expression == "":
+                    check.run(parse, self.expression, "decimal")
             check.flag("oneshot")
 
     def to_csv(self) -> str:
@@ -423,12 +430,10 @@ def parse_af_call(call: AfCall) -> Math:
 
     expression, dest = call.args
     mode_arg = call.kwargs.get("mode", "decimal")
-    if mode_arg == "decimal":
-        mode: MathMode = "decimal"
-    elif mode_arg == "hex":
-        mode = "hex"
-    else:
+    if mode_arg not in ("decimal", "hex", ""):
         raise CsvReadError(f"math mode must be 'decimal' or 'hex', got {mode_arg!r}")
+    # The Math refuses a blank mode as missing.
+    mode = cast("MathMode", mode_arg)
 
     return Math(
         expression=expression,
