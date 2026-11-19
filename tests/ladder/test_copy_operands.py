@@ -43,7 +43,7 @@ _REFUSED = [
     ("copy(DS1,C1)", "can't take 'DS1'; a numeric register copies to"),
     # no constant goes into Y or C. A text constant goes into TXT only.
     ("copy(5,C1)", "can't take '5'; a number constant copies to"),
-    ('copy("A",DS1)', "can't take '\"A\"'; a text constant copies to TXT"),
+    ('copy("A",DS1)', 'can\'t take "A"; a text constant copies to TXT'),
     ("copy($41,DD1)", r"can't take '\$41'; a text constant copies to TXT"),
     # XD is not a destination
     ("copy(DS1,XD1)", "Copy.dest: 'XD1' is not allowed"),
@@ -87,7 +87,7 @@ _REFUSED = [
     ("fill(X001,DS1..DS5)", "Fill.value: 'X001' is not allowed"),
     ("fill(TXT1,DS1..DS4)", "can't take 'TXT1'; a TXT register copies to TXT"),
     ("fill(DS1,TXT1..TXT4)", "can't take 'DS1'; a numeric register copies to"),
-    ('fill("A",DS1..DS4)', "can't take '\"A\"'; a text constant copies to TXT"),
+    ('fill("A",DS1..DS4)', 'can\'t take "A"; a text constant copies to TXT'),
     ("fill(5,C1..C4)", "Fill.dest_start: 'C1..C4' is not allowed"),
     ("fill(0,DS1..DD5)", "Fill.dest_end: 'DD5' is not in the bank"),
     ("fill(DS[DS1],DS2..DS5)", "is a pointer; only a single Copy"),

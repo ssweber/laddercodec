@@ -226,8 +226,8 @@
   "shift C1..1.5": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: '1.5' is not a CLICK address"},
   "shift FFh..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'FFh' is not a CLICK address"},
   "shift C1..FFh": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 'FFh' is not a CLICK address"},
-  "shift \"A\"..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: '\"A\"' is not a CLICK address"},
-  "shift C1..\"A\"": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: '\"A\"' is not a CLICK address"},
+  "shift \"A\"..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: \"A\" is not a CLICK address"},
+  "shift C1..\"A\"": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: \"A\" is not a CLICK address"},
   "shift $41..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: '$41' is not a CLICK address"},
   "shift C1..$41": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: '$41' is not a CLICK address"}
 }

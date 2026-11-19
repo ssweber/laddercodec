@@ -141,7 +141,7 @@
   "hex 5 = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '5' is not a CLICK address"},
   "hex 1.5 = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '1.5' is not a CLICK address"},
   "hex FFh = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: 'FFh' is not a CLICK address"},
-  "hex \"A\" = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '\"A\"' is not a CLICK address"},
+  "hex \"A\" = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: \"A\" is not a CLICK address"},
   "hex $41 = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '$41' is not a CLICK address"},
   "hex DH1 = X001 + 1h": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: X001 is refused; a hex Math takes only DH, XD and YD registers and hex constants (OBJ-1002)"},
   "hex DH1 = X001": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: X001 is refused; a hex Math takes only DH, XD and YD registers and hex constants (OBJ-1002)"},

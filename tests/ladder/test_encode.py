@@ -403,7 +403,7 @@ def test_read_csv_refuses_empty_text_constant(
     tmp_path: Path, condition: str, af: str, field: str
 ) -> None:
     # A Copy or Fill refuses "" when it is built, as Compare and Search do.
-    with pytest.raises(FieldError, match=rf"{field}: '\"\"' is refused; a text constant") as exc:
+    with pytest.raises(FieldError, match=rf"{field}: \"\" is refused; a text constant") as exc:
         read_csv(_one_row_csv(tmp_path, condition, af))
     assert str(exc.value).isascii()
 
@@ -411,7 +411,7 @@ def test_read_csv_refuses_empty_text_constant(
 def test_replace_refuses_an_empty_text_constant(tmp_path: Path) -> None:
     # replace() raises the same FieldError that building the instance with that value raises.
     [rung] = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))
-    with pytest.raises(FieldError, match=r"^Copy.source: '\"\"' is refused") as exc:
+    with pytest.raises(FieldError, match=r"^Copy.source: \"\" is refused") as exc:
         replace(rung.instructions[0], source='""')
     assert exc.value.field == "Copy.source"
     copy = Copy(source='"Q"', dest="TXT1")

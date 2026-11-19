@@ -141,7 +141,7 @@
   "dec 5 = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '5' is not a CLICK address"},
   "dec 1.5 = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '1.5' is not a CLICK address"},
   "dec FFh = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: 'FFh' is not a CLICK address"},
-  "dec \"A\" = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '\"A\"' is not a CLICK address"},
+  "dec \"A\" = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: \"A\" is not a CLICK address"},
   "dec $41 = DS2 + 1": {"verdict": "refused", "error": "AddressError", "field": "Math.dest", "message": "Math.dest: '$41' is not a CLICK address"},
   "dec DS1 = X001 + 1": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: X001 is refused; a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, and X, Y, C, T and SC bits only as the range of SUM ( a : b ) (OBJ-1002)"},
   "dec DS1 = X001": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: X001 is refused; a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, and X, Y, C, T and SC bits only as the range of SUM ( a : b ) (OBJ-1002)"},

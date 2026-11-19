@@ -48,10 +48,11 @@ class LaddercodecError(ValueError):
 
         With ``names`` None or empty, return ``str(err)``.  Otherwise each address that
         ``names`` maps is replaced by its name.  CLICK's form of the value follows in
-        parentheses when the two differ.  A value that holds an address is shown without
-        quotes, even if no key of ``names`` is a CLICK address.  When a ``Math`` refusal
-        quotes the whole formula, names do not replace the addresses in it, and the formula
-        stays in quotes.  For the refusal ``err``
+        parentheses when the two differ.  A name that is another form of the same address,
+        such as ``X1`` for ``X001``, gets no parentheses.  A value that holds an address is
+        shown without quotes, even if no key of ``names`` is a CLICK address.  When a
+        ``Math`` refusal quotes the whole formula, names do not replace the addresses in it,
+        and the formula stays in quotes.  For the refusal ``err``
         that ``Copy(source="DS1", dest="C1")`` raises::
 
             str(err)
@@ -81,7 +82,9 @@ class LaddercodecError(ValueError):
         """Return the refused value and its rule, such as ``'C1' can't take 'DS1'``.
 
         The text has no ``Class.field:`` prefix, no explanation, no CLICK id and no CSV
-        location.  ``names`` works as it does for :meth:`message`.  For an error that does
+        location.  Where the rule names the field, it says ``this field`` instead, so
+        ``outside the range of Copy.dest`` becomes ``outside the range of this field``.
+        ``names`` works as it does for :meth:`message`.  For an error that does
         not show names, return ``str(err)`` without its ``Class.field:`` prefix and without
         its CSV location.
         """
@@ -100,6 +103,8 @@ class LaddercodecError(ValueError):
         """Return the explanation alone, such as ``a numeric register copies to DS, DD, ...``.
 
         If the error also tells you what to do, that sentence follows the explanation.
+        Where the explanation names the field, it says ``this field`` instead, so
+        ``Fill.value takes one character`` becomes ``this field takes one character``.
         ``names`` works as it does for :meth:`message`.  Return an empty string for a
         refusal that has no explanation, and for an error that does not show names.
         """

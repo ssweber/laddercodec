@@ -26,6 +26,7 @@ Not public API.
 from __future__ import annotations
 
 import dataclasses
+import re
 import reprlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -249,12 +250,13 @@ class Parts:
 
     def text(self, named: Mapping[str, str] | None = None) -> str:
         """Return the whole message, with ``named`` (display form to name) applied."""
-        body = self.short_text(named)
+        label = self.label or ""
+        body = self._render(self.short, named, label)
         tail = f" ({self.click_id})" if self.click_id else ""
         if self.id_after_short:
             body += tail
         if self.detail:
-            body += "; " + self._render(self.detail, named)
+            body += "; " + self._render(self.detail, named, label)
         if not self.id_after_short:
             body += tail
         if self.then:
@@ -262,23 +264,33 @@ class Parts:
         return body if self.label is None else f"{self.label}: {body}"
 
     def short_text(self, named: Mapping[str, str] | None = None) -> str:
-        """Return the operand and its short rule."""
-        return self._render(self.short, named)
+        """Return the operand and its short rule.
+
+        Where the rule names the label, it says ``this field`` instead (see
+        :func:`_this_field`).
+        """
+        return self._render(self.short, named, _this_field(self.label))
 
     def detail_text(self, named: Mapping[str, str] | None = None) -> str:
-        """Return the explanation, followed by the sentence that says what to do."""
-        detail = self._render(self.detail, named)
+        """Return the explanation, followed by the sentence that says what to do.
+
+        Where the explanation names the label, it says ``this field`` instead (see
+        :func:`_this_field`).
+        """
+        detail = self._render(self.detail, named, _this_field(self.label))
         if detail and self.then:
             return f"{detail}. {self.then}"
         return detail or self.then
 
-    def _render(self, pieces: tuple[Piece, ...], named: Mapping[str, str] | None) -> str:
+    def _render(
+        self, pieces: tuple[Piece, ...], named: Mapping[str, str] | None, label: str
+    ) -> str:
         out = []
         for piece in pieces:
             if isinstance(piece, Op):
                 out.append(_shown(piece, named))
             elif piece is LABEL:
-                out.append(self.label or "")
+                out.append(label)
             else:
                 assert isinstance(piece, str)
                 out.append(piece)
@@ -318,6 +330,29 @@ class Parts:
         return self.map_ops(change)
 
 
+#: A label that names one field: ``Copy.dest``, ``Drum.events[0]``, ``Send source`` or a
+#: bare ``done``.  It may end in `` pointer`` or in a note in brackets, such as ``(FC16)``.
+_FIELD_LABEL = re.compile(r"(?:[A-Z]\w*[. ])?[a-z_]\w*(?:\[\d+\])?(?P<rest>| pointer| \(.*\))")
+
+
+def _this_field(label: str | None) -> str:
+    """Return the words that :meth:`Parts.short_text` and :meth:`Parts.detail_text` put in
+    place of ``label``.
+
+    A caller shows these texts next to the field, so a label that names the field becomes
+    ``this field``.  ``Copy.source pointer`` becomes ``the pointer``, and
+    ``Send source (FC16)`` becomes ``this field (FC16)``.  Any other label is kept, such
+    as ``range end of 'C1..'``.
+    """
+    if label is None:
+        return ""
+    match = _FIELD_LABEL.fullmatch(label)
+    if match is None:
+        return label
+    rest = match.group("rest")
+    return "the pointer" if rest == " pointer" else f"this field{rest}"
+
+
 def _shown(op: Op, named: Mapping[str, str] | None) -> str:
     """Return ``op`` as a message shows it.
 
@@ -325,7 +360,12 @@ def _shown(op: Op, named: Mapping[str, str] | None) -> str:
     of CLICK's form when there is one.  With ``named`` a mapping, even an empty one, an
     operand that holds an address is shown as typed without quotes, with each address in
     ``named`` replaced by its name.  CLICK's form follows in parentheses when the two
-    differ.  An operand that holds no address is shown as it is with ``named`` None.
+    differ.  They do not differ when each name that is not CLICK's form is another form of
+    the same address, such as ``X1`` for ``X001``.  An operand that holds no address is
+    shown as it is with ``named`` None.
+
+    A text constant such as ``"AB"`` is shown in its own double quotes, with no repr
+    quotes around them.
     """
     # A caller can pass a field a value that is not text.  Such a value names no address.
     if (
@@ -333,16 +373,38 @@ def _shown(op: Op, named: Mapping[str, str] | None) -> str:
         and isinstance(op.text, str)
         and _renamed(op.text, {}, loose=False) is not None
     ):
-        shown = _renamed(
-            op.text if op.typed is None else op.typed, named, loose=op.typed is not None
-        )
+        base = op.text if op.typed is None else op.typed
+        loose = op.typed is not None
+        shown = _renamed(base, named, loose=loose)
         if shown is not None:
-            return shown if shown == op.text else f"{shown} ({op.text})"
-    if not op.quoted:
+            if shown == op.text:
+                return shown
+            # Compare with each name that is its own address put back in CLICK's form.
+            own = {d: d for d, name in named.items() if _display(name, loose=True) == d}
+            if own and _renamed(base, {**named, **own}, loose=loose) == op.text:
+                return shown
+            return f"{shown} ({op.text})"
+    if not op.quoted or _is_text_constant(op.text):
         return op.text
     if op.typed is not None and op.typed != op.text:
         return f"{op.typed!r} ({op.text})"
     return repr(op.text)
+
+
+def _is_text_constant(text: object) -> bool:
+    """Return whether ``text`` is a text constant in its double quotes, such as ``"AB"``.
+
+    Text with a quote inside, or with a character that repr would escape, such as a
+    newline, is not one here.  Without the repr quotes, a reader could not tell where it
+    ends.
+    """
+    return (
+        isinstance(text, str)
+        and len(text) >= 2
+        and text[0] == text[-1] == '"'
+        and '"' not in text[1:-1]
+        and text.isprintable()
+    )
 
 
 def _display(text: str, *, loose: bool) -> str | None:
