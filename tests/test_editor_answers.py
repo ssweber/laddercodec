@@ -91,6 +91,10 @@ ANSWER_FILES = (
     "coil_sc",
     "coil_sc_ranges",
     "compare_const",
+    "coil_sc_ranges2",
+    "ip_field",
+    "ip_field_per_field",
+    "ip_field_neg",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -264,6 +268,25 @@ SEND_TXT_ODD_START = (
     "to do: CLICK refuses a Send from an even TXT address with OBJ-028, before it checks "
     "the count. The rules have no code for this refusal yet. They accept the start. With FC16 "
     "they refuse the count with OBJ-010, and with FC06 they accept the Send"
+)
+
+IP_UNTYPED = (
+    "deliberate: CLICK accepts this IP when each part is set as text, and saves 256.0.0.1 "
+    "as 0.0.0.1, 1.2.3.256 as 1.2.4.0, a.b.c.d as 0.0.0.0, ' 1.2.3.4' as 0.2.3.4, "
+    "'1.2.3.4 ' as 1.2.3.4, 1.2.3.-0 as 1.2.3.0, 1.2.3.-2 as 1.2.2.254 and 1.2.3.-256 as "
+    "1.2.2.231. No one can type this text into the IP control, so laddercodec refuses it"
+)
+IP_PADDED = (
+    "kept: CLICK's IP control drops the leading zeros of each part, and the dialog saves "
+    "1.2.3.4. CLICK saves a pasted IP with its leading zeros, and the dialog shows each "
+    "part as a decimal number. laddercodec accepts the IP and writes it as given. Where a "
+    "Send with this IP connects on the PLC is not known"
+)
+IP_PADDED_LABELS = (
+    "send fc06 984 400001 <- DS1 ip='01.2.3.4'",
+    "send fc06 984 400001 <- DS1 ip='001.002.003.004'",
+    "receive fc03 984 DS1 <- 400001 ip='01.2.3.4'",
+    "receive fc03 984 DS1 <- 400001 ip='001.002.003.004'",
 )
 
 
@@ -741,16 +764,37 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "send fc16 984 1 <- DS1 x2",
         ),
     ),
+    (
+        IP_UNTYPED,
+        "ip_field_per_field",
+        "outcome",
+        tuple(
+            f"{case} ip='{ip}'"
+            for case in ("send fc06 984 400001 <- DS1", "receive fc03 984 DS1 <- 400001")
+            for ip in ("256.0.0.1", "1.2.3.256", "a.b.c.d", " 1.2.3.4", "1.2.3.4 ")
+        ),
+    ),
+    (
+        IP_UNTYPED,
+        "ip_field_neg",
+        "outcome",
+        tuple(
+            f"{case} ip='{ip}'"
+            for case in ("send fc06 984 400001 <- DS1", "receive fc03 984 DS1 <- 400001")
+            for ip in ("1.2.3.-0", "1.2.3.-2", "1.2.3.-256")
+        ),
+    ),
+    (IP_PADDED, "ip_field", "outcome", IP_PADDED_LABELS),
 )
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4846
+CODES_COMPARED = 4880
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
 #: outcome is one where CLICK closed before it answered.
-NOT_TAKEN = 127
+NOT_TAKEN = 161
 NO_OUTCOME = 2
 CRASHED = 3
 NO_READ_BACK = 27
@@ -1191,6 +1235,8 @@ def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
                 # not type them.
                 filled = CLICK_FILLS.get(case["instruction"], ())
                 shown = {k: v for k, v in read_back.items() if k not in filled or k in fields}
+                if "ip" not in fields and shown.get("ip") == BLANK_IP:
+                    del shown["ip"]
                 assert shown == fields, (grid, case["case"])
     return tally
 
@@ -1199,33 +1245,46 @@ def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
 #: Counter's current value and completion bit. CLICK fills them from the done bit.
 CLICK_FILLS = {"timer": ("accumulator",), "counter": ("accumulator", "completion_bit")}
 
+#: The text that a blank IP control reads back as. A case that types no IP reads back this.
+BLANK_IP = "..."
+
 #: The bounds that a Drum's dialog holds its step and output counts to.
 DRUM_COUNT_BOUNDS = {"num_steps": (1, 16), "num_outputs": (1, 16)}
 
 #: The runner's message for a case whose dialog closed a field the case typed.
 CLOSED_FIELDS = "these fields are closed for entry: "
+#: The end of the runner's message for a case whose IP it did not put in the IP control.
+IP_NOT_TYPED = "is not four numbers from 0 to 255, and an IP address control takes nothing else"
 
 
 def held_fields(case: dict[str, Any]) -> dict[str, str]:
     """Return the fields of a not_taken case as its dialog holds them.
 
-    A not_taken case reads back as typed, with three exceptions:
+    A not_taken case reads back as typed, with four exceptions:
 
     - A Drum's dialog holds a step or output count past its bound at the bound, so 0 reads
       back as 1 and 17 as 16.
     - A Receive's dialog holds the count of a YD master address at 1.
     - A dialog that closes the count box holds no count.
+    - The IP control of a Send or Receive holds each part of an IP without its leading
+      zeros, so 001.002.003.004 reads back as 1.2.3.4. The runner puts only four numbers
+      from 0 to 255 in the IP control. For any other IP, the control holds no IP.
 
     Any other difference fails the test.
     """
     fields = dict(case["fields"])
+    message = case["message"] or ""
+    parts = fields.get("ip", "").split(".")
+    if message.endswith(IP_NOT_TYPED):
+        del fields["ip"]
+    elif len(parts) == 4 and all(part.isdecimal() for part in parts):
+        fields["ip"] = ".".join(str(int(part)) for part in parts)
     if case["instruction"] == "drum":
         for name, (low, high) in DRUM_COUNT_BOUNDS.items():
             if fields.get(name, "").isdecimal():
                 fields[name] = str(min(max(int(fields[name]), low), high))
     if case["instruction"] == "receive" and fields.get("master_address", "").startswith("YD"):
         fields["count"] = "1"
-    message = case["message"] or ""
     if message.startswith(CLOSED_FIELDS) and message[len(CLOSED_FIELDS) :] == "count":
         del fields["count"]
     return fields
@@ -1336,7 +1395,7 @@ def test_answers_are_the_grids_cases() -> None:
 
 
 #: The answer files of the grids that ClickNick wrote, and the grids that each file answers,
-#: in the order of its cases.
+#: in the order of its cases. Two runs answered ``ip_field.json``, so two files answer it.
 RUNNER_ANSWERS = {
     "receive_click": ("receive_click", "receive_click_count1"),
     "drum_events": ("drum_events",),
@@ -1346,15 +1405,21 @@ RUNNER_ANSWERS = {
     "coil_sc": ("coil_sc",),
     "coil_sc_ranges": ("coil_sc_ranges",),
     "compare_const": ("compare_const",),
+    "coil_sc_ranges2": ("coil_sc_ranges2",),
+    "ip_field": ("ip_field",),
+    "ip_field_per_field": ("ip_field",),
+    "ip_field_neg": ("ip_field_neg",),
 }
 
 
 def test_runner_answers_are_the_grids_cases(generator: Any) -> None:
     """Each answer file of a grid that ClickNick wrote holds the cases of its grids, in order.
-    Each answer holds its case's keys with the same values."""
-    assert sorted(g for grids in RUNNER_ANSWERS.values() for g in grids) == sorted(
-        generator.RUNNER_GRIDS
-    )
+    Each answer holds its case's keys with the same values. RUNNER_GRIDS names each grid
+    once. Each grid that ClickNick wrote has at least one answer file, and each answer file
+    is compared."""
+    assert len(set(generator.RUNNER_GRIDS)) == len(generator.RUNNER_GRIDS)
+    assert {g for grids in RUNNER_ANSWERS.values() for g in grids} == set(generator.RUNNER_GRIDS)
+    assert set(RUNNER_ANSWERS) <= set(ANSWER_FILES)
     for name, grids in RUNNER_ANSWERS.items():
         cases = [
             case

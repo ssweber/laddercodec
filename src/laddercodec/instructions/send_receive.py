@@ -219,19 +219,44 @@ def _device_id_reason(device_id: str, field: str) -> Reason:
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
+#: The parts of an IP that CLICK refuses with OBJ-005: a blank part, -1 and -01.
+_IP_REFUSED_PARTS = frozenset({"", "-1", "-01"})
 
 
 def _check_ip(check: Refusals, ip: str) -> None:
     """Refuse an IP address that is not four decimal octets, each from 0 to 255.
 
-    0.0.0.0 is accepted.
+    0.0.0.0 is accepted. An octet may have leading zeros, as in 01.2.3.4, and the IP is
+    stored as it was given.
     """
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
     rule = says("must be four octets, each 0-255 (a.b.c.d), got {ip}", ip=operand(ip))
     if m is None:
-        check.refuse("ip", rule, Reason.FORM, code=Code.INVALID_MODBUS_TARGET)
+        check.refuse("ip", rule, Reason.FORM, _ip_click_id(ip), code=Code.INVALID_MODBUS_TARGET)
     elif any(int(octet) > 255 for octet in m.groups()):
         check.refuse("ip", rule, Reason.RANGE, code=Code.INVALID_MODBUS_TARGET)
+
+
+def _ip_click_id(ip: object) -> str | None:
+    """Return CLICK's id for the refusal of *ip*, or None if CLICK's id for it is not known.
+
+    The id is OBJ-005 for a blank IP. It is also OBJ-005 for four parts where each part is
+    an octet from 0 to 255, a blank, -1 or -01, and at least one part is not an octet, as
+    in 1..3.4, 1.2.3.-1 and -1.2..4. Any other negative part, such as -0, -2 or -001, has
+    no id.
+    """
+    if not isinstance(ip, str):
+        return None
+    if ip == "":
+        return "OBJ-005"
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return None
+    refused = sum(part in _IP_REFUSED_PARTS for part in parts)
+    octets = sum(
+        part.isascii() and part.isdigit() and len(part) <= 3 and int(part) <= 255 for part in parts
+    )
+    return "OBJ-005" if refused and refused + octets == 4 else None
 
 
 #: The most digits that int() converts. A decimal address with more digits is refused as

@@ -1725,6 +1725,22 @@ def _send_number(text: str) -> Any:
     return text
 
 
+def _target(f: dict[str, str], com_port: str, device_id: Any) -> ModbusRtuTarget | ModbusTcpTarget:
+    """Return the target of a Send or Receive case on ``com_port``.
+
+    On a TCP port, the target has the case's IP and server port. A case that types no IP
+    leaves the IP control blank, so the target is built with the IP ``""``."""
+    if com_port in TCP_PORTS:
+        return ModbusTcpTarget(
+            name="tcp",
+            ip=f.get("ip", ""),
+            port=_send_number(f["server_port"]),
+            device_id=device_id,
+            com_port=cast(ModbusTcpPort, com_port),
+        )
+    return ModbusRtuTarget(name="rtu", com_port=cast(ModbusRtuPort, com_port), device_id=device_id)
+
+
 def _send_build(case: dict[str, Any]) -> Callable[[], Send]:
     """Return a function that builds the Send of ``case``."""
     f, choices = case["fields"], case["choices"]
@@ -1733,22 +1749,7 @@ def _send_build(case: dict[str, Any]) -> Callable[[], Send]:
     addressing = choices["addressing"]
 
     def build() -> Send:
-        device_id = _send_number(f["slave_id"])
-        target: ModbusRtuTarget | ModbusTcpTarget
-        if com_port in TCP_PORTS:
-            target = ModbusTcpTarget(
-                name="send",
-                ip=f["ip"],
-                port=_send_number(f["server_port"]),
-                device_id=device_id,
-                com_port=cast(ModbusTcpPort, com_port),
-            )
-        else:
-            target = ModbusRtuTarget(
-                name="send",
-                com_port=cast(ModbusRtuPort, com_port),
-                device_id=device_id,
-            )
+        target = _target(f, com_port, _send_number(f["slave_id"]))
         text = f["slave_address"]
         remote: str | ModbusAddress
         if addressing == SEND_ADDRESSING["click"]:
@@ -2116,21 +2117,21 @@ assert set(RECEIVE_FUNCTIONS) == set(get_args(ReceiveFunctionCode))
 def receive_build(case: dict[str, Any], count: str | None = None) -> Callable[[], Receive]:
     """Return a function that builds the Receive of ``case``.
 
-    The Receive reads from slave 1 on CPU Port2, unless the case types a Slave ID. With
-    CLICK addressing, the slave address is the address text. With any other addressing, or
-    with none picked, it is a ``ModbusAddress`` of the text. ``count`` is the text of the
+    The Receive reads from slave 1 on CPU Port2, unless the case types a Slave ID or picks a
+    port. On a TCP port, it reads from the case's IP and server port. With CLICK addressing,
+    the slave address is the address text. With any other addressing, or with none picked,
+    it is a ``ModbusAddress`` of the text. ``count`` is the text of the
     count to build with. If it is None, the count is the one that the case types, or 1."""
     f, choices = case["fields"], case["choices"]
     code = next(n for n, item in RECEIVE_FUNCTIONS.items() if item == choices["function"])
     text = f["slave_address"]
     click = choices.get("addressing") == SEND_ADDRESSING["click"]
     quantity = f.get("count", "1") if count is None else count
+    com_port = SEND_PORTS[choices["port"]] if "port" in choices else "cpu2"
 
     def build() -> Receive:
         return Receive(
-            target=ModbusRtuTarget(
-                name="r", com_port="cpu2", device_id=_send_number(f.get("slave_id", "1"))
-            ),
+            target=_target(f, com_port, _send_number(f.get("slave_id", "1"))),
             remote_start=text if click else ModbusAddress(text),
             dest=f["master_address"],
             quantity=_send_number(quantity),
@@ -2315,6 +2316,9 @@ RUNNER_GRIDS = (
     "coil_sc",
     "coil_sc_ranges",
     "compare_const",
+    "coil_sc_ranges2",
+    "ip_field",
+    "ip_field_neg",
 )
 
 

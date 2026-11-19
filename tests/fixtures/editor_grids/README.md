@@ -39,14 +39,20 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `coil_sc.json` | Set and Reset of each SC address that Out writes, and of SC49 and SC163 |
 | `coil_sc_ranges.json` | Out, Set and Reset of the SC ranges SC50..SC60, SC50..SC53 and SC162..SC165, each of which holds a read-only SC between writable ends, and of SC50..SC51 and SC60..SC61 |
 | `compare_const.json` | Compare with constants: two texts, two numbers, a text against a number, `"A"=="B"` against `"C"`, and `"A"` against TXT1 |
+| `coil_sc_ranges2.json` | Set and Reset of a range whose two ends are one address (`C1..C1`, `Y001..Y001`, `SC50..SC50`), a reversed range, a range across two banks, and `C1..C2` |
+| `ip_field.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: an IP with a part above 255, with three or five parts, with leading zeros (`01.2.3.4`, `001.002.003.004`), with letters, with a negative part, with a blank part, with a dot at the end, with a space at either end, or with commas; a blank IP; and `192.168.1.1` |
+| `ip_field_neg.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: `1.2.3.-2`, `1.2.3.-0`, `1.2.3.-01`, `1.2.3.-256`, `-1.-1.3.4`, `-1.2..4`, `.2.3.4`, `1.2.3.` and `1...4`; and `1.2.3.4` |
 
 ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
 `drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
-`drum_events_padded2.json`, `coil_sc.json`, `coil_sc_ranges.json` and `compare_const.json`.
+`drum_events_padded2.json`, `coil_sc.json`, `coil_sc_ranges.json`, `compare_const.json`,
+`coil_sc_ranges2.json`, `ip_field.json` and `ip_field_neg.json`.
 The files hold ClickNick's text as it wrote it. The generator does not write them. It reads
 them and writes their verdicts files. A Receive case types `slave_address`, `master_address`,
 `count`, `receiving`, `success`, `error` and `exception`, and picks an item in the `function`
-and `addressing` lists. It types no Slave ID and picks no port. A Set or Reset case types
+and `addressing` lists. It types no Slave ID and picks no port, except in `ip_field.json`
+and `ip_field_neg.json`. A case there picks CPU Port1 and types the Slave ID, `server_port`
+and `ip`, as a Send case does. A case that types no `ip` leaves the IP control blank. A Set or Reset case types
 `address` and `address_end` as an Out case does. A time and event drum case types the fields
 of a time drum and the events of an event drum.
 
@@ -194,9 +200,12 @@ it as not a number, or reads a Slave ID as a DS address. A case without `count` 
 a count of 1. Word Swap is on when the case picks `ON`.
 
 A Receive case is built as `Receive` with the function code that the case picks, from slave 1
-on CPU Port2. With CLICK addressing, the slave address is the address text. With any other
-addressing, or with none picked, it is a `ModbusAddress` of the text. A case without `count`
-is built with a count of 1.
+on CPU Port2. If the case picks a port, the Receive is on that port. If the case types a Slave
+ID, the Receive reads from that Slave ID. On `CPU Port1` or `WLAN Port`, the target is a
+`ModbusTcpTarget` with the case's IP and server port, as for a Send. A Send or Receive case
+that types no IP is built with the IP `""`. With CLICK addressing, the slave address is the address text. With
+any other addressing, or with none picked, it is a `ModbusAddress` of the text. A case
+without `count` is built with a count of 1.
 
 laddercodec reads a slave address that ends in `h` as hex, and an address of digits only as
 MODBUS 984. It would read `1h` typed in 984 addressing as hex, and `10` typed in hex addressing
@@ -236,6 +245,10 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `coil_sc.answers.json` | the answers to `coil_sc.json` (54 cases) |
 | `coil_sc_ranges.answers.json` | the answers to `coil_sc_ranges.json` (15 cases) |
 | `compare_const.answers.json` | the answers to `compare_const.json` (7 cases) |
+| `coil_sc_ranges2.answers.json` | the answers to `coil_sc_ranges2.json` (16 cases) |
+| `ip_field.answers.json` | the answers to `ip_field.json` (30 cases), with the IP typed into the IP control. The runner types only four numbers from 0 to 255 there, so each other IP that a case types is `not_taken`. The four cases with leading zeros are `not_taken` too, because the control reads them back without the zeros |
+| `ip_field_per_field.answers.json` | the answers to `ip_field.json` again (30 cases), with each part of the IP set as text. No one can type some of this text into the IP control |
+| `ip_field_neg.answers.json` | the answers to `ip_field_neg.json` (20 cases), with each part of the IP set as text, as in `ip_field_per_field.answers.json` |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
 | `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused |
 | `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`) |
@@ -250,12 +263,13 @@ A case with `outcome` `not_taken` has no answer, because CLICK did not take the 
 must refuse it. A case with a null `outcome` has none either: CLICK closed before it answered. A case with
 `outcome` `crashed` has none: CLICK exited after the case's OK without answering. The `read_back`
 of a `not_taken` case shows what the dialog held. It differs from the text that the case asked
-for in three ways only. A Drum's dialog holds a step or output count past its bound at the bound,
+for in four ways only. A Drum's dialog holds a step or output count past its bound at the bound,
 so 0 is held as 1 and 17 as 16. A Receive's dialog holds the count of a YD master address at 1.
-A dialog that closes the count box holds no count. 27 `not_taken` cases have a null
-`read_back` and null `limits`, because the runner never reached their fields. They are the Send
-cases on a slot port that the PLC's port list does not hold, two Send cases whose Word Swap list
-is closed, and a unit on an event drum.
+A dialog that closes the count box holds no count. The IP control holds each part of an IP
+without its leading zeros, and it holds no IP where the runner did not type one. 27
+`not_taken` cases have a null `read_back` and null `limits`, because the runner never reached
+their fields. They are the Send cases on a slot port that the PLC's port list does not hold,
+two Send cases whose Word Swap list is closed, and a unit on an event drum.
 
 `tests/test_editor_answers.py` compares them with laddercodec's rules: each case is rebuilt with
 the generator's builders (a Receive at the count that the case types, else at the count that

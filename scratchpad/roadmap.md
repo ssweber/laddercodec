@@ -515,6 +515,14 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Receive into Y101 or later from a CLICK C, T, CT or SC address.** The count room there may be 0, which
   would refuse every count. The code uses the slot run (Y101 from T1 allows 16) and, for C, the C room. Check
   Y101 from C1 with 17 and with 102 elements, and Y101 from T1 with 1 element.
+- **A Send or Receive IP with leading zeros (Sam).** CLICK's dialog drops the leading zeros of each part, and
+  saves `01.2.3.4` as `1.2.3.4`. CLICK keeps the leading zeros of a pasted IP. It saves `01.2.3.4`,
+  `010.2.3.4` and `001.002.003.004` as pasted, and its Edit > Copy of the rung holds them the same. The dialog
+  shows each part as a decimal number, so it shows `010.2.3.4` as `10.2.3.4`. It does not read `010` as octal.
+  laddercodec 0.4.0 and every earlier release accepted a padded IP and wrote it as given, and the code still
+  does. Open: which address a Send with a padded IP connects to on the PLC. The check needs a project written
+  to a PLC, and Sam must approve that. Sam then decides whether laddercodec writes the IP as the dialog saves
+  it.
 - **Which X point is the 17th element from X001** in a Send or Receive. CLICK stores only the start and the
   count, so this needs a PLC.
 - **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?

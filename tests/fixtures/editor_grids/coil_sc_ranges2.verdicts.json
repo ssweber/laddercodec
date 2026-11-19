@@ -1,0 +1,18 @@
+{
+  "set C1..C1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'C1' is not above 'C1'; a range runs from a lower to a higher address (OBJ-012)"},
+  "set Y001..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is not above 'Y001'; a range runs from a lower to a higher address (OBJ-012)"},
+  "set SC50..SC50": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'SC50' is not above 'SC50'; a range runs from a lower to a higher address (OBJ-012)"},
+  "set C2..C1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'C1' is not above 'C2'; a range runs from a lower to a higher address (OBJ-009)"},
+  "set Y002..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is not above 'Y002'; a range runs from a lower to a higher address (OBJ-009)"},
+  "set C1..DS1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'DS1' is in bank DS; the range starts in bank C and must stay in it (OBJ-008)"},
+  "set C1..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is in bank Y; the range starts in bank C and must stay in it (OBJ-008)"},
+  "set C1..C2": {"verdict": "accepted"},
+  "reset C1..C1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'C1' is not above 'C1'; a range runs from a lower to a higher address (OBJ-012)"},
+  "reset Y001..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is not above 'Y001'; a range runs from a lower to a higher address (OBJ-012)"},
+  "reset SC50..SC50": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'SC50' is not above 'SC50'; a range runs from a lower to a higher address (OBJ-012)"},
+  "reset C2..C1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'C1' is not above 'C2'; a range runs from a lower to a higher address (OBJ-009)"},
+  "reset Y002..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is not above 'Y002'; a range runs from a lower to a higher address (OBJ-009)"},
+  "reset C1..DS1": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'DS1' is in bank DS; the range starts in bank C and must stay in it (OBJ-008)"},
+  "reset C1..Y001": {"verdict": "refused", "error": "FieldError", "field": "Coil.range_end", "message": "Coil.range_end: 'Y001' is in bank Y; the range starts in bank C and must stay in it (OBJ-008)"},
+  "reset C1..C2": {"verdict": "accepted"}
+}

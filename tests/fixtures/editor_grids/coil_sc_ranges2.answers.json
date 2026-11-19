@@ -1,0 +1,380 @@
+{
+ "grid": "coil_sc_ranges2.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "g3"
+ ],
+ "cases": [
+  {
+   "row": "set.ranges",
+   "case": "set C1..C1",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.965,
+   "read_back": {
+    "address": "C1",
+    "address_end": "C1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set Y001..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "Y001",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.766,
+   "read_back": {
+    "address": "Y001",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set SC50..SC50",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.23,
+   "read_back": {
+    "address": "SC50",
+    "address_end": "SC50"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C2..C1",
+   "instruction": "set",
+   "fields": {
+    "address": "C2",
+    "address_end": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-009",
+   "message": "Please enter an end address that is larger than the start address.",
+   "syntax_check": null,
+   "seconds": 2.789,
+   "read_back": {
+    "address": "C2",
+    "address_end": "C1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set Y002..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "Y002",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-009",
+   "message": "Please enter an end address that is larger than the start address.",
+   "syntax_check": null,
+   "seconds": 2.699,
+   "read_back": {
+    "address": "Y002",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C1..DS1",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 2.769,
+   "read_back": {
+    "address": "C1",
+    "address_end": "DS1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C1..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 2.729,
+   "read_back": {
+    "address": "C1",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "set.ranges.control",
+   "case": "set C1..C2",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "C2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.285,
+   "read_back": {
+    "address": "C1",
+    "address_end": "C2"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(C1..C2)"
+   ]
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..C1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.852,
+   "read_back": {
+    "address": "C1",
+    "address_end": "C1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset Y001..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "Y001",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.908,
+   "read_back": {
+    "address": "Y001",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset SC50..SC50",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 2.833,
+   "read_back": {
+    "address": "SC50",
+    "address_end": "SC50"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C2..C1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C2",
+    "address_end": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-009",
+   "message": "Please enter an end address that is larger than the start address.",
+   "syntax_check": null,
+   "seconds": 2.802,
+   "read_back": {
+    "address": "C2",
+    "address_end": "C1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset Y002..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "Y002",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-009",
+   "message": "Please enter an end address that is larger than the start address.",
+   "syntax_check": null,
+   "seconds": 2.956,
+   "read_back": {
+    "address": "Y002",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..DS1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 2.79,
+   "read_back": {
+    "address": "C1",
+    "address_end": "DS1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 2.861,
+   "read_back": {
+    "address": "C1",
+    "address_end": "Y001"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "reset.ranges.control",
+   "case": "reset C1..C2",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "C2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 6.584,
+   "read_back": {
+    "address": "C1",
+    "address_end": "C2"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(C1..C2)"
+   ]
+  }
+ ]
+}
