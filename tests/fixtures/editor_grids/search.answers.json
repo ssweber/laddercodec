@@ -2,7 +2,7 @@
  "grid": "search.json",
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
- "runs": ["search-1"],
+ "runs": ["search-1", "q1"],
  "cases": [
   {
    "row": "search.control",
@@ -27571,6 +27571,129 @@
     "result": 16,
     "found": 16
    }
+  },
+  {
+   "row": "search.text.quotes",
+   "case": "search TXT1..TXT10 == \"A\"B\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"A\"B\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case21 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase21 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case21",
+    "lines": []
+   },
+   "seconds": 7.071,
+   "read_back": {
+    "value": "\"A\"B\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Search,5300650061007200630068000000222700000100060000006560ffffffff2200410022004200220000006660ffffffff540058005400310000006760ffffffff5400580054003100300000007960ffffffff440053003300300000007a60ffffffff4300310000000000ffffffff0000,rows=2,sub=3)\""
+   ]
+  },
+  {
+   "row": "search.text.quotes",
+   "case": "search TXT1..TXT10 == \"\"\"\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"\"\"\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case22 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase22 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case22",
+    "lines": []
+   },
+   "seconds": 6.773,
+   "read_back": {
+    "value": "\"\"\"\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Search,0x2722,1,rows=2,sub=3,6065=\"\"\"\"\"\"\"\",6066=TXT1,6067=TXT10,6079=DS30,607a=C1,0000=)\""
+   ]
+  },
+  {
+   "row": "search.text.quotes",
+   "case": "search TXT1..TXT10 == \"\"\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"\"\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case23 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase23 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case23",
+    "lines": []
+   },
+   "seconds": 6.752,
+   "read_back": {
+    "value": "\"\"\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Search,5300650061007200630068000000222700000100060000006560ffffffff22002200220000006660ffffffff540058005400310000006760ffffffff5400580054003100300000007960ffffffff440053003300300000007a60ffffffff4300310000000000ffffffff0000,rows=2,sub=3)\""
+   ]
   }
  ]
 }

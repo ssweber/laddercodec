@@ -809,6 +809,9 @@
   {"row": "search.result.forms", "case": "search DS1..DS10 == DS20 -> ds1,C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "ds1", "found": "C1"}},
   {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,ds1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "ds1"}},
   {"row": "search.result.forms", "case": "search DS1..DS10 == DS20 -> DS001,C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS001", "found": "C1"}},
-  {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,DS001", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "DS001"}}
+  {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,DS001", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "DS001"}},
+  {"row": "search.text.quotes", "case": "search TXT1..TXT10 == \"A\"B\" -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "\"A\"B\"", "start": "TXT1", "end": "TXT10", "result": "DS30", "found": "C1"}},
+  {"row": "search.text.quotes", "case": "search TXT1..TXT10 == \"\"\"\" -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "\"\"\"\"", "start": "TXT1", "end": "TXT10", "result": "DS30", "found": "C1"}},
+  {"row": "search.text.quotes", "case": "search TXT1..TXT10 == \"\"\" -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "\"\"\"", "start": "TXT1", "end": "TXT10", "result": "DS30", "found": "C1"}}
  ]
 }

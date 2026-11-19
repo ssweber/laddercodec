@@ -91,7 +91,7 @@ class Constants:
     """The constants one field takes: the parameters of :func:`check_constant`.
 
     The defaults are :func:`~laddercodec.operands.constants.classify`'s own limits, with
-    text in printable ASCII.
+    text in printable ASCII and with no quote inside it.
     """
 
     #: The kinds the field takes.
@@ -115,6 +115,9 @@ class Constants:
     text_max: int = TEXT_MAX
     #: Whether a text constant holds printable ASCII only (space to ``~``).
     printable: bool = True
+    #: Whether a text constant may hold a quote between its outer quotes.  Each quote is
+    #: one character of the text, so ``"A""B"`` is the four characters ``A""B``.
+    quote: bool = False
     #: Whether ``$`` and one hex digit (``$1``) is a character code, kept as typed.
     one_digit_char: bool = False
     #: The most characters the typed constant may have, or ``None``.
@@ -276,34 +279,15 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
     if len(value) >= 2 and value[0] == value[-1] == '"':
         if Kind.TEXT not in kinds:
             return _kind_refusal(value, at, Kind.TEXT, constants)
-        if constants.text_max == 1:
-            rule = "a text constant is one character in quotes"
-        else:
-            rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
-        # classify() refuses a quote inside the text, an empty text and a text longer than
-        # TEXT_MAX.  No form holds a quote together with other characters: $22 is a lone
-        # quote character.  A field of one character keeps the rule below.
-        inner = value[1:-1]
-        quoted = '"' in inner
-        if quoted and inner != '"' and constants.text_max > 1:
-            return at.error(
-                value,
-                says(
-                    "holds a quote with other characters, which a text constant can't hold",
-                    'write the text without it, such as "AB"',
-                ),
-                Reason.FORM,
-                code=Code.INVALID_TEXT_CONSTANT,
-            )
+        # classify() refuses only an empty text and a text longer than TEXT_MAX.
+        refusal = _quote_refusal(value, at, constants)
+        if refusal is not None:
+            return refusal
         return at.error(
             value,
-            says(
-                "is refused",
-                "{rule}, with no quote inside (write the quote character as $22)",
-                rule=rule,
-            ),
-            Reason.FORM if quoted else Reason.RANGE,
-            code=Code.INVALID_TEXT_CONSTANT if quoted else Code.CONSTANT_OUT_OF_RANGE,
+            _text_rule(constants),
+            Reason.RANGE,
+            code=Code.CONSTANT_OUT_OF_RANGE,
         )
     upper = value.upper() if value.isascii() else ""
     m = _HEX_SHAPE.fullmatch(upper)
@@ -351,6 +335,38 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
     else:
         said = says("is refused", "{label} takes {kinds}", kinds=_kinds_text(kinds))
     return at.error(value, said, Reason.KIND, code=Code.NOT_A_CONSTANT)
+
+
+def _text_rule(constants: Constants) -> Rule:
+    """Return the rule of the field's text constants, as a refusal of ``is refused`` says it."""
+    if constants.text_max == 1:
+        rule = "a text constant is one character in quotes"
+    else:
+        rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
+    if constants.quote:
+        return says("is refused", "{rule}", rule=rule)
+    return says(
+        "is refused", "{rule}, with no quote inside (write the quote character as $22)", rule=rule
+    )
+
+
+def _quote_refusal(value: str, at: _At, constants: Constants) -> FieldError | None:
+    """Return the refusal of ``value``, a quoted text, if it holds a quote between its outer
+    quotes and the field takes none.  Otherwise return None.
+
+    A quote among other characters gets its own message, because no form writes it: ``$22``
+    is a lone quote.  A field of one character refuses every quote with its text rule."""
+    inner = value[1:-1]
+    if constants.quote or '"' not in inner:
+        return None
+    if inner != '"' and constants.text_max > 1:
+        said = says(
+            "holds a quote with other characters, which a text constant can't hold",
+            'write the text without it, such as "AB"',
+        )
+    else:
+        said = _text_rule(constants)
+    return at.error(value, said, Reason.FORM, code=Code.INVALID_TEXT_CONSTANT)
 
 
 #: The rule that a refused ``$`` value breaks in a field that takes ``$`` and one hex digit.
@@ -464,6 +480,9 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
     if kind is Kind.HEX and int(const.value) > constants.hex_high:
         raise _hex_above(value, at, constants)
     if kind is Kind.TEXT:
+        refusal = _quote_refusal(value, at, constants)
+        if refusal is not None:
+            raise refusal
         text = str(const.value)
         if len(text) > constants.text_max:
             if constants.text_max == 1:

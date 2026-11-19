@@ -1758,7 +1758,8 @@ def test_a_text_constant_shows_in_its_own_quotes() -> None:
 
 
 def test_a_text_with_a_quote_inside_keeps_its_repr_quotes() -> None:
-    error = _refusal(lambda: Copy('"a"b"', "TXT1"))
+    # A Copy takes a quote inside its text, and a Compare refuses it.
+    error = _refusal(lambda: CompareContact("==", "TXT1", '"a"b"'))
     assert error.short().startswith('\'"a"b"\' holds a quote')
 
 

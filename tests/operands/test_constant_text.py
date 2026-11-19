@@ -219,6 +219,9 @@ def test_copy_real_is_stored_once(typed: str) -> None:
         (1e20, False, "1E+20"),
         ("AB", False, '"AB"'),
         ("$41", False, '"$41"'),
+        # A quote is written as it is, as CLICK keeps it in a Copy source.
+        ('A"B', False, '"A"B"'),
+        ('"', False, '"""'),
         ("\r", False, "$0D"),
         ("\x7f", False, "$7F"),
     ],
@@ -246,7 +249,7 @@ def test_constant_text_at_the_float32_edge(sign: int) -> None:
     "value",
     [
         *(0, 5, -7, 70000, -(2**31), 2**31 - 1, 0.5, 1000.0, 1e5, 1.5e10, 1 / 3, 1e-10),
-        *(16777217.0, "AB", chr(13)),
+        *(16777217.0, "AB", 'A"B', chr(13)),
     ],
 )
 def test_constant_text_is_what_construction_stores(value: int | float | str) -> None:
@@ -326,7 +329,6 @@ def test_constant_text_builds_clicks_instruction() -> None:
         (math.nan, False, ValueError),
         (1e39, False, ValueError),
         ("", False, ValueError),
-        ('say "hi"', False, ValueError),
         ("A" * 129, False, ValueError),
         ("٣", False, ValueError),
     ],

@@ -218,10 +218,27 @@ CONVERSION_SAVES = {
     )
 }
 
+#: The saves of a single Copy of text with a quote inside it.  Each reads as the Copy and
+#: holds no typed address.  ``tests/ladder/test_copy_click_forms.py`` tests them.
+QUOTE_SAVES = {
+    ("copy_single", f"single {text} -> {dest}")
+    for text, dest in (
+        ('"A""B"', "TXT1"),
+        ('"A"B"', "TXT1"),
+        ('""""', "TXT1"),
+        ('"""', "TXT1"),
+        ('"A""', "TXT1"),
+        ('"""A"', "TXT1"),
+        ('"A""B"', "TXT[DS1]"),
+        ('"A"B"', "TXT[DS1]"),
+    )
+}
+
 
 def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
     """Of the Copy and Math saves that the answer files hold as ``raw(...)``, the ones that
-    read as an instruction are exactly those in ``ANSWERED`` and ``CONVERSION_SAVES``."""
+    read as an instruction are exactly those in ``ANSWERED``, ``CONVERSION_SAVES`` and
+    ``QUOTE_SAVES``."""
     read: set[tuple[str, str]] = set()
     for grid in ("copy_single", "copy_block", "copy_pack", "math_decimal", "math_hex"):
         answers = json.loads((GRIDS / f"{grid}.answers.json").read_text(encoding="utf-8"))
@@ -231,7 +248,10 @@ def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
             raw = _raw_box(_saved_rung(tmp_path, case))
             if not isinstance(_program_box(raw), RawInstruction):
                 read.add((grid, case["case"]))
-    assert read == {(grid, label) for grid, label, _inst, _csv in ANSWERED} | CONVERSION_SAVES
+    assert (
+        read
+        == {(grid, label) for grid, label, _inst, _csv in ANSWERED} | CONVERSION_SAVES | QUOTE_SAVES
+    )
 
 
 def _retagged(blob: bytes, edits: dict[int, tuple[str, str]]) -> bytes:

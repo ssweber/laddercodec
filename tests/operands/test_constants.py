@@ -65,7 +65,7 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("10000h", Constant(H, 0x10000, wide=True)),
     ("FFFFFFFFh", Constant(H, 0xFFFFFFFF, wide=True)),
     ("0001FFFFh", Constant(H, 0x1FFFF, wide=True)),
-    # Text. Between the quotes are 1 to 128 characters, any but the quote, kept as written.
+    # Text. Between the outer quotes are 1 to 128 characters of any kind, kept as written.
     ('"A"', Constant(T, "A")),
     ('"ab"', Constant(T, "ab")),
     ('" "', Constant(T, " ")),
@@ -73,6 +73,11 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ('"$41"', Constant(T, "$41")),
     ('"~"', Constant(T, "~")),
     ('"' + "A" * TEXT_MAX + '"', Constant(T, "A" * TEXT_MAX)),
+    # A quote inside the text is one character of it. A doubled quote is two.
+    ('"""', Constant(T, '"')),
+    ('""""', Constant(T, '""')),
+    ('"a"b"', Constant(T, 'a"b')),
+    ('"A""B"', Constant(T, 'A""B')),
     # classify() accepts non-ASCII and control characters. printable() is a separate check
     # that a field can apply.
     ('"\u00e9"', Constant(T, "\u00e9")),
@@ -148,13 +153,10 @@ REFUSED: list[str] = [
     "1_000",
     "1'000",
     "'A'",
-    # Text that is empty, unterminated, too long, has a quote inside, or has no quotes.
+    # Text that is empty, unterminated, too long, or has no quotes.
     '""',
-    '"""',
     '"A',
     'A"',
-    '"a"b"',
-    '"A""B"',
     '"' + "A" * (TEXT_MAX + 1) + '"',
     '"é' + "A" * TEXT_MAX + '"',
     "A",

@@ -362,10 +362,11 @@ _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
 #: before them (``+1h``) are read as a hex constant, and the field then refuses that
 #: constant.
 _CONSTANTS = Constants(ALL_KINDS, hex_sign=True)
-#: The same constants, but a text may hold any character. A single Copy checks the
-#: characters of its source after it checks the source against the destination
-#: (:func:`_check_source_text`).
-_ANY_TEXT = replace(_CONSTANTS, printable=False)
+#: The same constants, but a text may hold any character, a quote included. A single Copy
+#: checks the characters of its source after it checks the source against the destination
+#: (:func:`_check_source_text`). Each quote inside the text is one character, and fills one
+#: TXT register.
+_ANY_TEXT = replace(_CONSTANTS, printable=False, quote=True)
 #: A termination code is a ``$hh`` character code.
 _TERMINATION = Constants(frozenset({Kind.CHAR}))
 
@@ -999,16 +1000,13 @@ def _check_source_value(source: str, field: str) -> Constant:
     - a text of more than 128 characters;
     - a signed hex constant (``-FFh``);
     - a hex constant of more than 8 digits (``0FFFFFFFFh``).
-
-    Whether CLICK refuses a text with a quote inside it, and with which id, is not known.
-    This function refuses it with no id.
     """
     try:
         return check_constant(source, field, _ANY_TEXT)
     except FieldError as exc:
-        shape = constant_shape(source, _ANY_TEXT)
-        if exc.click_id is not None or not (
-            shape is Kind.HEX or (shape is Kind.TEXT and '"' not in source[1:-1])
+        if exc.click_id is not None or constant_shape(source, _ANY_TEXT) not in (
+            Kind.HEX,
+            Kind.TEXT,
         ):
             raise
         raise with_click_id(exc, "OBJ-005") from None
@@ -1060,8 +1058,10 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """Return the last TXT register that a single Copy of quoted text fills. The blob
     stores it as the destination end (tag 0x6077).
 
-    CLICK stores the end for two or more characters: ``"TT"`` into TXT1 stores TXT2. It
-    leaves the end empty for one character (``"Q"`` into TXT2) and for a ``$hh`` code.
+    CLICK stores the end for two or more characters: ``"TT"`` into TXT1 stores TXT2. Each
+    quote between the outer quotes counts as one character: ``"A""B"`` into TXT1 stores
+    TXT4, and ``"A"B"`` stores TXT3. CLICK leaves the end empty for one character
+    (``"Q"`` into TXT2, or a lone quote between the outer quotes) and for a ``$hh`` code.
     Return ``None`` for those. Also return ``None`` for a pointer destination, because
     CLICK stores no end for a pointer, whatever the length (``copy("AB",TXT[DS1])``).
     """

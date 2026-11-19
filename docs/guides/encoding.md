@@ -228,14 +228,16 @@ Text constants are written with their double quotes (`Copy(source='"Q"', ...)`,
 empty `""` writes nothing.
 
 `Copy` and `Fill` take 1 to 128 characters in quotes. They raise `FieldError` for
-`""`, for a longer text and for a quote inside the text.
+`""` and for a longer text.
 
-- `Fill` takes printable ASCII.
+- `Fill` takes printable ASCII, and raises `FieldError` for a quote inside the text.
 - `Copy` takes any character from U+0001 to U+FFFF except a surrogate (`"é"`,
   `"€"`, a tab). CLICK keeps these as typed. `Copy` refuses NUL and a character
   above U+FFFF.
+- A quote inside a `Copy` text is one character of the text, so
+  `Copy('"A"B"', "TXT1")` writes TXT1 to TXT3.
 - `Search` and the right side of `CompareContact` take the characters that
-  `Copy` takes.
+  `Copy` takes, except a quote inside the text.
 - The left side of `CompareContact` takes printable ASCII.
 
 `Search` and `CompareContact` match consecutive TXT registers (`"AB"`). They raise

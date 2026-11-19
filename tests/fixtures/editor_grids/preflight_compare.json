@@ -11,6 +11,7 @@
   {"row": "compare.b.constants", "case": "compare DS1 == 0", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "0"}},
   {"row": "compare.a.constants", "case": "compare 5 == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "5", "b": "DS2"}},
   {"row": "compare.pairs.banks", "case": "compare DS1 == XD0", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "XD0"}},
-  {"row": "compare.pairs.constants", "case": "compare DS1 == 1.5", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "1.5"}}
+  {"row": "compare.pairs.constants", "case": "compare DS1 == 1.5", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "1.5"}},
+  {"row": "compare.text.quotes", "case": "compare TXT1 == \"A\"\"B\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"A\"\"B\""}}
  ]
 }

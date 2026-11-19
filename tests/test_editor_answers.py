@@ -112,9 +112,10 @@ CMP_SPACE = (
     "and read_csv refuses a save that keeps it"
 )
 DH_NO_NUMBER = "kept: CLICK accepts DH1 == DH and saves B empty, so laddercodec refuses it"
-SEARCH_QUOTE = (
-    'CLICK keeps a doubled quote inside a Search value ("A""B") and the rules refuse it; '
-    'whether a PLC matches A"B is open'
+TEXT_QUOTE = (
+    "laddercodec refuses these until a PLC run shows what such text matches or writes. CLICK "
+    "accepts them and saves the text as typed, with no end register. A save whose CSV token "
+    "does not read back stays raw"
 )
 SEARCH_TABLE_ID = (
     "CLICK refuses this Search table with OBJ-004. The rules refuse it with OBJ-008, or "
@@ -397,23 +398,53 @@ DISAGREEMENTS: dict[Key, str] = _table(
     ),
     (CMP_SPACE, "search", "outcome", ("search DS1..DS10 == DS 1 -> DS30,C1",)),
     (
-        SEARCH_QUOTE,
+        TEXT_QUOTE,
         "search",
         "outcome",
         (
             'search TXT1..TXT10 != "A""B" -> DS30,C1',
             'search TXT1..TXT10 == "A""B" -> DS30,C1',
+            'search TXT1..TXT10 == "A"B" -> DS30,C1',
+            'search TXT1..TXT10 == """" -> DS30,C1',
+            'search TXT1..TXT10 == """ -> DS30,C1',
         ),
     ),
     (
-        SEARCH_QUOTE,
+        TEXT_QUOTE,
         "search",
         "stored",
         (
             'search TXT1..TXT10 != "A""B" -> DS30,C1',
             'search TXT1..TXT10 == "A""B" -> DS30,C1',
+            'search TXT1..TXT10 == "A"B" -> DS30,C1',
+            'search TXT1..TXT10 == """ -> DS30,C1',
         ),
     ),
+    (TEXT_QUOTE, "preflight", "outcome", ('search TXT1..TXT10 == "A"B" -> DS30,C1',)),
+    (TEXT_QUOTE, "preflight", "stored", ('search TXT1..TXT10 == "A"B" -> DS30,C1',)),
+    (
+        TEXT_QUOTE,
+        "compare",
+        "outcome",
+        (
+            'compare TXT1 == "A""B"',
+            'compare TXT1 == "A"B"',
+            'compare TXT1 == """"',
+            'compare TXT1 == """',
+            'compare "A""B" == TXT1',
+            'compare "A"B" == TXT1',
+            'compare """" == TXT1',
+            'compare """ == TXT1',
+        ),
+    ),
+    (TEXT_QUOTE, "preflight_compare", "outcome", ('compare TXT1 == "A""B"',)),
+    (
+        TEXT_QUOTE,
+        "copy_fill",
+        "outcome",
+        ('fill """" -> TXT1..TXT10', 'fill """ -> TXT1..TXT10'),
+    ),
+    (TEXT_QUOTE, "copy_fill", "stored", ('fill """ -> TXT1..TXT10',)),
     (
         SEARCH_TABLE_ID,
         "search",

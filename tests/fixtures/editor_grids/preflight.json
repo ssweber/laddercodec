@@ -43,6 +43,7 @@
   {"row": "copy.single.pairs.constants-pointer", "case": "single 5 -> X[DS1]", "instruction": "copy", "mode": "single", "fields": {"source": "5", "destination": "X[DS1]"}},
   {"row": "copy.single.pairs.pointer", "case": "single C1 -> X[DS1]", "instruction": "copy", "mode": "single", "fields": {"source": "C1", "destination": "X[DS1]"}},
   {"row": "copy.single.text.fill", "case": "single \"AB\" -> TXT999", "instruction": "copy", "mode": "single", "fields": {"source": "\"AB\"", "destination": "TXT999"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"\"B\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"\"B\"", "destination": "TXT1"}},
   {"row": "copy.block.control", "case": "block DS1..DS2 -> DS11", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS2", "destination": "DS11"}},
   {"row": "copy.block.source.ranges", "case": "block X001..X002 -> C1", "instruction": "copy", "mode": "block", "fields": {"source": "X001", "source_end": "X002", "destination": "C1"}},
   {"row": "copy.block.destination.banks", "case": "block DS1..DS2 -> X001", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS2", "destination": "X001"}},
@@ -109,6 +110,7 @@
   {"row": "search.result.banks", "case": "search DS1..DS10 == DS20 -> X001,C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "X001", "found": "C1"}},
   {"row": "search.found.banks", "case": "search DS1..DS10 == DS20 -> DS30,X001", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "X001"}},
   {"row": "search.result.forms", "case": "search DS1..DS10 == DS20 -> DS[DS1],C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS[DS1]", "found": "C1"}},
-  {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,DS[DS1]", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "DS[DS1]"}}
+  {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,DS[DS1]", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "DS[DS1]"}},
+  {"row": "search.text.quotes", "case": "search TXT1..TXT10 == \"A\"B\" -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "\"A\"B\"", "start": "TXT1", "end": "TXT10", "result": "DS30", "found": "C1"}}
  ]
 }

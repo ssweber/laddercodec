@@ -427,11 +427,13 @@ def test_copy_source_value_comes_before_the_pairing(
     assert str(error).endswith("(OBJ-005)")
 
 
-@pytest.mark.parametrize("source", ['"""', '"a"b"'])
-def test_copy_source_with_a_quote_inside_keeps_no_id(source: str) -> None:
-    # No CLICK answer covers a quote inside the text, so the refusal has no id.
-    (error,) = _errors(lambda: Copy(source, "DS1"))
-    assert (error.field, error.reason, error.click_id) == ("Copy.source", "form", None)
+@pytest.mark.parametrize("source", ['"""', '"a"b"', '"A""B"'])
+def test_copy_source_with_a_quote_inside_is_refused_as_text(source: str) -> None:
+    # A quote inside the text is a character of it. Into DS1, the text is refused as a
+    # pairing, as "AB" is.
+    assert _shape(_errors(lambda: Copy(source, "DS1"))) == _shape(
+        _errors(lambda: Copy('"AB"', "DS1"))
+    )
 
 
 def test_copy_text_characters_come_after_the_pairing() -> None:

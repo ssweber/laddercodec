@@ -46,7 +46,36 @@ def _call_match(text: str) -> re.Match[str] | None:
     return _CALL_RE.fullmatch(text)
 
 
-def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
+#: The calls whose quoted text keeps each quote inside it as typed: a single Copy's source.
+_TYPED_QUOTE_CALLS = frozenset({"copy"})
+
+
+def _split_top_level_csv_like(value: str, name: str = "") -> tuple[str, ...]:
+    """Split *value*, the arguments of the call *name*, at each comma outside quotes and
+    brackets.
+
+    Inside quotes, ``""`` does not end the text. A Copy source keeps its text as typed, so a
+    quote inside it can leave a quote unmatched, as ``"A"B"`` does. If the arguments of a
+    ``copy`` call hold an unmatched quote, they are split a second time. On the second
+    split, a quote ends the text only when a comma or the end of the arguments follows it,
+    after any spaces.
+    """
+    try:
+        return _split_args(value, literal=False)
+    except CsvReadError:
+        if name not in _TYPED_QUOTE_CALLS:
+            raise
+        return _split_args(value, literal=True)
+
+
+def _ends_quote(value: str, idx: int) -> bool:
+    """Return whether only spaces stand between the quote at *idx* and the next comma or the
+    end of *value*."""
+    rest = value[idx + 1 :].lstrip(" ")
+    return rest == "" or rest[0] == ","
+
+
+def _split_args(value: str, *, literal: bool) -> tuple[str, ...]:
     if value.strip() == "":
         return tuple()
 
@@ -61,10 +90,13 @@ def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
         ch = value[idx]
         if in_quote:
             if ch == '"':
-                if idx + 1 < len(value) and value[idx + 1] == '"':
+                if literal:
+                    in_quote = not _ends_quote(value, idx)
+                elif idx + 1 < len(value) and value[idx + 1] == '"':
                     idx += 2
                     continue
-                in_quote = False
+                else:
+                    in_quote = False
             idx += 1
             continue
 
@@ -297,7 +329,7 @@ def parse_af_token(token: str) -> AfNode:
 
     name = m.group(1)
     args_src = m.group(2).strip()
-    segments = _split_top_level_csv_like(args_src)
+    segments = _split_top_level_csv_like(args_src, name)
 
     positional: list[str] = []
     kwargs: dict[str, str] = {}
@@ -343,7 +375,7 @@ def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = Fa
     m = _call_match(token.strip())
     if not m or m.group(1) == "raw":
         return None
-    segments = list(_split_top_level_csv_like(m.group(2).strip())) or [""]
+    segments = list(_split_top_level_csv_like(m.group(2).strip(), m.group(1))) or [""]
     filled = []
     for i, seg in enumerate(segments):
         eq_idx = _kwarg_eq_index(seg)

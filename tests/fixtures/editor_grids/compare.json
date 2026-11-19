@@ -668,6 +668,14 @@
   {"row": "compare.pairs.constants", "case": "compare TXT1 == 2147483647", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "2147483647"}},
   {"row": "compare.pairs.constants", "case": "compare TXT1 == 1.5", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "1.5"}},
   {"row": "compare.pairs.constants", "case": "compare TXT1 == FFh", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "FFh"}},
-  {"row": "compare.pairs.constants", "case": "compare TXT1 == 10000h", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "10000h"}}
+  {"row": "compare.pairs.constants", "case": "compare TXT1 == 10000h", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "10000h"}},
+  {"row": "compare.text.quotes", "case": "compare TXT1 == \"A\"\"B\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"A\"\"B\""}},
+  {"row": "compare.text.quotes", "case": "compare TXT1 == \"A\"B\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"A\"B\""}},
+  {"row": "compare.text.quotes", "case": "compare TXT1 == \"\"\"\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"\"\"\""}},
+  {"row": "compare.text.quotes", "case": "compare TXT1 == \"\"\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"\"\""}},
+  {"row": "compare.text.quotes", "case": "compare \"A\"\"B\" == TXT1", "instruction": "compare", "mode": "==", "fields": {"a": "\"A\"\"B\"", "b": "TXT1"}},
+  {"row": "compare.text.quotes", "case": "compare \"A\"B\" == TXT1", "instruction": "compare", "mode": "==", "fields": {"a": "\"A\"B\"", "b": "TXT1"}},
+  {"row": "compare.text.quotes", "case": "compare \"\"\"\" == TXT1", "instruction": "compare", "mode": "==", "fields": {"a": "\"\"\"\"", "b": "TXT1"}},
+  {"row": "compare.text.quotes", "case": "compare \"\"\" == TXT1", "instruction": "compare", "mode": "==", "fields": {"a": "\"\"\"", "b": "TXT1"}}
  ]
 }

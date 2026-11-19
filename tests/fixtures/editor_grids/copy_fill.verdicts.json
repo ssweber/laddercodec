@@ -967,5 +967,9 @@
   "fill $41 -> YD0..YD1": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'YD0' can't take '$41'; a text constant copies to TXT"},
   "fill $41 -> TD1..TD2": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'TD1' can't take '$41'; a text constant copies to TXT"},
   "fill $41 -> CTD1..CTD2": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'CTD1' can't take '$41'; a text constant copies to TXT"},
-  "fill $41 -> SD1..SD2": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'SD1' can't take '$41'; a text constant copies to TXT"}
+  "fill $41 -> SD1..SD2": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'SD1' can't take '$41'; a text constant copies to TXT"},
+  "fill \"A\"\"B\" -> TXT1..TXT10": {"verdict": "refused", "error": "FieldError", "field": "Fill.value", "message": "Fill.value: '\"A\"\"B\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"},
+  "fill \"A\"B\" -> TXT1..TXT10": {"verdict": "refused", "error": "FieldError", "field": "Fill.value", "message": "Fill.value: '\"A\"B\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"},
+  "fill \"\"\"\" -> TXT1..TXT10": {"verdict": "refused", "error": "FieldError", "field": "Fill.value", "message": "Fill.value: '\"\"\"\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"},
+  "fill \"\"\" -> TXT1..TXT10": {"verdict": "refused", "error": "FieldError", "field": "Fill.value", "message": "Fill.value: '\"\"\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"}
 }

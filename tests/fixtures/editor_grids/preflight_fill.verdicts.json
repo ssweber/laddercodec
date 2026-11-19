@@ -17,5 +17,6 @@
   "fill 5 -> 5..DS11": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: '5' is not a CLICK address"},
   "fill 5 -> DS10..5": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_end", "message": "Fill.dest_end: '5' is not a CLICK address"},
   "fill X001 -> X001..X002": {"verdict": "refused", "error": "AddressError", "field": "Fill.value", "message": "Fill.value: 'X001' is not allowed; Fill.value takes DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT"},
-  "fill 5 -> X001..X002": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'X001..X002' is not allowed; Fill.dest_start takes DS, DD, DH, DF, YD, TD, CTD, SD, TXT"}
+  "fill 5 -> X001..X002": {"verdict": "refused", "error": "AddressError", "field": "Fill.dest_start", "message": "Fill.dest_start: 'X001..X002' is not allowed; Fill.dest_start takes DS, DD, DH, DF, YD, TD, CTD, SD, TXT"},
+  "fill \"A\"\"B\" -> TXT1..TXT10": {"verdict": "refused", "error": "FieldError", "field": "Fill.value", "message": "Fill.value: '\"A\"\"B\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"}
 }

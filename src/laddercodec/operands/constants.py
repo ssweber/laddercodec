@@ -14,7 +14,8 @@ are constants.  It tries these forms in order:
   eight digits is 32-bit (:attr:`Constant.wide`), and longer text is no constant.  Hex
   comes before an address, so ``DH``, ``EH`` and ``ABCH`` are hex constants.  A single
   Copy refuses ``EH`` and ``1EH``.  CLICK's Copy stores them as the reals 0.0 and 1.0.
-- Text: ``"..."``.  The value is the text between the quotes (see :data:`TEXT_MAX`).
+- Text: ``"..."``.  The value is the text between the outer quotes, as typed (see
+  :data:`TEXT_MAX`).  A quote inside it is one character of the text.
 - An address.  An address is no constant, and :func:`classify` returns ``None``.
 - A decimal integer: an int16 value, or an int32 value (wide).  Outside int32 it is no
   constant.
@@ -38,8 +39,9 @@ class Kind(StrEnum):
     INTEGER = "integer"  #: a decimal integer: ``42``, ``-7``, ``+1``, ``007``
     FLOAT = "float"  #: a floating-point number: ``1.5``, ``.5``, ``1E5``, ``-1.5e-3``
     HEX = "hex"  #: hex digits then ``h``: ``FFFFh``, ``0h``
-    #: Quoted text: ``"AB"``.  The value is the text between the quotes.  ``"$41"`` is the
-    #: three characters ``$41``, because a ``$hh`` inside quotes is literal text.
+    #: Quoted text: ``"AB"``.  The value is the text between the outer quotes.  ``"$41"`` is
+    #: the three characters ``$41``, because a ``$hh`` inside quotes is literal text.  A quote
+    #: inside is literal too: ``"A""B"`` is the four characters ``A""B``.
     TEXT = "text"
     CHAR = "char"  #: a character by code: ``$41``; the value is the code
 
@@ -281,8 +283,9 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     - a ``float`` is the float32 value nearest it, in the fewest significant digits that
       read back as that value and stay within float32, printed as laddercodec prints a real
       (``1000.0``, ``0.5``);
-    - a ``str`` is a text constant in quotes (``"AB"``).  A ``str`` of one character outside
-      printable ASCII is that character's code, ``$`` and two hex digits (``$0D``).
+    - a ``str`` is a text constant in quotes (``"AB"``).  A quote in the ``str`` is written
+      as it is, so ``'A"B'`` is ``"A"B"``.  A ``str`` of one character outside printable
+      ASCII is that character's code, ``$`` and two hex digits (``$0D``).
 
     A single Copy accepts the text for a real of at most 7 significant digits.  CLICK keeps
     7 digits in a Copy, and saves a real with more digits cut to 7.  A Math accepts the
@@ -301,9 +304,8 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     text, such as an int above int16, a hex value above FFFFh or a real in a hex Math.  This
     function does not check that.  A value that no constant spells raises ``ValueError``:
     an int outside the ranges above, a real that is not finite or is outside the float32
-    range, empty text, text with a quote or longer than 128 characters, or a character
-    above ``$FF``.  A ``bool``, a float with ``hex=True`` or any other type raises
-    ``TypeError``.
+    range, empty text, text longer than 128 characters, or a character above ``$FF``.  A
+    ``bool``, a float with ``hex=True`` or any other type raises ``TypeError``.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{value!r} is not an int, a float or a str")
@@ -342,17 +344,14 @@ def _text_constant(value: str) -> str:
         if ord(value) > 0xFF:
             raise ValueError(f"{value!r} is above $FF; a character code is $00 to $FF")
         return f"${ord(value):02X}"
-    if not 1 <= len(value) <= TEXT_MAX or '"' in value:
-        raise ValueError(
-            f"{value!r} is no text constant: 1 to {TEXT_MAX} characters, with no quote "
-            "($22 spells one)"
-        )
+    if not 1 <= len(value) <= TEXT_MAX:
+        raise ValueError(f"{value!r} is no text constant: 1 to {TEXT_MAX} characters")
     return f'"{value}"'
 
 
 def _text(inner: str) -> Constant | None:
-    # A quote inside the text is refused: the CSV token can't hold one ($22 spells it).
-    if not 1 <= len(inner) <= TEXT_MAX or '"' in inner:
+    # The shared check takes a quote inside the text.  A field that takes none refuses it.
+    if not 1 <= len(inner) <= TEXT_MAX:
         return None
     return Constant(Kind.TEXT, inner)
 
