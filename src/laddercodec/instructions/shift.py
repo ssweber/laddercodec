@@ -22,6 +22,7 @@ from ..codes import Code
 from ..errors import CsvReadError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Refusals
+from ..operands.message import Op, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -71,8 +72,12 @@ class Shift(PinnedInstruction):
             if start is not None and end is not None and end == start:
                 check.refuse(
                     ("end_bit", "start_bit"),
-                    f"{self.end_bit!r} is the same address as Shift.start_bit "
-                    f"{self.start_bit!r}; a shift register needs two different ends",
+                    says(
+                        "{end} is the same address as Shift.start_bit {start}",
+                        "a shift register needs two different ends",
+                        end=Op(self.end_bit),
+                        start=Op(self.start_bit),
+                    ),
                     Reason.CONFLICT,
                     "OBJ-012",
                     code=Code.DUPLICATE_ADDRESS,
