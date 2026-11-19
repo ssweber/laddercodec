@@ -31,51 +31,95 @@ _EDGE_RE = re.compile(r"^(rise|fall)\((.+)\)$")
 _CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|\.[A-Za-z_][A-Za-z0-9_]*)\((.*)\)$", re.DOTALL)
 
 
+#: The calls whose quoted text keeps each quote inside it as typed: the source of a single
+#: Copy and the value of a Search.  In these calls a keyword value is written without
+#: quotes, so the text runs from the first quote in the call's arguments to the last.
+_TYPED_QUOTE_CALLS = frozenset({"copy", "search"})
+
+
 def _call_match(text: str) -> re.Match[str] | None:
     """Return the match of *text* as a call, or None.
 
     Return None if *text* is not a call, or if it has a CR or LF outside quoted text. For
     example, ``copy(DS1,<LF>DS2)`` returns None.
     """
+    m = _CALL_RE.fullmatch(text)
+    if m is None:
+        return None
+    args = m.group(2)
+    if m.group(1) in _TYPED_QUOTE_CALLS and args.count('"') > 1:
+        first, last = args.find('"'), args.rfind('"')
+        outside = args[:first] + args[last + 1 :]
+        return None if "\r" in outside or "\n" in outside else m
     in_quote = False
     for ch in text:
         if ch == '"':
             in_quote = not in_quote
         elif ch in "\r\n" and not in_quote:
             return None
-    return _CALL_RE.fullmatch(text)
-
-
-#: The calls whose quoted text keeps each quote inside it as typed: a single Copy's source.
-_TYPED_QUOTE_CALLS = frozenset({"copy"})
+    return m
 
 
 def _split_top_level_csv_like(value: str, name: str = "") -> tuple[str, ...]:
     """Split *value*, the arguments of the call *name*, at each comma outside quotes and
     brackets.
 
-    Inside quotes, ``""`` does not end the text. A Copy source keeps its text as typed, so a
-    quote inside it can leave a quote unmatched, as ``"A"B"`` does. If the arguments of a
-    ``copy`` call hold an unmatched quote, they are split a second time. On the second
-    split, a quote ends the text only when a comma or the end of the arguments follows it,
-    after any spaces.
+    Inside quotes, ``""`` does not end the text.  In a call of :data:`_TYPED_QUOTE_CALLS`,
+    the text runs from the first quote to the last, and each comma, bracket and quote
+    between them is a character of it, so ``copy("A",B",TXT1)`` has the source ``"A",B"``.
+
+    Raise ``CsvReadError`` for a keyword value in quotes in such a call, such as
+    ``oneshot="1"``, when the call has no text, or when the text leaves a Copy without its
+    destination or a Search without its ``result=`` and ``found=``.
     """
+    if name not in _TYPED_QUOTE_CALLS:
+        return _split_args(value)
     try:
-        return _split_args(value, literal=False)
+        paired: tuple[str, ...] | None = _split_args(value)
     except CsvReadError:
-        if name not in _TYPED_QUOTE_CALLS:
-            raise
-        return _split_args(value, literal=True)
+        paired = None
+    first = value.find('"')
+    if first < 0 or not _opens_text(name, value[:first]):
+        _refuse_quoted_keyword(name, paired)
+        return _split_args(value)
+    last = value.rfind('"')
+    if last == first:
+        raise CsvReadError("Malformed AF token arguments: unmatched quote")
+    parts = _split_args(value, (first, last))
+    if paired is None or _holds_the_rest(name, parts):
+        return parts
+    _refuse_quoted_keyword(name, paired)
+    return paired
 
 
-def _ends_quote(value: str, idx: int) -> bool:
-    """Return whether only spaces stand between the quote at *idx* and the next comma or the
-    end of *value*."""
-    rest = value[idx + 1 :].lstrip(" ")
-    return rest == "" or rest[0] == ","
+def _opens_text(name: str, before: str) -> bool:
+    """Return whether a quote after *before* opens the text of the call *name*.  A Copy's
+    source is its first argument, and a Search's value ends its first argument."""
+    return before.strip() == "" if name == "copy" else "," not in before
 
 
-def _split_args(value: str, *, literal: bool) -> tuple[str, ...]:
+def _holds_the_rest(name: str, parts: tuple[str, ...]) -> bool:
+    """Return whether *parts* hold what the call *name* needs after its text: a Copy's
+    destination, or a Search's ``result=`` and ``found=``."""
+    eqs = [(part, _kwarg_eq_index(part)) for part in parts]
+    if name == "copy":
+        return sum(eq < 0 for _, eq in eqs) >= 2
+    return {"result", "found"} <= {part[:eq].strip() for part, eq in eqs if eq >= 0}
+
+
+def _refuse_quoted_keyword(name: str, parts: tuple[str, ...] | None) -> None:
+    """Raise ``CsvReadError`` for the first keyword value in quotes in *parts*."""
+    for part in parts or ():
+        eq = _kwarg_eq_index(part)
+        if eq >= 0 and part[eq + 1 :].strip().startswith('"'):
+            key = part[:eq].strip()
+            plain = _decode_af_string_literal(part[eq + 1 :].strip())
+            raise CsvReadError(f"{name}: {part} is in quotes; write {key}={plain}.")
+
+
+def _split_args(value: str, text: tuple[int, int] | None = None) -> tuple[str, ...]:
+    """Split *value* at each comma outside quotes and brackets. *text* is the first and the
+    last index of a quoted text that the split does not look inside."""
     if value.strip() == "":
         return tuple()
 
@@ -88,15 +132,15 @@ def _split_args(value: str, *, literal: bool) -> tuple[str, ...]:
     idx = 0
     while idx < len(value):
         ch = value[idx]
+        if text is not None and idx == text[0]:
+            idx = text[1] + 1
+            continue
         if in_quote:
             if ch == '"':
-                if literal:
-                    in_quote = not _ends_quote(value, idx)
-                elif idx + 1 < len(value) and value[idx + 1] == '"':
+                if idx + 1 < len(value) and value[idx + 1] == '"':
                     idx += 2
                     continue
-                else:
-                    in_quote = False
+                in_quote = False
             idx += 1
             continue
 

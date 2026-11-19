@@ -348,7 +348,12 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
 
     def rule(ns: Any, value: str) -> None:
         constants = ns.constants(
-            hex_high=0xFFFF, hex_sign=True, printable=False, real_id="OBJ-005", one_digit_char=True
+            hex_high=0xFFFF,
+            hex_sign=True,
+            printable=False,
+            quote=True,
+            real_id="OBJ-005",
+            one_digit_char=True,
         )
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "Search.value", ns.checks.REGISTER_BANKS, constants)

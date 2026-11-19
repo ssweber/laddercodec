@@ -5,8 +5,8 @@
 - :func:`check_operand`: an address, a pointer or a constant, in one field;
   :func:`constant_shape` names the kind of constant a text is spelled as, limits aside;
   :func:`bank_of` returns the bank of an address or pointer that the check accepts.
-- :func:`check_quoted_text`: a quoted text constant, as a Search value takes it;
-  :func:`check_kept_text`: text a single Copy source or a Search value holds.
+- :func:`check_kept_text`: text a single Copy source, a Search value or the right side of a
+  Compare holds.
 - :func:`check_out_target`: an address a coil writes.
 - :func:`check_writable_sd`: an SD register a Copy or a decimal Math writes.
 - :func:`check_flag`: a True/False field.
@@ -72,7 +72,6 @@ __all__ = [
     "check_operand",
     "check_out_target",
     "check_kept_text",
-    "check_quoted_text",
     "check_writable_sd",
     "constant_shape",
     "choice_operand",
@@ -529,14 +528,11 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
         )
 
 
-#: The characters a quoted text constant may hold: printable ASCII, space to ``~``.
-_TEXT_CHARS = range(0x20, 0x7F)
-
-
 def check_kept_text(value: str, text: str, field: str, *, label: str | None = None) -> None:
     """Refuse the constant ``value`` when CLICK does not keep a character of its text
-    ``text`` (:func:`~laddercodec.operands.constants.kept_text`).  A single Copy source and
-    a Search text value take only the characters that CLICK keeps."""
+    ``text`` (:func:`~laddercodec.operands.constants.kept_text`).  A single Copy source, a
+    Search text value and the right side of a Compare take only the characters that CLICK
+    keeps."""
     if not kept_text(text):
         raise _at(field, label).error(
             value,
@@ -544,51 +540,6 @@ def check_kept_text(value: str, text: str, field: str, *, label: str | None = No
             Reason.FORM,
             code=Code.INVALID_TEXT_CONSTANT,
         )
-
-
-def check_quoted_text(
-    value: str, field: str, *, label: str | None = None, kept: bool = False
-) -> None:
-    """Refuse a quoted text constant that the field refuses.
-
-    The text between the quotes must be 1 to :data:`TEXT_MAX` printable ASCII characters,
-    with no quote inside.  For a quote alone between the quotes, the message says to write
-    ``$22``.  With ``kept``, for a Search value, the text may hold any character that CLICK
-    keeps (:func:`check_kept_text`), not only printable ASCII.  With ``kept``, the message for
-    a quote among other characters says to leave the quote out, because ``$22`` matches only
-    a lone quote character.  On the PLC, the text is compared against consecutive TXT
-    registers, starting from the one the instruction names.
-    """
-    at = _at(field, label)
-    if value == "":
-        raise _blank(at)
-    inner = value[1:-1]
-    long = not 1 <= len(inner) <= TEXT_MAX
-    if long or (not kept and any(ord(c) not in _TEXT_CHARS for c in inner)):
-        chars = "characters" if kept else "printable ASCII characters"
-        raise at.error(
-            value,
-            says(
-                "is refused",
-                "a text constant is 1 to {most} {chars} in quotes (use $hh for a character by "
-                "code)",
-                most=TEXT_MAX,
-                chars=chars,
-            ),
-            Reason.RANGE if long else Reason.FORM,
-            code=Code.CONSTANT_OUT_OF_RANGE if long else Code.INVALID_TEXT_CONSTANT,
-        )
-    if kept:
-        check_kept_text(value, inner, field, label=label)
-    if '"' in inner:
-        if kept and inner != '"':
-            said = says(
-                "holds a quote, which a Search text value can't hold",
-                'write the text without it, such as "AB"',
-            )
-        else:
-            said = says("holds a quote", "write the quote character as $22")
-        raise at.error(value, said, Reason.FORM, code=Code.INVALID_TEXT_CONSTANT)
 
 
 # ---------------------------------------------------------------------------

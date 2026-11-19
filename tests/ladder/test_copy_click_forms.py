@@ -28,12 +28,12 @@ from laddercodec.binary_helpers import _build_blob
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.decode_program import _scr_box
-from laddercodec.errors import CsvReadError, CsvWriteError
+from laddercodec.errors import CsvReadError
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.raw import _decompose_blob, _fields_to_tag_dicts
 from laddercodec.instructions.search import Search
 from laddercodec.operands.errors import FieldError, Reason
 from laddercodec.operands.unchecked import refusals, stored_blob
@@ -697,24 +697,21 @@ def test_copy_text_with_a_quote_reads_with_keywords(tmp_path: Path) -> None:
     assert _read_af(tmp_path, 'copy("A"B" , TXT1,oneshot=1)') == Copy('"A"B"', "TXT1", oneshot=True)
 
 
-@pytest.mark.parametrize("token", ['copy("A",B",TXT1)', 'copy("A"B,TXT1)'])
-def test_copy_text_with_a_quote_before_a_comma_is_refused(tmp_path: Path, token: str) -> None:
-    """In a text whose quotes don't pair up, a quote that a comma follows ends the text. The
-    rest of the token then does not read as arguments."""
-    with pytest.raises((CsvReadError, FieldError)):
-        _read_af(tmp_path, token)
+def test_copy_text_with_a_quote_after_it_is_refused(tmp_path: Path) -> None:
+    """The text ends at the last quote, and ``B`` follows it, so the source is ``"A"B``, which
+    the Copy refuses."""
+    with pytest.raises(FieldError, match="^Copy.source: "):
+        _read_af(tmp_path, 'copy("A"B,TXT1)')
 
 
-def test_copy_text_with_a_doubled_quote_and_a_comma_round_trips(tmp_path: Path) -> None:
-    copy = Copy('"A"",B"', "TXT1")
-    assert _round_trip(tmp_path, copy, 'copy("A"",B",TXT1)') == copy
-
-
-def test_copy_text_that_does_not_read_back_is_not_written(tmp_path: Path) -> None:
-    # A Copy built from such a text raises when it is written. A decoded one stays raw.
-    [rung] = decode((CAPTURES / "case21.bin").read_bytes())
-    with pytest.raises(CsvWriteError):
-        write_csv(tmp_path / "w.csv", [replace(rung, instructions=[Copy('"A",B"', "TXT1"), ""])])
+@pytest.mark.parametrize(
+    "source", ['"A"",B"', '"A",B"', '"Hi", Bob"', '"A","B"', '"["', '"A"(,)"', '"A"=B"']
+)
+def test_copy_text_with_a_quote_beside_a_comma_or_a_bracket_round_trips(
+    tmp_path: Path, source: str
+) -> None:
+    copy = Copy(source, "TXT1")
+    assert _round_trip(tmp_path, copy, f"copy({source},TXT1)") == copy
 
 
 def _decoded_boxes(tmp_path: Path, tags: dict[int, str]) -> tuple[Rung, list[object]]:
@@ -738,33 +735,28 @@ def _writes(tmp_path: Path, rung: Rung, box: object) -> object:
     return back
 
 
-#: Saves of a Copy whose text CLICK keeps as typed: the text, the destination, the end, and
-#: whether the save decodes as the Copy. A quote before a comma or a line break leaves a CSV
-#: token that does not read back, so that save stays raw.
+#: Saves of a Copy whose text CLICK keeps as typed: the text, the destination and the end.
 _SAVED_QUOTE_TEXTS = [
-    ('"A",B"', "TXT1", "TXT4", False),
-    ('"Hi", Bob"', "TXT1", "TXT8", False),
-    ('"A","B"', "TXT1", "TXT5", False),
-    ('"A"\nB"', "TXT1", "TXT4", False),
-    ('"A"B"', "TXT1", "TXT3", True),
-    ('"A""B"', "TXT1", "TXT4", True),
+    ('"A",B"', "TXT1", "TXT4"),
+    ('"Hi", Bob"', "TXT1", "TXT8"),
+    ('"A","B"', "TXT1", "TXT5"),
+    ('"A"\nB"', "TXT1", "TXT4"),
+    ('"A"B"', "TXT1", "TXT3"),
+    ('"A""B"', "TXT1", "TXT4"),
 ]
 
 
-@pytest.mark.parametrize(("source", "destination", "end", "as_copy"), _SAVED_QUOTE_TEXTS)
+@pytest.mark.parametrize(("source", "destination", "end"), _SAVED_QUOTE_TEXTS)
 def test_a_decoded_copy_of_text_with_a_quote_always_writes(
-    tmp_path: Path, source: str, destination: str, end: str, as_copy: bool
+    tmp_path: Path, source: str, destination: str, end: str
 ) -> None:
-    """decode() and decode_program() read each save as a Copy whose CSV token reads back, or
-    keep it raw. Either way write_csv writes it, and read_csv reads it back."""
+    """decode() and decode_program() read each save as the Copy. write_csv writes it, and
+    read_csv reads it back."""
     rung, boxes = _decoded_boxes(tmp_path, {0x6074: source, 0x6076: destination, 0x6077: end})
     for box in boxes:
+        assert box == Copy(source, destination)
+        assert not refusals(box)
         assert _writes(tmp_path, rung, box) == box
-        if as_copy:
-            assert box == Copy(source, destination)
-            assert not refusals(box)
-        else:
-            assert isinstance(box, RawInstruction)
 
 
 def test_a_save_of_a_lone_quote_inside_text_with_no_end_decodes_as_the_copy(
@@ -793,8 +785,8 @@ def test_a_save_of_a_lone_quote_inside_text_with_no_end_decodes_as_the_copy(
 
 @pytest.mark.parametrize("text", ['"Tank "A" low"', '"a",b"'])
 def test_an_email_with_a_quote_inside_its_text_decodes_as_the_email(text: str) -> None:
-    """Only a Copy's source is checked for a CSV token that reads back. An Email box holds
-    its height outside its token, and decodes as the Email whatever its text holds."""
+    """An Email box holds its height outside its token, and decodes as the Email whatever its
+    text holds."""
     golden = Path(__file__).resolve().parents[1] / "fixtures" / "coverage" / "golden"
     [rung] = decode((golden / "raw_instructions__email.bin").read_bytes())
     [at] = [i for i, t in enumerate(rung.instructions) if type(t).__name__ == "Email"]
@@ -810,11 +802,10 @@ def test_an_email_with_a_quote_inside_its_text_decodes_as_the_email(text: str) -
 
 @pytest.mark.parametrize("text", ['"A""B"', '"A"B"', '""""', '"""'])
 def test_other_text_fields_refuse_a_quote_inside(text: str) -> None:
-    """Compare, Search and Fill refuse a quote inside their text. ``$22`` is a lone quote."""
+    """Compare and Fill refuse a quote inside their text. ``$22`` is a lone quote."""
     for build, field in (
         (lambda: CompareContact("==", "TXT1", text), "CompareContact.right"),
         (lambda: CompareContact("==", text, "TXT1"), "CompareContact.left"),
-        (lambda: Search("TXT1", "TXT10", text, "DS30", "C1", "=="), "Search.value"),
         (lambda: Fill(text, "TXT1", "TXT10"), "Fill.value"),
     ):
         [error] = _errors(build)

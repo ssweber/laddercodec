@@ -23,7 +23,7 @@ Field layout (10 fields):
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
@@ -38,11 +38,12 @@ from ..operands.checks import (
     Operand,
     Refusals,
     check_csv_flag,
-    check_quoted_text,
+    check_kept_text,
     choice_operand,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
-from ..operands.message import Op, says
+from ..operands.errors import FieldError
+from ..operands.message import Op, parts_of, says, set_parts
 from ..operands.unchecked import read_in_another_form
 from .comparison import GROUP_BANKS, CompareOp, bank_group
 from .copy import check_box_operand, check_range, check_range_ends
@@ -108,17 +109,38 @@ _TEXT_OPS = frozenset({"==", "!="})
 #: The constants a search value takes: any kind, with hex up to FFFFh.  A hex value above
 #: FFFFh is a 32-bit hex constant, which is refused with OBJ-005.  Hex text with a sign, such
 #: as ``+1h``, reads as a hex constant, so the field refuses it as a constant and not as an
-#: address.  Text is not limited to printable ASCII here.  ``check_quoted_text`` checks it,
-#: with its quotes, for the characters that CLICK keeps.  A real outside float32 is refused
-#: with OBJ-005.  ``$`` and one hex digit (``$1``) is a character code, kept as typed.
+#: address.  Text is not limited to printable ASCII here, and it may hold a quote.  Each
+#: quote between the outer quotes is one character that the Search matches.
+#: :func:`_check_value_operand` checks the text for the characters that CLICK keeps.  A real
+#: outside float32 is refused with OBJ-005.  ``$`` and one hex digit (``$1``) is a character
+#: code, kept as typed.
 _VALUE = Constants(
     ALL_KINDS,
     hex_high=HEX16_MAX,
     hex_sign=True,
     printable=False,
+    quote=True,
     one_digit_char=True,
     real_id="OBJ-005",
 )
+
+
+def _check_value_operand(value: str, field: str) -> Operand:
+    """Check a search value and return it.  A text value may hold only the characters that
+    CLICK keeps (:func:`~laddercodec.operands.checks.check_kept_text`).  The refusal of an
+    empty text names ``$00``, the code that a Search matches a blank character with."""
+    try:
+        operand = check_box_operand(value, field, REGISTER_BANKS, _VALUE)
+    except FieldError as err:
+        parts = parts_of(err)
+        if value == '""' and parts is not None:
+            set_parts(err, replace(parts, then="Write $00 for the blank character."))
+        raise
+    const = operand.constant
+    if const is not None and const.kind is Kind.TEXT:
+        check_kept_text(value, str(const.value), field)
+    return operand
+
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -216,10 +238,8 @@ class Search(Instruction):
                 table = ends[0] if ends is not None else None
             check("result", check_box_operand, RESULT_BANKS)
             check("found", check_box_operand, FOUND_BANKS)
-            if len(self.value) >= 2 and self.value[0] == self.value[-1] == '"':
-                check("value", check_quoted_text, kept=True)
             # The search value is a constant or a data register, never a bit.
-            value = check("value", check_box_operand, REGISTER_BANKS, _VALUE)
+            value = check("value", _check_value_operand)
             if value is not None:
                 self._check_value(check, value, table)
             check.flag("continuous", "oneshot")

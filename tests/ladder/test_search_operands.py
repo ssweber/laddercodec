@@ -8,14 +8,18 @@ table range, text operators and hex values apply only to Search.
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from laddercodec import FieldError, read_csv
+from laddercodec import FieldError, decode, encode, read_csv, write_csv
+from laddercodec.binary_helpers import _build_blob
 from laddercodec.csv import CSV_HEADER
+from laddercodec.decode_program import _scr_box
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.search import Search
+from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
 
 
@@ -291,19 +295,108 @@ def test_search_value_address_outside_the_table_group_refused(
     assert info.value.click_id == "OBJ-004"
 
 
-def test_a_quote_in_a_search_text_value_is_refused_without_naming_a_code() -> None:
-    # No form of a Search text value holds a quote: $22 is the quote character alone.
-    with pytest.raises(FieldError, match=r"holds a quote") as info:
-        Search("TXT1", "TXT10", '"A""B"', "DS30", "C1", "==")
-    assert "$22" not in str(info.value)
-    assert 'such as "AB"' in str(info.value)
+# ---------------------------------------------------------------------------
+# A quote inside a Search text value
+# ---------------------------------------------------------------------------
+
+#: Search values with a quote between the outer quotes. The Search matches each character
+#: between the outer quotes as typed, and each quote is one character.
+_QUOTED = ['"A"B"', '"A""B"', '""""', '"""', '"A",B"', '"Hi", Bob"', '"A","B"', '"["']
+
+#: A rung to hold one Search: CLICK's save of a single Copy into TXT1.
+_RUNG = Path(__file__).resolve().parents[1] / "fixtures" / "v4_captures" / "copy_forms"
 
 
-def test_a_lone_quote_as_a_search_value_suggests_22() -> None:
-    # $22 is the Search value for the quote character alone.
+def _quoted(value: str) -> Search:
+    return Search("TXT1", "TXT10", value, "DS30", "C1", "==")
+
+
+@pytest.mark.parametrize("value", _QUOTED)
+def test_a_quote_inside_a_search_value_is_kept_as_typed(tmp_path: Path, value: str) -> None:
+    search = _quoted(value)
+    assert search.value == value
+    assert not refusals(search)
+    token = f"search(TXT1..TXT10 == {value},result=DS30,found=C1)"
+    assert search.to_csv() == token
+    assert _read_af(tmp_path, token) == search
+    assert parse_af_blob(search.build_blob()) == search
+
+
+@pytest.mark.parametrize("value", _QUOTED)
+def test_a_search_value_with_a_quote_round_trips(tmp_path: Path, value: str) -> None:
+    """write_csv writes the Search, read_csv reads it back, and decode() reads what encode()
+    writes."""
+    [rung] = decode((_RUNG / "case21.bin").read_bytes())
+    rung = replace(rung, instructions=[_quoted(value), ""])
+    path = tmp_path / "written.csv"
+    write_csv(path, [rung])
+    assert [t for t in read_csv(path)[0].instructions if t] == [_quoted(value)]
+    [back] = decode(encode(rung))
+    assert [t for t in back.instructions if t] == [_quoted(value)]
+
+
+#: CLICK's save of ``search(TXT1..TXT10 == "A"B",result=DS30,found=C101)``, as the clipboard
+#: holds it.
+_SAVED = {
+    0x6065: '"A"B"',
+    0x6066: "TXT1",
+    0x6067: "TXT10",
+    0x6079: "DS30",
+    0x607A: "C101",
+    0x1277: "0",
+    0x3218: "8964",
+    0x11F8: "0",
+    0x21F7: "0",
+}
+
+
+def test_clicks_save_of_a_search_value_with_a_quote_decodes_as_the_search() -> None:
+    blob = _build_blob("Search", 0x2722, (*_SAVED, 0x0000), [*_SAVED.values(), ""])
+    found = parse_af_blob(blob)
+    assert found == Search("TXT1", "TXT10", '"A"B"', "DS30", "C101", "==")
+    assert not refusals(found)
+    assert found.build_blob() == blob
+    # The program file stores no flag that is off.
+    stored = {k: v for k, v in _SAVED.items() if k not in (0x1277, 0x11F8)}
+    assert _scr_box("Search", 0x2722, stored, b"\x01", {}, {}, b"\x02\x02") == found
+
+
+@pytest.mark.parametrize("value", ['"A",B"', '"A"B"'])
+def test_a_decoded_search_value_with_a_quote_writes(tmp_path: Path, value: str) -> None:
+    """decode() reads the save as the Search, and write_csv writes it."""
+    stored = {k: v for k, v in _SAVED.items() if k not in (0x1277, 0x11F8)} | {0x6065: value}
+    [rung] = decode((_RUNG / "case21.bin").read_bytes())
+    box = _scr_box("Search", 0x2722, stored, b"\x01", {}, {}, b"\x02\x02")
+    assert box == Search("TXT1", "TXT10", value, "DS30", "C101", "==")
+    path = tmp_path / "written.csv"
+    write_csv(path, [replace(rung, instructions=[box, ""])])
+    assert [t for t in read_csv(path)[0].instructions if t] == [box]
+
+
+def test_22_searches_for_a_lone_quote() -> None:
+    search = _quoted("$22")
+    assert search.to_csv() == "search(TXT1..TXT10 == $22,result=DS30,found=C1)"
+    assert parse_af_blob(search.build_blob()) == search
+
+
+@pytest.mark.parametrize(
+    ("value", "says"),
+    [
+        ('"' + "x" * 128 + '""', "a text constant is 1 to 128 characters in quotes"),
+        ('"A"\x00"', "no NUL"),
+    ],
+)
+def test_a_search_value_with_a_quote_keeps_the_text_rules(value: str, says: str) -> None:
+    """A Search value with a quote inside it is still 1 to 128 characters that CLICK keeps."""
+    with pytest.raises(FieldError, match="^Search.value: ") as info:
+        _quoted(value)
+    assert says in str(info.value)
+
+
+def test_an_empty_search_text_names_the_blank_character_code() -> None:
     with pytest.raises(FieldError) as info:
-        Search("TXT1", "TXT10", '"""', "DS30", "C1", "==")
+        _quoted('""')
     assert str(info.value) == (
-        'Search.value: \'"""\' holds a quote; write the quote character as $22'
+        'Search.value: "" is refused; a text constant is 1 to 128 characters in quotes. '
+        "Write $00 for the blank character."
     )
-    assert Search("TXT1", "TXT10", "$22", "DS30", "C1", "==").value == "$22"
