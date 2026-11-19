@@ -289,6 +289,16 @@ def test_an_instruction_read_with_a_blank_writes_the_blank(token: str) -> None:
     assert held.to_csv() == token
 
 
+def test_a_blank_math_mode_does_not_hide_a_blank_result_or_formula() -> None:
+    with pytest.raises(FieldError) as raised:
+        _read("math(,,mode=)")
+    assert [(e.field, e.code, str(e)) for e in raised.value.errors] == [
+        ("Math.mode", Code.BLANK_FIELD, "Math.mode: is blank; it needs a value"),
+        ("Math.dest", Code.BLANK_FIELD, "Math.dest: is blank; it needs an address"),
+        ("Math.expression", Code.BLANK_FIELD, "Math.expression: is blank; a Math needs a formula"),
+    ]
+
+
 def test_an_empty_drum_list_is_not_a_blank_one() -> None:
     with pytest.raises(FieldError) as raised:
         _read(EVENT_DRUM.replace("outputs=[C3]", "outputs=[]"))

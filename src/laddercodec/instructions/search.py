@@ -274,7 +274,8 @@ class Search(Instruction):
     def to_csv(self) -> str:
         expr = f"{self.table_start}..{self.table_end} {self.op} {self.value}"
         if (self.table_start, self.table_end, self.op, self.value) == ("", "", "", ""):
-            expr = ""  # a blank expression, which reads back as these four fields blank
+            # A blank expression reads back as these four fields blank.
+            expr = ""
         kw = [f"result={self.result}", f"found={self.found}"]
         if self.continuous:
             kw.append("continuous=1")

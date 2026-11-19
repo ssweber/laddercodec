@@ -601,8 +601,9 @@ A blank list, target or search expression reads the same way:
 - `event_drum(outputs=,...)` leaves `Drum.outputs` blank. An empty list,
   `outputs=[]`, is a different value, and it is refused for its size.
 - `send(target=,...)` leaves `Send.target` blank.
-- `search(,result=DS1,found=C1)` leaves the table, the operator and the value
-  blank. The `FieldError` holds a refusal of each of the four fields.
+- `search(,result=DS1,found=C1)` leaves `Search.table_start`,
+  `Search.table_end`, `Search.op` and `Search.value` blank. The `FieldError`
+  holds a refusal of each of the four.
 
 A blank argument that the token has no field for, such as `on_acc=` in
 `toggle(C1,on_acc=)`, is still a syntax error, with no `field`.

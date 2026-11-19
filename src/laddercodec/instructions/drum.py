@@ -114,7 +114,9 @@ _KIND_LISTS: dict[str, tuple[str, ...]] = {
 
 
 def _is_blank(value: object) -> bool:
-    """Return True if *value* is ``""``, which a list field holds when it is blank."""
+    """Return True if *value* is ``""``.
+
+    A list field holds ``""`` when it is blank."""
     return value == ""
 
 
@@ -378,7 +380,7 @@ class Drum(PinnedInstruction):
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
                     )
-                # Refused here, a blank list is not refused again for its size or shape.
+                # A blank list is refused once, here. The size and pattern checks skip it.
                 for name in blank:
                     check.refuse(
                         name,
@@ -888,7 +890,7 @@ def _list_arg(call: AfCall, key: str, parse: Callable[[str], _L]) -> _L:
     """Return the list in keyword *key* of *call*, read with *parse*.
 
     An absent keyword reads as an empty list.  A blank one, as in ``outputs=``, reads as
-    ``""``, which the Drum refuses as missing."""
+    ``""``.  The Drum refuses ``""`` as missing."""
     text = call.kwargs.get(key, "[]")
     return parse(text) if text else cast("_L", "")
 

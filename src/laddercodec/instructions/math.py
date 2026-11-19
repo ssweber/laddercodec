@@ -246,6 +246,13 @@ class Math(Instruction):
                     formula = check.run(parse, self.expression, self.mode)
                     if formula is not None:
                         object.__setattr__(self, "expression", formula.written)
+            else:
+                # A blank result or formula is refused in either mode. The decimal checks
+                # refuse it with the same message as the hex checks.
+                if self.dest == "":
+                    check("dest", check_address, RESULT_BANKS["decimal"], bank_id="OBJ-004")
+                if self.expression == "":
+                    check.run(parse, self.expression, "decimal")
             check.flag("oneshot")
 
     def to_csv(self) -> str:
