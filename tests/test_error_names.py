@@ -1648,8 +1648,8 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
     A refusal that quotes the whole formula leaves it as it is, so a quoted text is not
     checked for the addresses that it holds.  A limit such as ``DS1-DS4500`` or
     ``X021-X036`` is plain on purpose, so the test removes it before the check.  The test
-    skips the refusals of an address outside its bank, because their lists of limits also
-    hold single addresses such as ``XD0``.
+    skips each refusal of an address or a constant outside its range.  The limits that
+    such a refusal lists for an address also hold single addresses such as ``XD0``.
     """
     plain: dict[str, str] = {}
     count = 0

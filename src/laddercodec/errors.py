@@ -26,15 +26,16 @@ class LaddercodecError(ValueError):
     ``except LaddercodecError`` catches all of them, and so does ``except ValueError``.
 
     :meth:`message`, :meth:`short` and :meth:`detail` return the error's text with your
-    names for the addresses in it.  A ``FieldError`` from any instruction or Modbus target
-    shows your name for each address it names, except in a ``Math`` refusal that quotes
-    the whole formula.  The refusals of ``Call``, ``Tee``, ``RawInstruction``,
-    ``Undecoded``, ``Series``, ``Parallel``, ``Box``, ``Branch`` and ``Circuit`` name no
-    address, but they still split into :meth:`short` and :meth:`detail`.  A
+    names for the addresses in it.  A ``FieldError`` from any instruction, Modbus target
+    or ``ModbusAddress`` shows your name for each address it names, except in a ``Math``
+    refusal that quotes the whole formula.  The refusals of ``Call``, ``Tee``,
+    ``RawInstruction``, ``Undecoded``, ``Series``, ``Parallel``, ``Box``, ``Branch`` and
+    ``Circuit`` name no address, but they still split into :meth:`short` and
+    :meth:`detail`.  A
     ``CsvReadError`` about the shape of a token shows no names.  For example,
     ``read_csv`` refuses ``blockcopy(DS1,DS10..DS20)`` with ``'DS1' is not a range``, and
-    :meth:`message` returns that text with no name in it.  Any other error ignores the
-    names.
+    :meth:`message` returns that text with no name in it.  A ``CsvReadError`` that wraps a
+    box's refusal shows names as that refusal does.  Any other error ignores the names.
     """
 
     # The parts of the message (operands.message.Parts), for an error that keeps them.

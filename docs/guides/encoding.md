@@ -350,8 +350,8 @@ never replaced. You can write a key in any form that CLICK reads, such as `ds1` 
 returns `str(exc)`. If `read_csv` raised the refusal, `message()` keeps the CSV
 location at the end, and `short()` and `detail()` leave it out.
 
-A `FieldError` from any instruction or Modbus target shows your name for each
-address it names. When a `Math` refusal quotes the whole formula, names do not
+A `FieldError` from any instruction, Modbus target or `ModbusAddress` shows your
+name for each address it names. When a `Math` refusal quotes the whole formula, names do not
 replace the addresses in it. The refusals of `Call`, `Tee`, `RawInstruction`,
 `Undecoded`, `Series`, `Parallel`, `Box`, `Branch` and `Circuit` name no address, so
 names change nothing in them, and `short()` and `detail()` still split them. A
