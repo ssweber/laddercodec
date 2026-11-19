@@ -24,10 +24,14 @@ from laddercodec import AddressError, FieldError, RefusedFieldWarning, read_csv
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.errors import CsvReadError, LaddercodecError
+from laddercodec.instructions.coil import Coil
+from laddercodec.instructions.comparison import CompareContact
+from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import ForLoop
+from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.send_receive import (
     ModbusAddress,
     ModbusRtuTarget,
@@ -699,3 +703,95 @@ def test_a_send_csv_token_refusal_keeps_its_parts(tmp_path: Path, af: str, short
     error = raised.value
     assert parts_of(error) is not None
     assert error.short() == short
+
+
+_BIT_POOL = (
+    "X1", "x2", "Y1", "C1", "c2", "C16", "DS1", "ds1", "TD1", "SC1", "SC50", "T1", "DS[DD1]",
+    "", "5", "1.5", "FFh", '"A"', "DH",
+)  # fmt: skip
+_BIT_SMALL = ("X1", "Y1", "C1", "c2", "DS1", "TD1", "SC50", "5", "DH", "")
+
+
+def _bit_builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
+    """Yield each build of a bit instruction in the corpus, with its text fields."""
+    for a in _BIT_POOL:
+        for kind in ("no", "nc", "rise", "fall", "bogus"):
+            for imm in (False, True):
+                yield (lambda a=a, k=kind, i=imm: Contact(a, kind=k, immediate=i)), (a,)
+        for kind in ("out", "latch", "reset", "bogus"):
+            for one in (False, True):
+                yield (lambda a=a, k=kind, o=one: Coil(a, kind=k, oneshot=o)), (a,)
+            for imm in (False, True):
+                yield (lambda a=a, k=kind, i=imm: Coil(a, kind=k, immediate=i)), (a,)
+            for b in _BIT_POOL:
+                yield (lambda a=a, b=b, k=kind: Coil(a, kind=k, range_end=b)), (a, b)
+        for op in ("==", "<", "bogus", None):
+            for b in _BIT_POOL:
+                yield (lambda a=a, b=b, o=op: CompareContact(op=o, left=a, right=b)), (a, b)
+    for kind in ("toggle", "debounce", "flasher", "timed", "bogus"):
+        for a, b, c in itertools.product(_BIT_SMALL, _BIT_SMALL, _BIT_SMALL):
+            for unit in ("", "Tms", "Ts", "bogus"):
+                for maintained in (False, True):
+                    yield (
+                        (
+                            lambda a=a, b=b, c=c, k=kind, u=unit, m=maintained: OutVariant(
+                                k,
+                                a,
+                                on_acc=b,
+                                on_preset=c,
+                                off_acc=b,
+                                off_preset=c,
+                                unit=u,
+                                maintained=m,
+                            )  # fmt: skip
+                        ),
+                        (a, b, c),
+                    )
+
+
+def test_every_address_that_a_bit_instruction_refusal_quotes_takes_a_name() -> None:
+    """The same check as for the Copy family, over the bit instructions."""
+    plain: dict[str, str] = {}
+    count = 0
+    for build, fields in _bit_builds():
+        try:
+            build()
+        except FieldError as exc:
+            addresses = _addresses(fields)
+            names = {display: f"<{display}>" for display in addresses}
+            for error in exc.errors:
+                count += 1
+                text = _outside_parentheses(error.message(names))
+                for display, typed in addresses.items():
+                    if f"'{display}'" in text or f"'{typed}'" in text:
+                        plain.setdefault(str(error), display)
+    assert count > 1000
+    assert not plain, plain
+
+
+def test_a_bit_instruction_csv_refusal_keeps_its_parts(tmp_path: Path) -> None:
+    """A refused flag in an ``out(...)`` token comes from the CSV parse, which the guard in
+    ``tests/conftest.py`` does not see.  A refused address of the same token is built by
+    ``Coil`` itself, and it keeps its parts."""
+    with pytest.raises(FieldError) as flag:
+        _read_af(tmp_path, "out(C1,oneshot=2)")
+    assert parts_of(flag.value) is not None
+    assert flag.value.short() == "'2' is not 1 or 0"
+    assert flag.value.message({"C1": "Valve"}).split(" (at ")[0] == (
+        "Coil.oneshot: '2' is not 1 or 0"
+    )
+    with pytest.raises(FieldError) as target:
+        _read_af(tmp_path, "out(DS1)")
+    assert parts_of(target.value) is not None
+    assert target.value.short({"DS1": "Count"}) == "Count (DS1) is not allowed"
+    assert target.value.message({"DS1": "Count"}).split(" (at ")[0] == (
+        "Coil.operand: Count (DS1) is not allowed; Coil.operand takes Y, C, SC (OBJ-004)"
+    )
+
+
+def test_a_coil_refusal_shows_the_name_of_each_end_of_the_range() -> None:
+    error = _refusal(lambda: Coil("C2", range_end="C1"))
+    assert error.message({"C1": "Last", "C2": "First"}).startswith(
+        "Coil.range_end: Last (C1) is not above First (C2);"
+    )
+    assert str(error).startswith("Coil.range_end: 'C1' is not above 'C2';")

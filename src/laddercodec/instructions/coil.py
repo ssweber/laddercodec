@@ -20,6 +20,7 @@ from ..model import (
     Reason,
 )
 from ..operands.checks import Refusals, bank_of, check_csv_flag, check_out_target
+from ..operands.message import operand, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -104,7 +105,7 @@ class Coil(Instruction):
             if self.kind not in tuple(_KIND_TO_ITYPE):
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not a coil (out, latch or reset)",
+                    says("{kind} is not a coil (out, latch or reset)", kind=operand(self.kind)),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -113,7 +114,7 @@ class Coil(Instruction):
                 # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
                 check.refuse(
                     ("oneshot", "kind"),
-                    f"{self.kind}() has no one-shot form; only out() does",
+                    says("{kind}() has no one-shot form", "only out() does", kind=self.kind),
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -137,8 +138,13 @@ class Coil(Instruction):
             if start is not None and end_bank is not None and end_bank != start.bank:
                 check.refuse(
                     ("range_end", "operand"),
-                    f"{self.range_end!r} is in bank {end_bank}; the range starts in bank "
-                    f"{start.bank} and must stay in it",
+                    says(
+                        "{end} is in bank {end_bank}",
+                        "the range starts in bank {start_bank} and must stay in it",
+                        end=operand(self.range_end),
+                        end_bank=end_bank,
+                        start_bank=start.bank,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     "OBJ-008",
                     code=Code.RANGE_MIXED_BANKS,
@@ -153,8 +159,12 @@ class Coil(Instruction):
                 # as the start is refused with OBJ-012.
                 check.refuse(
                     ("range_end", "operand"),
-                    f"{self.range_end!r} is not above {self.operand!r}; a range runs from a "
-                    "lower to a higher address",
+                    says(
+                        "{end} is not above {start}",
+                        "a range runs from a lower to a higher address",
+                        end=operand(self.range_end),
+                        start=operand(self.operand),
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     "OBJ-009" if end.number < start.number else "OBJ-012",
                     code=Code.RANGE_NOT_ASCENDING,

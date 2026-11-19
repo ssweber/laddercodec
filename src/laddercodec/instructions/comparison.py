@@ -20,6 +20,7 @@ from ..model import (
 from ..operands.address import ADDRESS_BANKS, read_typed_address
 from ..operands.checks import ALL_KINDS, Constants, Refusals, check_kept_text, check_operand
 from ..operands.constants import HEX16_MAX, Kind
+from ..operands.message import operand, says
 from ..operands.unchecked import read_in_another_form
 from .contact import refuse_down_prefix
 from .family import ConditionInstructionFamilySpec
@@ -166,7 +167,12 @@ class CompareContact(Condition):
             if not isinstance(self.op, str) or self.op not in COMPARE_OP_TO_FUNC:
                 check.refuse(
                     "op",
-                    f"{self.op!r} is not allowed; it is one of " + ", ".join(COMPARE_OP_TO_FUNC),
+                    says(
+                        "{op} is not allowed",
+                        "it is one of {ops}",
+                        op=operand(self.op),
+                        ops=", ".join(COMPARE_OP_TO_FUNC),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -178,8 +184,15 @@ class CompareContact(Condition):
             if left is not None and right is not None and left != right:
                 check.refuse(
                     ("left", "right"),
-                    f"{self.left!r} ({left}) and {self.right!r} ({right}) "
-                    "are not in one compare group; hex, numeric and text operands do not mix",
+                    says(
+                        "{left} ({left_group}) and {right} ({right_group}) "
+                        "are not in one compare group",
+                        "hex, numeric and text operands do not mix",
+                        left=operand(self.left),
+                        left_group=left,
+                        right=operand(self.right),
+                        right_group=right,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COMPARE_MIXED_TYPES,
                 )
@@ -187,17 +200,24 @@ class CompareContact(Condition):
                 # CLICK saves Data B empty for a hex constant that spells a bank name (DH).
                 check.refuse(
                     "right",
-                    f"{self.right!r} is the bank name {self.right.upper()}, not a hex "
-                    "constant. Write the hex constant with a leading 0, such as "
-                    f"0{self.right.upper()}.",
+                    says(
+                        "{right} is the bank name {bank}, not a hex constant",
+                        right=operand(self.right),
+                        bank=self.right.upper(),
+                    ),  # fmt: skip
                     Reason.FORM,
                     code=Code.INVALID_CONSTANT,
+                    then=f"Write the hex constant with a leading 0, such as 0{self.right.upper()}.",
                 )
             if left == "text" and self.op not in _TEXT_OPS:
                 check.refuse(
                     ("op", "left"),
-                    f"{self.op!r} is not offered when Data A is text "
-                    f"({self.left!r}); a text compare takes == or !=",
+                    says(
+                        "{op} is not offered when Data A is text ({left})",
+                        "a text compare takes == or !=",
+                        op=operand(self.op),
+                        left=operand(self.left),
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.TEXT_ORDER_COMPARE,
                 )
