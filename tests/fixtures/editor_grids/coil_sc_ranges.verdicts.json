@@ -1,0 +1,17 @@
+{
+  "out SC50..SC60": {"verdict": "accepted"},
+  "out SC50..SC53": {"verdict": "accepted"},
+  "out SC162..SC165": {"verdict": "accepted"},
+  "out SC50..SC51": {"verdict": "accepted"},
+  "out SC60..SC61": {"verdict": "accepted"},
+  "set SC50..SC60": {"verdict": "accepted"},
+  "set SC50..SC53": {"verdict": "accepted"},
+  "set SC162..SC165": {"verdict": "accepted"},
+  "set SC50..SC51": {"verdict": "accepted"},
+  "set SC60..SC61": {"verdict": "accepted"},
+  "reset SC50..SC60": {"verdict": "accepted"},
+  "reset SC50..SC53": {"verdict": "accepted"},
+  "reset SC162..SC165": {"verdict": "accepted"},
+  "reset SC50..SC51": {"verdict": "accepted"},
+  "reset SC60..SC61": {"verdict": "accepted"}
+}

@@ -1,0 +1,554 @@
+{
+ "cases": [
+  {
+   "row": "drum.event_form.control",
+   "case": "event_drum event 1 'X001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 ' DS1'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": " DS1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'DS 1'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS 1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'X001..X002'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001..X002",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'C1..C2'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C1..C2",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 '-X001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "-X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 '$41'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "$41",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'X99999999'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X99999999",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'DS[DS1]'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS[DS1]",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'Y001,'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "Y001,",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.shape",
+   "case": "event_drum event 1 'NOT X001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "NOT X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form.control",
+   "case": "time_event_drum event 1 'X001'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 ' DS1'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": " DS1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'DS 1'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS 1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'X001..X002'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001..X002",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'C1..C2'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C1..C2",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 '-X001'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "-X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 '$41'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "$41",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'X99999999'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X99999999",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'DS[DS1]'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS[DS1]",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'Y001,'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "Y001,",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'NOT X001'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "NOT X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 '~X001'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "~X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'rise(X001)'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "rise(X001)",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'Q1'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "Q1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'X'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'DS'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  },
+  {
+   "row": "drum.time_event.event_form",
+   "case": "time_event_drum event 1 'DS1'",
+   "instruction": "drum",
+   "mode": "time_event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "accumulator": "TD1"
+   },
+   "choices": {
+    "unit": "sec"
+   }
+  }
+ ]
+}

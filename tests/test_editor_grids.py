@@ -48,6 +48,9 @@ DIALOGS = {
         frozenset({"5019", "5020", "5036", "5037", "5021", "5024"}),
     ),
     "out": Dialog((), frozenset({"address", "address_end"})),
+    # Set and Reset have the fields of Out.
+    "set": Dialog((), frozenset({"address", "address_end"})),
+    "reset": Dialog((), frozenset({"address", "address_end"})),
     "receive": Dialog(
         (),
         frozenset(
@@ -86,7 +89,7 @@ UNDRIVEN = {
     "shift": Dialog((), frozenset({"start_bit", "end_bit"})),
     "for": Dialog((), frozenset({"count"}), frozenset({"oneshot"})),
     "drum": Dialog(
-        ("time_drum", "event_drum"),
+        ("time_drum", "event_drum", "time_event_drum"),
         frozenset(
             {"num_steps", "num_outputs"}
             | {f"{name}[{i}]" for name in ("outputs", "presets", "events") for i in range(16)}
@@ -108,6 +111,10 @@ UNDRIVEN = {
 }
 UNDRIVEN_FILES = {
     name: {f"{name}.json", f"preflight_{name}.json", f"risky_{name}.json"} for name in UNDRIVEN
+}
+#: ClickNick's grids of drum events hold Drum cases too.
+UNDRIVEN_FILES["drum"] |= {
+    f"drum_events{name}.json" for name in ("", "_names", "_shapes", "_padded", "_padded2")
 }
 #: The runner takes these keys of a case and no others.
 CASE_KEYS = {"row", "case", "instruction", "mode", "fields", "choices", "options"}
@@ -382,9 +389,13 @@ def _grid_files() -> list[Path]:
     )
 
 
-def test_files_are_the_generators(built: dict[str, str]) -> None:
+def test_files_are_the_generators(generator: Any, built: dict[str, str]) -> None:
+    """Each grid and verdicts file is one that the generator writes, or a grid that ClickNick
+    wrote (``RUNNER_GRIDS``), whose verdicts file the generator writes."""
     committed = [p.name for p in GRIDS.glob("*.json") if not p.name.endswith(".answers.json")]
-    assert sorted(committed) == sorted(built)
+    runner = [f"{name}.json" for name in generator.RUNNER_GRIDS]
+    assert not set(runner) & set(built)
+    assert sorted(committed) == sorted([*built, *runner])
 
 
 def test_rows_keep_their_cases() -> None:

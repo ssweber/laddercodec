@@ -1,0 +1,1486 @@
+{
+ "grid": "coil_sc.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "g1"
+ ],
+ "cases": [
+  {
+   "row": "set.sc.writable",
+   "case": "set SC50",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.525,
+   "read_back": {
+    "address": "SC50"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC50)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC51",
+   "instruction": "set",
+   "fields": {
+    "address": "SC51"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 7.084,
+   "read_back": {
+    "address": "SC51"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC51)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC53",
+   "instruction": "set",
+   "fields": {
+    "address": "SC53"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 7.243,
+   "read_back": {
+    "address": "SC53"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC53)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC55",
+   "instruction": "set",
+   "fields": {
+    "address": "SC55"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.958,
+   "read_back": {
+    "address": "SC55"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC55)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC60",
+   "instruction": "set",
+   "fields": {
+    "address": "SC60"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 7.22,
+   "read_back": {
+    "address": "SC60"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC60)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC61",
+   "instruction": "set",
+   "fields": {
+    "address": "SC61"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case05 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase05 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case05",
+    "lines": []
+   },
+   "seconds": 7.319,
+   "read_back": {
+    "address": "SC61"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC61)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC65",
+   "instruction": "set",
+   "fields": {
+    "address": "SC65"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case06 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase06 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case06",
+    "lines": []
+   },
+   "seconds": 7.218,
+   "read_back": {
+    "address": "SC65"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC65)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC66",
+   "instruction": "set",
+   "fields": {
+    "address": "SC66"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case07 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase07 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case07",
+    "lines": []
+   },
+   "seconds": 7.149,
+   "read_back": {
+    "address": "SC66"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC66)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC67",
+   "instruction": "set",
+   "fields": {
+    "address": "SC67"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 7.165,
+   "read_back": {
+    "address": "SC67"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC67)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC75",
+   "instruction": "set",
+   "fields": {
+    "address": "SC75"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case09",
+    "lines": []
+   },
+   "seconds": 7.23,
+   "read_back": {
+    "address": "SC75"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC75)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC76",
+   "instruction": "set",
+   "fields": {
+    "address": "SC76"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case10 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase10 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case10",
+    "lines": []
+   },
+   "seconds": 7.265,
+   "read_back": {
+    "address": "SC76"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC76)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC120",
+   "instruction": "set",
+   "fields": {
+    "address": "SC120"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case11 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase11 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case11",
+    "lines": []
+   },
+   "seconds": 7.262,
+   "read_back": {
+    "address": "SC120"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC120)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC121",
+   "instruction": "set",
+   "fields": {
+    "address": "SC121"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 7.175,
+   "read_back": {
+    "address": "SC121"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC121)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC162",
+   "instruction": "set",
+   "fields": {
+    "address": "SC162"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case13",
+    "lines": []
+   },
+   "seconds": 7.289,
+   "read_back": {
+    "address": "SC162"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC162)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC165",
+   "instruction": "set",
+   "fields": {
+    "address": "SC165"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case14",
+    "lines": []
+   },
+   "seconds": 7.147,
+   "read_back": {
+    "address": "SC165"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC165)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC168",
+   "instruction": "set",
+   "fields": {
+    "address": "SC168"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case15 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase15 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case15",
+    "lines": []
+   },
+   "seconds": 7.098,
+   "read_back": {
+    "address": "SC168"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC168)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC171",
+   "instruction": "set",
+   "fields": {
+    "address": "SC171"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case16 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase16 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case16",
+    "lines": []
+   },
+   "seconds": 7.049,
+   "read_back": {
+    "address": "SC171"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC171)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC303",
+   "instruction": "set",
+   "fields": {
+    "address": "SC303"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case17 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase17 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case17",
+    "lines": []
+   },
+   "seconds": 7.208,
+   "read_back": {
+    "address": "SC303"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC303)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC304",
+   "instruction": "set",
+   "fields": {
+    "address": "SC304"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case18 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase18 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case18",
+    "lines": []
+   },
+   "seconds": 7.285,
+   "read_back": {
+    "address": "SC304"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC304)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC305",
+   "instruction": "set",
+   "fields": {
+    "address": "SC305"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case19 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase19 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case19",
+    "lines": []
+   },
+   "seconds": 7.093,
+   "read_back": {
+    "address": "SC305"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC305)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC306",
+   "instruction": "set",
+   "fields": {
+    "address": "SC306"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case20 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase20 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case20",
+    "lines": []
+   },
+   "seconds": 7.168,
+   "read_back": {
+    "address": "SC306"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC306)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC323",
+   "instruction": "set",
+   "fields": {
+    "address": "SC323"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case21 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase21 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case21",
+    "lines": []
+   },
+   "seconds": 7.255,
+   "read_back": {
+    "address": "SC323"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC323)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC324",
+   "instruction": "set",
+   "fields": {
+    "address": "SC324"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case22 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase22 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case22",
+    "lines": []
+   },
+   "seconds": 7.281,
+   "read_back": {
+    "address": "SC324"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC324)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC325",
+   "instruction": "set",
+   "fields": {
+    "address": "SC325"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case23 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase23 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case23",
+    "lines": []
+   },
+   "seconds": 7.03,
+   "read_back": {
+    "address": "SC325"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC325)"
+   ]
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC326",
+   "instruction": "set",
+   "fields": {
+    "address": "SC326"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case24 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase24 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case24",
+    "lines": []
+   },
+   "seconds": 7.31,
+   "read_back": {
+    "address": "SC326"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,latch(SC326)"
+   ]
+  },
+  {
+   "row": "set.sc.control",
+   "case": "set SC49",
+   "instruction": "set",
+   "fields": {
+    "address": "SC49"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 2.811,
+   "read_back": {
+    "address": "SC49"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "set.sc.control",
+   "case": "set SC163",
+   "instruction": "set",
+   "fields": {
+    "address": "SC163"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 2.904,
+   "read_back": {
+    "address": "SC163"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC50",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case25 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase25 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case25",
+    "lines": []
+   },
+   "seconds": 6.572,
+   "read_back": {
+    "address": "SC50"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC50)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC51",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC51"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case28 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase28 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case28",
+    "lines": []
+   },
+   "seconds": 6.061,
+   "read_back": {
+    "address": "SC51"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC51)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC53",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC53"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case29 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase29 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case29",
+    "lines": []
+   },
+   "seconds": 6.719,
+   "read_back": {
+    "address": "SC53"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC53)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC55",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC55"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case30 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase30 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case30",
+    "lines": []
+   },
+   "seconds": 6.577,
+   "read_back": {
+    "address": "SC55"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC55)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC60",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC60"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case31 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase31 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case31",
+    "lines": []
+   },
+   "seconds": 6.632,
+   "read_back": {
+    "address": "SC60"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC60)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC61",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC61"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case32 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase32 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case32",
+    "lines": []
+   },
+   "seconds": 6.75,
+   "read_back": {
+    "address": "SC61"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC61)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC65",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC65"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case33 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase33 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case33",
+    "lines": []
+   },
+   "seconds": 6.727,
+   "read_back": {
+    "address": "SC65"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC65)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC66",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC66"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case34 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase34 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case34",
+    "lines": []
+   },
+   "seconds": 6.721,
+   "read_back": {
+    "address": "SC66"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC66)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC67",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC67"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case35 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase35 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case35",
+    "lines": []
+   },
+   "seconds": 6.722,
+   "read_back": {
+    "address": "SC67"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC67)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC75",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC75"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case36 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase36 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case36",
+    "lines": []
+   },
+   "seconds": 6.673,
+   "read_back": {
+    "address": "SC75"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC75)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC76",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC76"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case37 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase37 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case37",
+    "lines": []
+   },
+   "seconds": 6.624,
+   "read_back": {
+    "address": "SC76"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC76)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC120",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC120"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case38 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase38 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case38",
+    "lines": []
+   },
+   "seconds": 6.497,
+   "read_back": {
+    "address": "SC120"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC120)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC121",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC121"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case39 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase39 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case39",
+    "lines": []
+   },
+   "seconds": 6.604,
+   "read_back": {
+    "address": "SC121"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC121)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC162",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC162"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case40 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase40 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case40",
+    "lines": []
+   },
+   "seconds": 6.793,
+   "read_back": {
+    "address": "SC162"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC162)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC165",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC165"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case41 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase41 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case41",
+    "lines": []
+   },
+   "seconds": 6.603,
+   "read_back": {
+    "address": "SC165"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC165)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC168",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC168"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case42 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase42 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case42",
+    "lines": []
+   },
+   "seconds": 6.724,
+   "read_back": {
+    "address": "SC168"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC168)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC171",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC171"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case43 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase43 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case43",
+    "lines": []
+   },
+   "seconds": 6.683,
+   "read_back": {
+    "address": "SC171"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC171)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC303",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC303"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case44 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase44 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case44",
+    "lines": []
+   },
+   "seconds": 6.692,
+   "read_back": {
+    "address": "SC303"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC303)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC304",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC304"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case45 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase45 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case45",
+    "lines": []
+   },
+   "seconds": 6.62,
+   "read_back": {
+    "address": "SC304"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC304)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC305",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC305"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case46 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase46 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case46",
+    "lines": []
+   },
+   "seconds": 6.772,
+   "read_back": {
+    "address": "SC305"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC305)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC306",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC306"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case47 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase47 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case47",
+    "lines": []
+   },
+   "seconds": 6.772,
+   "read_back": {
+    "address": "SC306"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC306)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC323",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC323"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case48 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase48 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case48",
+    "lines": []
+   },
+   "seconds": 6.577,
+   "read_back": {
+    "address": "SC323"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC323)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC324",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC324"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case49 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase49 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case49",
+    "lines": []
+   },
+   "seconds": 6.719,
+   "read_back": {
+    "address": "SC324"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC324)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC325",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC325"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case50 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase50 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case50",
+    "lines": []
+   },
+   "seconds": 6.697,
+   "read_back": {
+    "address": "SC325"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC325)"
+   ]
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC326",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC326"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case51 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase51 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case51",
+    "lines": []
+   },
+   "seconds": 6.616,
+   "read_back": {
+    "address": "SC326"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,reset(SC326)"
+   ]
+  },
+  {
+   "row": "reset.sc.control",
+   "case": "reset SC49",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC49"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 2.954,
+   "read_back": {
+    "address": "SC49"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "reset.sc.control",
+   "case": "reset SC163",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC163"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 2.843,
+   "read_back": {
+    "address": "SC163"
+   },
+   "limits": {
+    "address": 16
+   }
+  }
+ ]
+}

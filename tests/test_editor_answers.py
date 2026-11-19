@@ -43,7 +43,6 @@ from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
-from laddercodec.instructions.send_receive import ModbusAddress, ModbusRtuTarget, Receive
 from laddercodec.instructions.undecoded import Undecoded
 from laddercodec.model import ADDRESS_BANKS, Instruction
 
@@ -84,6 +83,13 @@ ANSWER_FILES = (
     "risky_send",
     "risky_counter",
     "risky_fill",
+    "receive_click",
+    "drum_events",
+    "drum_events_names",
+    "drum_events_shapes",
+    "drum_events_padded",
+    "coil_sc",
+    "coil_sc_ranges",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -212,9 +218,10 @@ SERVER_PORT = (
     "that CLICK's dialog states, so laddercodec refuses abc"
 )
 LONG_DIGITS = (
-    "kept: CLICK accepts a Send source of DS with 41 digits. An address has at most five "
-    "digits after its bank, so laddercodec refuses it. It reads leading zeros within the "
-    "five, as in DS001"
+    "kept: CLICK reads an address with more than five digits after its bank by its value, "
+    "such as a Send source of DS with 41 digits or the drum event C000001. An address has at "
+    "most five digits after its bank, so laddercodec refuses it. It reads leading zeros "
+    "within the five, as in DS001"
 )
 FILL_TXT_REAL = (
     'kept: CLICK reads "HELLO" as a real and stores the real 0.0 for a Fill into TXT, not the '
@@ -666,6 +673,22 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ("send fc06 984 400001 <- DS00000000000000000000000000000000000000001",),
     ),
     (
+        LONG_DIGITS,
+        "drum_events_padded",
+        "outcome",
+        (
+            "event_drum event 1 'C000001'",
+            "event_drum event 1 'X0000001'",
+            "event_drum event 1 'SC0000000001'",
+        ),
+    ),
+    (
+        LONG_DIGITS,
+        "drum_events_padded",
+        "stored",
+        ("event_drum event 1 'C000001'", "event_drum event 1 'SC0000000001'"),
+    ),
+    (
         ONE_ELEMENT_COUNT,
         "send",
         "outcome",
@@ -733,12 +756,12 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4133
+CODES_COMPARED = 4690
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
 #: outcome is one where CLICK closed before it answered.
-NOT_TAKEN = 95
+NOT_TAKEN = 127
 NO_OUTCOME = 2
 CRASHED = 3
 NO_READ_BACK = 27
@@ -779,24 +802,14 @@ def too_long(case: dict[str, Any]) -> bool:
     return any(name in limits and len(text) > limits[name] for name, text in case["fields"].items())
 
 
-def _receive(case: dict[str, Any]) -> object:
-    """Build a Receive from a case, with the count that the dialog held when OK was clicked
-    (``read_back``). A case with no recorded count, as in ``receive.answers.json``, gets
-    quantity 1."""
-    f = case["fields"]
-    count = int(case["read_back"].get("count", 1))
-    code = int(case["choices"]["function"].split(" ")[0])
-    return Receive(
-        target=ModbusRtuTarget(name="r", com_port="cpu2", device_id=1),
-        remote_start=ModbusAddress(f["slave_address"]),
-        dest=f["master_address"],
-        quantity=count,
-        receiving=f["receiving"],
-        success=f["success"],
-        error=f["error"],
-        exception_response=f["exception"],
-        function_code=code,
-    )
+def _receive(generator: Any, case: dict[str, Any]) -> object:
+    """Build a Receive from a case with the generator's builder.
+
+    The count is the one that the case types. A case that types no count is built with the
+    count that the dialog held when OK was clicked (``read_back``). A case with no recorded
+    count, as in ``receive.answers.json``, gets quantity 1."""
+    count = case["fields"].get("count", (case["read_back"] or {}).get("count", "1"))
+    return generator.receive_build(case, count)()
 
 
 def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | None]:
@@ -804,7 +817,7 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
     refuse it."""
     try:
         if case["instruction"] == "receive":
-            _receive(case)
+            _receive(generator, case)
         else:
             seen: list[BaseException] = []
 
@@ -950,9 +963,16 @@ def compare(
     return found, counts
 
 
+#: The files of the SC and SD addresses that the Address Picker lists, for each field.
+PICKER_FILES = ("sc_sd_writable", "coil_sc_picker")
+
+
 def _writable() -> list[dict[str, Any]]:
-    path = GRIDS / "sc_sd_writable.answers.json"
-    return json.loads(path.read_text(encoding="utf-8"))["fields"]
+    fields = []
+    for name in PICKER_FILES:
+        path = GRIDS / f"{name}.answers.json"
+        fields += json.loads(path.read_text(encoding="utf-8"))["fields"]
+    return fields
 
 
 def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
@@ -966,8 +986,8 @@ def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
     filled = field.get("filled") or {}
     kind, mode = field["instruction"], field.get("mode")
     try:
-        if kind == "out":
-            Coil(address, range_end=None)
+        if kind in COIL_KINDS:
+            Coil(address, kind=COIL_KINDS[kind])
         elif mode == "single":
             Copy("DS1", address)
         elif mode == "block":
@@ -987,6 +1007,10 @@ def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
         return False
     return True
 
+
+#: The Coil kind of each coil dialog. For a range end in the picker's list, the test builds a
+#: Coil with that address alone, the same way it checks the address field.
+COIL_KINDS: dict[str, Any] = {"out": "out", "set": "latch", "reset": "reset"}
 
 #: Sources a Pack or Unpack field may have when the picker was opened with nothing filled.
 PACK_SOURCES = [("C1", "C16"), ("DS1", "DS2"), ("DD1", "DD2"), ("DH1", "DH2"), ("DF1", "DF2")]
@@ -1100,6 +1124,20 @@ def test_answers_match_the_rules(compared: tuple[dict[Key, str], dict[str, int]]
     )
 
 
+def test_drum_cases_click_accepts_have_no_id(generator: Any) -> None:
+    """A Drum case that CLICK accepts and the rules refuse has no CLICK id in the refusal,
+    such as the event ``X 001``."""
+    with_id = [
+        (grid, case["case"], click_id)
+        for grid in ANSWER_FILES
+        for case in _answers(grid)
+        if case["instruction"] == "drum" and case["outcome"] == "accepted"
+        for _, click_id in [rules_verdict(generator, case)]
+        if click_id is not None
+    ]
+    assert with_id == []
+
+
 def test_picker_checks_follow_the_picker_lists() -> None:
     assert compare_picker_checks() == []
 
@@ -1155,7 +1193,7 @@ def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
                 tally["no_read_back"] += 1
                 continue
             fields = held_fields(case) if case["outcome"] == "not_taken" else case["fields"]
-            if grid == "receive_count":
+            if grid in ("receive_count", "receive_click"):
                 # The dialog also held the Slave ID and, where a case left the count unset,
                 # the count it defaults to.
                 assert all(read_back[k] == v for k, v in fields.items()), case["case"]
@@ -1182,15 +1220,22 @@ CLOSED_FIELDS = "these fields are closed for entry: "
 def held_fields(case: dict[str, Any]) -> dict[str, str]:
     """Return the fields of a not_taken case as its dialog holds them.
 
-    A not_taken case reads back as typed, with two exceptions. A Drum's dialog holds a step
-    or output count past its bound at the bound, so 0 reads back as 1 and 17 as 16. A dialog
-    that closes the count box holds no count. Any other difference fails the test.
+    A not_taken case reads back as typed, with three exceptions:
+
+    - A Drum's dialog holds a step or output count past its bound at the bound, so 0 reads
+      back as 1 and 17 as 16.
+    - A Receive's dialog holds the count of a YD master address at 1.
+    - A dialog that closes the count box holds no count.
+
+    Any other difference fails the test.
     """
     fields = dict(case["fields"])
     if case["instruction"] == "drum":
         for name, (low, high) in DRUM_COUNT_BOUNDS.items():
             if fields.get(name, "").isdecimal():
                 fields[name] = str(min(max(int(fields[name]), low), high))
+    if case["instruction"] == "receive" and fields.get("master_address", "").startswith("YD"):
+        fields["count"] = "1"
     message = case["message"] or ""
     if message.startswith(CLOSED_FIELDS) and message[len(CLOSED_FIELDS) :] == "count":
         del fields["count"]
@@ -1299,3 +1344,34 @@ def test_answers_are_the_grids_cases() -> None:
             # may set Continuous or One Shot, and its answer holds the same options.
             assert "choices" not in case, where
             assert answer.get("options") == case.get("options"), where
+
+
+#: The answer files of the grids that ClickNick wrote, and the grids that each file answers,
+#: in the order of its cases.
+RUNNER_ANSWERS = {
+    "receive_click": ("receive_click", "receive_click_count1"),
+    "drum_events": ("drum_events",),
+    "drum_events_names": ("drum_events_names",),
+    "drum_events_shapes": ("drum_events_shapes",),
+    "drum_events_padded": ("drum_events_padded", "drum_events_padded2"),
+    "coil_sc": ("coil_sc",),
+    "coil_sc_ranges": ("coil_sc_ranges",),
+}
+
+
+def test_runner_answers_are_the_grids_cases(generator: Any) -> None:
+    """Each answer file of a grid that ClickNick wrote holds the cases of its grids, in order.
+    Each answer holds its case's keys with the same values."""
+    assert sorted(g for grids in RUNNER_ANSWERS.values() for g in grids) == sorted(
+        generator.RUNNER_GRIDS
+    )
+    for name, grids in RUNNER_ANSWERS.items():
+        cases = [
+            case
+            for grid in grids
+            for case in json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
+        ]
+        answered = _answers(name)
+        assert len(answered) == len(cases), name
+        for case, answer in zip(cases, answered, strict=True):
+            assert {k: answer.get(k) for k in case} == case, (name, case["case"])

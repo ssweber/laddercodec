@@ -1,0 +1,139 @@
+{
+ "cases": [
+  {
+   "row": "out.sc.range",
+   "case": "out SC50..SC60",
+   "instruction": "out",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC60"
+   }
+  },
+  {
+   "row": "out.sc.range",
+   "case": "out SC50..SC53",
+   "instruction": "out",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC53"
+   }
+  },
+  {
+   "row": "out.sc.range",
+   "case": "out SC162..SC165",
+   "instruction": "out",
+   "fields": {
+    "address": "SC162",
+    "address_end": "SC165"
+   }
+  },
+  {
+   "row": "out.sc.range.control",
+   "case": "out SC50..SC51",
+   "instruction": "out",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC51"
+   }
+  },
+  {
+   "row": "out.sc.range.control",
+   "case": "out SC60..SC61",
+   "instruction": "out",
+   "fields": {
+    "address": "SC60",
+    "address_end": "SC61"
+   }
+  },
+  {
+   "row": "set.sc.range",
+   "case": "set SC50..SC60",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC60"
+   }
+  },
+  {
+   "row": "set.sc.range",
+   "case": "set SC50..SC53",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC53"
+   }
+  },
+  {
+   "row": "set.sc.range",
+   "case": "set SC162..SC165",
+   "instruction": "set",
+   "fields": {
+    "address": "SC162",
+    "address_end": "SC165"
+   }
+  },
+  {
+   "row": "set.sc.range.control",
+   "case": "set SC50..SC51",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC51"
+   }
+  },
+  {
+   "row": "set.sc.range.control",
+   "case": "set SC60..SC61",
+   "instruction": "set",
+   "fields": {
+    "address": "SC60",
+    "address_end": "SC61"
+   }
+  },
+  {
+   "row": "reset.sc.range",
+   "case": "reset SC50..SC60",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC60"
+   }
+  },
+  {
+   "row": "reset.sc.range",
+   "case": "reset SC50..SC53",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC53"
+   }
+  },
+  {
+   "row": "reset.sc.range",
+   "case": "reset SC162..SC165",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC162",
+    "address_end": "SC165"
+   }
+  },
+  {
+   "row": "reset.sc.range.control",
+   "case": "reset SC50..SC51",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC51"
+   }
+  },
+  {
+   "row": "reset.sc.range.control",
+   "case": "reset SC60..SC61",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC60",
+    "address_end": "SC61"
+   }
+  }
+ ]
+}

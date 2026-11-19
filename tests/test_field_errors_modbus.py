@@ -228,7 +228,7 @@ def test_send_conflicts_name_both_fields(
     ("build", "fields", "reason", "click_id"),
     [
         (lambda: receive(function_code=1), ("function_code", "remote_start"), Reason.CONFLICT, "OBJ-004"),
-        (lambda: receive(function_code=2), ("function_code", "remote_start"), Reason.CONFLICT, None),
+        (lambda: receive(function_code=2), ("function_code", "remote_start"), Reason.CONFLICT, "OBJ-004"),
         (lambda: receive(remote_start=ModbusAddress("400001"), function_code=1), ("function_code", "remote_start"), Reason.CONFLICT, None),
         (lambda: receive(receiving="C1", success="C1"), ("success", "receiving"), Reason.CONFLICT, None),
         (lambda: receive(remote_start="C1", dest="C1", word_swap=True), ("word_swap", "remote_start"), Reason.CONFLICT, None),
@@ -246,7 +246,7 @@ def test_receive_conflicts_name_both_fields(
 
 def test_receive_first_refusal_of_a_conflict_is_the_one_a_later_pair_skips() -> None:
     errors = _refusals(lambda: receive(function_code=3, remote_start="C1", dest="C1"))
-    assert _shape(errors) == [("Receive.function_code", Reason.CONFLICT, None)]
+    assert _shape(errors) == [("Receive.function_code", Reason.CONFLICT, "OBJ-004")]
 
 
 @pytest.mark.parametrize(

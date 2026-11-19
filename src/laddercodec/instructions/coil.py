@@ -149,8 +149,8 @@ class Coil(Instruction):
                     "OBJ-008",
                     code=Code.RANGE_MIXED_BANKS,
                 )
-            # In an SC range, both ends must be writable. The bits between them are not
-            # checked.
+            # In an SC range, both ends must be writable. CLICK accepts a range that holds a
+            # read-only SC between its ends, such as SC50..SC60, which holds SC52.
             end = check("range_end", check_out_target, immediate=immediate, **ids)
             if start is None or end is None:
                 return

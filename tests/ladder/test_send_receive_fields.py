@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from laddercodec import AddressError, FieldError, decode, encode, read_csv
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import AfCall
 from laddercodec.csv.token_parser import parse_af_token
@@ -923,6 +924,30 @@ def test_receive_click_address_keeps_its_function_code(remote, dest, fc, fc_subt
 def test_receive_function_code_refused(kw, message) -> None:
     with pytest.raises(FieldError, match=message):
         receive(**kw)
+
+
+@pytest.mark.parametrize(
+    ("remote", "dest", "fc", "message"),
+    [
+        ("DS1", "DS1", 1, "FC01 cannot read a register (OBJ-004). Read a register with FC03 or "
+         "FC04, such as function_code=3."),
+        ("DS1", "DS1", 2, "FC02 cannot read a register (OBJ-004). Read a register with FC03 or "
+         "FC04, such as function_code=3."),
+        ("X001", "C1", 3, "FC03 cannot read a bit (OBJ-004). Read a bit with FC01 or FC02, such "
+         "as function_code=1."),
+        ("SC1", "Y001", 4, "FC04 cannot read a bit (OBJ-004). Read a bit with FC01 or FC02, such "
+         "as function_code=1."),
+    ],
+)  # fmt: skip
+def test_receive_click_address_of_the_other_kind(remote, dest, fc, message) -> None:
+    """A Receive refuses a CLICK slave address of the kind that its function code does not
+    read, with OBJ-004 for each function code."""
+    with pytest.raises(FieldError) as caught:
+        receive(remote_start=remote, dest=dest, function_code=fc)
+    error = caught.value
+    assert error.fields == ("Receive.function_code", "Receive.remote_start")
+    assert (error.code, error.click_id) == (Code.FUNCTION_CODE_MISMATCH, "OBJ-004")
+    assert str(error) == f"Receive.function_code: {message}"
 
 
 def test_receive_hex_and_984_codes_need_no_function_code() -> None:

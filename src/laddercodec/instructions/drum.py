@@ -27,16 +27,23 @@ from ..codes import Code
 from ..errors import CsvReadError, EncodeError
 from ..model import (
     Address,
+    AddressError,
     PinnedInstruction,
     Reason,
     check_address,
     normalize_items,
 )
-from ..operands.address import address_shape
-from ..operands.banks import BIT_BANKS
+from ..operands.address import (
+    ADDRESS_BANKS,
+    address_shape,
+    digits_value,
+    is_pointer,
+    parse_address,
+)
+from ..operands.banks import BIT_BANKS, XY_BANKS
 from ..operands.checks import Constants, Refusals, check_operand, choice_operand, is_choice
 from ..operands.constants import INT16_MAX, Kind
-from ..operands.message import Op, Rule, operand, says, shown
+from ..operands.message import Op, Rule, from_parts, operand, parts_of, says, shown
 from .family import AfInstructionFamilySpec
 from .timer import TimeUnit
 
@@ -228,6 +235,114 @@ def _constant_preset_mask(presets: tuple[str, ...]) -> str:
 #: duration.  On such a CPU, CLICK's syntax check reports C0227.  A rung does not say which
 #: CPU the project selects, so laddercodec does not check this.
 _DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
+
+
+#: The operators that CLICK refuses before an event's address, such as ``~X001``.
+_EVENT_PREFIXES = ("~", "!", "/", "-", "NC ", "NOT ")
+#: The edge calls that CLICK refuses as an event, such as ``rise(X001)``.
+_EVENT_EDGES = ("rise(", "fall(")
+_HEX_DIGITS = frozenset("0123456789ABCDEFabcdef")
+_ONE_ADDRESS = "Write one bit address, such as X001."
+
+
+def _one_address(text: str) -> bool:
+    return parse_address(text.upper()) is not None
+
+
+def _not_one_address(text: str) -> bool:
+    """Return whether ``text`` is one of the forms that CLICK refuses with OBJ-005."""
+    prefix = next((p for p in _EVENT_PREFIXES if text.startswith(p)), None)
+    edge = next((e for e in _EVENT_EDGES if text.startswith(e) and text.endswith(")")), None)
+    ends = text.split("..")
+    items = [item for item in text.split(",") if item]
+    shape = address_shape(text.upper())
+    return (
+        (prefix is not None and _one_address(text[len(prefix) :]))
+        or (edge is not None and _one_address(text[len(edge) : -1]))
+        or (len(ends) == 2 and all(_one_address(end) for end in ends))
+        or ("," in text and bool(items) and all(_one_address(item) for item in items))
+        or is_pointer(text)
+        or (text.startswith("$") and len(text) > 1 and set(text[1:]) <= _HEX_DIGITS)
+        or (
+            text.isascii()
+            and text.isalnum()
+            and (shape is None or shape[0] not in ADDRESS_BANKS)
+            and text.upper() not in ADDRESS_BANKS
+        )
+    )
+
+
+def _event_id(text: object) -> tuple[str, str] | None:
+    """Return the CLICK id and the advice for an event that is not an address, or None.
+
+    CLICK refuses these events with OBJ-005:
+
+    - an address after an operator, such as ``~X001``, ``!X001``, ``/X001``, ``-X001``,
+      ``NC X001`` or ``NOT X001``;
+    - an address in an edge call, such as ``rise(X001)``;
+    - a range, such as ``X001..X002``;
+    - addresses with commas after or between them, such as ``X001,X002`` or ``Y001,``;
+    - a pointer, such as ``X[DS1]``;
+    - ``$`` and hex digits, such as ``$41``;
+    - ASCII letters and digits that are neither a bank and a number nor a bank alone, such
+      as ``Q1``, ``ABC``, ``1`` or ``C1A``.
+
+    It refuses a bank name alone with OBJ-002 for a bank that an event takes, such as ``X``,
+    and with OBJ-004 for any other bank, such as ``DS``.  It reads the number after a bit
+    bank by its value, so ``C000001`` is C1.  It refuses a number above the bank's highest
+    address with OBJ-003, such as ``X99999999`` or ``C0002001``.  It refuses an X or Y number
+    of more than five digits that no X or Y point has with OBJ-002, such as
+    ``X00000100``.  CLICK ignores spaces in an event.  It refuses ``DS 1`` and `` DS1`` with
+    OBJ-004, as it refuses ``DS1``.  Any other text has no id here.
+    """
+    if not isinstance(text, str):
+        return None
+    if text in ADDRESS_BANKS:
+        if text in BIT_BANKS:
+            example = f"{text}001" if text in XY_BANKS else f"{text}1"
+            return "OBJ-002", f"Write the number after the bank, such as {example}."
+        return "OBJ-004", _ONE_ADDRESS
+    if _not_one_address(text):
+        return "OBJ-005", _ONE_ADDRESS
+    if " " in text:
+        address = parse_address(text.replace(" ", "").upper())
+        if address is not None and address.bank not in BIT_BANKS:
+            return "OBJ-004", _ONE_ADDRESS
+        return None
+    shape = address_shape(text)
+    if shape is not None and shape[0] in BIT_BANKS:
+        bank, digits = shape
+        value = digits_value(digits)
+        if value > ADDRESS_BANKS[bank][1]:
+            return "OBJ-003", _ONE_ADDRESS
+        if bank in XY_BANKS and value > 0 and parse_address(f"{bank}{value:03d}") is None:
+            return "OBJ-002", _ONE_ADDRESS
+    return None
+
+
+def _check_event(value: str, field: str, *, label: str) -> Address:
+    """Check a step's event and return its address, or raise :class:`AddressError`.
+
+    An event is one bit address in X, Y, C, T, CT or SC.  It has no NC or edge form.  An
+    address in another bank has OBJ-004, and text that is not an address has the id that
+    :func:`_event_id` gives it.
+    """
+    try:
+        return check_address(value, field, BIT_BANKS, label=label, bank_id="OBJ-004")
+    except AddressError as exc:
+        parts = parts_of(exc)
+        found = _event_id(value)
+        if exc.code is not Code.NOT_AN_ADDRESS or parts is None or found is None:
+            raise
+        click_id, then = found
+        raise from_parts(
+            AddressError,
+            replace(parts, click_id=click_id, then=then),
+            field=exc.fields,
+            reason=exc.reason,
+            code=exc.code,
+            click_id=click_id,
+        ) from None
 
 
 def _check_distinct_outputs(
@@ -438,12 +553,7 @@ class Drum(PinnedInstruction):
             if not check.refused("kind"):
                 for i, event in enumerate(self.events):
                     if event:
-                        check(
-                            f"events[{i}]",
-                            check_address,
-                            banks=BIT_BANKS,
-                            label=f"Drum.events[{i}]",
-                        )
+                        check(f"events[{i}]", _check_event, label=f"Drum.events[{i}]")
                 for i, preset in enumerate(self.presets):
                     if preset:
                         check(

@@ -1,0 +1,436 @@
+{
+ "cases": [
+  {
+   "row": "set.sc.writable",
+   "case": "set SC50",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC51",
+   "instruction": "set",
+   "fields": {
+    "address": "SC51"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC53",
+   "instruction": "set",
+   "fields": {
+    "address": "SC53"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC55",
+   "instruction": "set",
+   "fields": {
+    "address": "SC55"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC60",
+   "instruction": "set",
+   "fields": {
+    "address": "SC60"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC61",
+   "instruction": "set",
+   "fields": {
+    "address": "SC61"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC65",
+   "instruction": "set",
+   "fields": {
+    "address": "SC65"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC66",
+   "instruction": "set",
+   "fields": {
+    "address": "SC66"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC67",
+   "instruction": "set",
+   "fields": {
+    "address": "SC67"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC75",
+   "instruction": "set",
+   "fields": {
+    "address": "SC75"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC76",
+   "instruction": "set",
+   "fields": {
+    "address": "SC76"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC120",
+   "instruction": "set",
+   "fields": {
+    "address": "SC120"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC121",
+   "instruction": "set",
+   "fields": {
+    "address": "SC121"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC162",
+   "instruction": "set",
+   "fields": {
+    "address": "SC162"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC165",
+   "instruction": "set",
+   "fields": {
+    "address": "SC165"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC168",
+   "instruction": "set",
+   "fields": {
+    "address": "SC168"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC171",
+   "instruction": "set",
+   "fields": {
+    "address": "SC171"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC303",
+   "instruction": "set",
+   "fields": {
+    "address": "SC303"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC304",
+   "instruction": "set",
+   "fields": {
+    "address": "SC304"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC305",
+   "instruction": "set",
+   "fields": {
+    "address": "SC305"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC306",
+   "instruction": "set",
+   "fields": {
+    "address": "SC306"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC323",
+   "instruction": "set",
+   "fields": {
+    "address": "SC323"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC324",
+   "instruction": "set",
+   "fields": {
+    "address": "SC324"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC325",
+   "instruction": "set",
+   "fields": {
+    "address": "SC325"
+   }
+  },
+  {
+   "row": "set.sc.writable",
+   "case": "set SC326",
+   "instruction": "set",
+   "fields": {
+    "address": "SC326"
+   }
+  },
+  {
+   "row": "set.sc.control",
+   "case": "set SC49",
+   "instruction": "set",
+   "fields": {
+    "address": "SC49"
+   }
+  },
+  {
+   "row": "set.sc.control",
+   "case": "set SC163",
+   "instruction": "set",
+   "fields": {
+    "address": "SC163"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC50",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC51",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC51"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC53",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC53"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC55",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC55"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC60",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC60"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC61",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC61"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC65",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC65"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC66",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC66"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC67",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC67"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC75",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC75"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC76",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC76"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC120",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC120"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC121",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC121"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC162",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC162"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC165",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC165"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC168",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC168"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC171",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC171"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC303",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC303"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC304",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC304"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC305",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC305"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC306",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC306"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC323",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC323"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC324",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC324"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC325",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC325"
+   }
+  },
+  {
+   "row": "reset.sc.writable",
+   "case": "reset SC326",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC326"
+   }
+  },
+  {
+   "row": "reset.sc.control",
+   "case": "reset SC49",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC49"
+   }
+  },
+  {
+   "row": "reset.sc.control",
+   "case": "reset SC163",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC163"
+   }
+  }
+ ]
+}

@@ -9,7 +9,8 @@ A grid is a case list in the runner's own shape (``{"cases": [{"row", "case", "i
 laddercodec's own bank lists, constant kinds and field rules so the lists keep in step with
 the code. Each grid has a verdicts file beside it, ``<grid>.verdicts.json``: what
 laddercodec's rules say about each case today, keyed by the case's label, for comparing with
-CLICK's answers when they come. The runner reads only the grid.
+CLICK's answers when they come. The runner reads only the grid. ClickNick wrote the grids in
+``RUNNER_GRIDS`` itself, and the generator writes only their verdicts files.
 """
 
 from __future__ import annotations
@@ -37,6 +38,8 @@ from laddercodec.instructions.send_receive import (
     ModbusRtuTarget,
     ModbusTcpPort,
     ModbusTcpTarget,
+    Receive,
+    ReceiveFunctionCode,
     Send,
     SendFunctionCode,
 )
@@ -832,6 +835,16 @@ def _out_check(case: dict[str, Any]) -> dict[str, Any]:
     return verdict_of(lambda: Coil(f["address"], range_end=f.get("address_end")))
 
 
+def _set_check(case: dict[str, Any]) -> dict[str, Any]:
+    f = case["fields"]
+    return verdict_of(lambda: Coil(f["address"], kind="latch", range_end=f.get("address_end")))
+
+
+def _reset_check(case: dict[str, Any]) -> dict[str, Any]:
+    f = case["fields"]
+    return verdict_of(lambda: Coil(f["address"], kind="reset", range_end=f.get("address_end")))
+
+
 def out_grid() -> Grid:
     """Return the grid of the Out dialog, with Out/Toggle and without One Shot or Immediate."""
     grid = Grid(_out_check)
@@ -1516,13 +1529,12 @@ def _drum_check(case: dict[str, Any]) -> dict[str, Any]:
     def items(name: str, count: int) -> tuple[str, ...]:
         return tuple(f.get(f"{name}[{i}]", "") for i in range(count))
 
-    event = kind == "event_drum"
     return verdict_of(
         lambda: Drum(
             kind=kind,
             outputs=items("outputs", outputs),
-            presets=() if event else items("presets", steps),
-            events=items("events", steps) if event else (),
+            presets=() if kind == "event_drum" else items("presets", steps),
+            events=() if kind == "time_drum" else items("events", steps),
             # The dialog opens with no cell of the pattern set.
             pattern=((0,) * outputs,) * steps,
             current_step=f.get("current_step", ""),
@@ -2085,6 +2097,58 @@ def send_grid() -> Grid:
 
 
 # ---------------------------------------------------------------------------
+# Receive
+# ---------------------------------------------------------------------------
+#
+# The generator writes no Receive grid. The Receive grids are ClickNick's own (RUNNER_GRIDS),
+# and the generator writes their verdicts.
+
+#: Each item of the Receive dialog's Modbus Function Code list, by its function code.
+RECEIVE_FUNCTIONS: dict[ReceiveFunctionCode, str] = {
+    1: "01 - Read Coil Status",
+    2: "02 - Read Input Status",
+    3: "03 - Read Holding Registers",
+    4: "04 - Read Input Registers",
+}
+assert set(RECEIVE_FUNCTIONS) == set(get_args(ReceiveFunctionCode))
+
+
+def receive_build(case: dict[str, Any], count: str | None = None) -> Callable[[], Receive]:
+    """Return a function that builds the Receive of ``case``.
+
+    The Receive reads from slave 1 on CPU Port2, unless the case types a Slave ID. With
+    CLICK addressing, the slave address is the address text. With any other addressing, or
+    with none picked, it is a ``ModbusAddress`` of the text. ``count`` is the text of the
+    count to build with. If it is None, the count is the one that the case types, or 1."""
+    f, choices = case["fields"], case["choices"]
+    code = next(n for n, item in RECEIVE_FUNCTIONS.items() if item == choices["function"])
+    text = f["slave_address"]
+    click = choices.get("addressing") == SEND_ADDRESSING["click"]
+    quantity = f.get("count", "1") if count is None else count
+
+    def build() -> Receive:
+        return Receive(
+            target=ModbusRtuTarget(
+                name="r", com_port="cpu2", device_id=_send_number(f.get("slave_id", "1"))
+            ),
+            remote_start=text if click else ModbusAddress(text),
+            dest=f["master_address"],
+            quantity=_send_number(quantity),
+            receiving=f["receiving"],
+            success=f["success"],
+            error=f["error"],
+            exception_response=f["exception"],
+            function_code=code,
+        )
+
+    return build
+
+
+def _receive_check(case: dict[str, Any]) -> dict[str, Any]:
+    return verdict_of(receive_build(case))
+
+
+# ---------------------------------------------------------------------------
 # Files
 # ---------------------------------------------------------------------------
 
@@ -2161,6 +2225,8 @@ def check_case(case: dict[str, Any]) -> dict[str, Any]:
         "math": _math_check,
         "copy": _copy_check,
         "out": _out_check,
+        "set": _set_check,
+        "reset": _reset_check,
         "compare": _compare_check,
         "search": _search_check,
         "timer": _timer_check,
@@ -2169,6 +2235,7 @@ def check_case(case: dict[str, Any]) -> dict[str, Any]:
         "for": _for_check,
         "drum": _drum_check,
         "send": _send_check,
+        "receive": _receive_check,
     }
     return checks[case["instruction"]](case)
 
@@ -2235,6 +2302,30 @@ GRIDS: dict[str, Callable[[], Grid]] = {
     **{name: only(name, every_mode=True) for name in UNDRIVEN},
 }
 
+#: The grids that ClickNick wrote. The files hold ClickNick's text as it is. The generator
+#: reads each grid and writes only its verdicts file.
+RUNNER_GRIDS = (
+    "receive_click",
+    "receive_click_count1",
+    "drum_events",
+    "drum_events_names",
+    "drum_events_shapes",
+    "drum_events_padded",
+    "drum_events_padded2",
+    "coil_sc",
+    "coil_sc_ranges",
+)
+
+
+def runner_grid(name: str) -> Grid:
+    """Return the grid ``name`` of RUNNER_GRIDS, read from its file."""
+    grid = Grid(check_case)
+    path = OUT_DIR / f"{name}.json"
+    for case in json.loads(path.read_text(encoding="utf-8"))["cases"]:
+        grid.labels[case["case"]] = case
+        grid.cases.append(case)
+    return grid
+
 
 def _lines(head: str, items: list[str], tail: str) -> str:
     return head + "\n" + ",\n".join(items) + "\n" + tail + "\n"
@@ -2262,6 +2353,8 @@ def build() -> dict[str, str]:
         grid = make()
         files[f"{name}.json"] = render_cases(grid)
         files[f"{name}.verdicts.json"] = render_verdicts(grid)
+    for name in RUNNER_GRIDS:
+        files[f"{name}.verdicts.json"] = render_verdicts(runner_grid(name))
     return files
 
 

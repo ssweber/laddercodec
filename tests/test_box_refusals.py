@@ -252,7 +252,7 @@ def test_call_reports_its_one_field_once() -> None:
         (lambda: _drum(outputs=["C1", "C3"]), ("Drum.outputs[1]", Reason.CONFLICT, "OBJ-014")),
         (
             lambda: _drum(events=["DS1", "C11"]),
-            ("Drum.events[0]", Reason.BANK, None),
+            ("Drum.events[0]", Reason.BANK, "OBJ-004"),
         ),
         (
             lambda: _drum(events=["C10", ""]),
@@ -364,7 +364,7 @@ def test_drum_blank_step_beside_a_refused_item() -> None:
     """
     build = lambda: _drum(events=["DS1", ""])  # noqa: E731
     assert _errors(build) == [
-        ("Drum.events[0]", Reason.BANK, None),
+        ("Drum.events[0]", Reason.BANK, "OBJ-004"),
         ("Drum.events[1]", Reason.MISSING, "OBJ-021"),
     ]
 

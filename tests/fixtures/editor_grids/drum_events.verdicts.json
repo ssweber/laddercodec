@@ -1,0 +1,9 @@
+{
+  "event_drum event 1 X001": {"verdict": "accepted"},
+  "event_drum event 1 ~X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: '~X001' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 !X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: '!X001' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 /X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: '/X001' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 rise(X001)": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'rise(X001)' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 NC X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'NC X001' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 X001,X002": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X001,X002' is not a CLICK address (OBJ-005). Write one bit address, such as X001."}
+}
