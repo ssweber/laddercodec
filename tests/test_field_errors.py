@@ -45,6 +45,7 @@ from laddercodec.operands.checks import (
     check_quoted_text,
 )
 from laddercodec.operands.constants import Kind
+from laddercodec.operands.message import says
 
 
 def _refusals(build: Any) -> tuple[FieldError, ...]:
@@ -342,8 +343,8 @@ class _Inner(Instruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.refuse("a", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED)
-            check.refuse("b", "is refused", Reason.FORM, code=Code.INVALID_CONSTANT)
+            check.refuse("a", says("is refused"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED)
+            check.refuse("b", says("is refused"), Reason.FORM, code=Code.INVALID_CONSTANT)
 
 
 @dataclasses.dataclass
@@ -355,38 +356,47 @@ class _Outer(Instruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             if self.mode == "item":
-                check.refuse("items[1]", "is refused", Reason.BANK, code=Code.BANK_NOT_ALLOWED)
                 check.refuse(
-                    "items", "is refused too", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE
+                    "items[1]", says("is refused"), Reason.BANK, code=Code.BANK_NOT_ALLOWED
+                )
+                check.refuse(
+                    "items", says("is refused too"), Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE
                 )  # dropped, because an item of the list was refused
                 check.refuse(
-                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                    "other", says("is refused"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
             elif self.mode == "pair":
                 check.refuse(
-                    ("items", "other"), "is refused", Reason.CONFLICT, code=Code.OPTION_NOT_OFFERED
-                )
-                check.refuse(
-                    ("other", "mode"),
-                    "is refused too",
+                    ("items", "other"),
+                    says("is refused"),
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
                 check.refuse(
-                    "items[0]", "is skipped", Reason.BANK, code=Code.BANK_NOT_ALLOWED
+                    ("other", "mode"),
+                    says("is refused too"),
+                    Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
+                )
+                check.refuse(
+                    "items[0]", says("is skipped"), Reason.BANK, code=Code.BANK_NOT_ALLOWED
                 )  # dropped, because items leads a refusal above
             elif self.mode == "list":
-                check.refuse("items", "is refused", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE)
+                check.refuse(
+                    "items", says("is refused"), Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE
+                )
                 assert check.refused("items[0]")
-                check.refuse("items[2]", "is refused too", Reason.BANK, code=Code.BANK_NOT_ALLOWED)
+                check.refuse(
+                    "items[2]", says("is refused too"), Reason.BANK, code=Code.BANK_NOT_ALLOWED
+                )
             elif self.mode == "nested":
                 check.refuse(
-                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                    "other", says("is refused"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
                 check.run(_Inner)
             elif self.mode == "raised":
                 check.refuse(
-                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                    "other", says("is refused"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
                 raise FieldError(
                     "_Outer.other: again", field="_Outer.other", code=Code.INVALID_CHOICE
@@ -404,7 +414,7 @@ class _Outer(Instruction):
                 )
                 check.add(error)
                 check.refuse(
-                    "other", "is skipped", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                    "other", says("is skipped"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
 
 
@@ -507,7 +517,7 @@ def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
         def __post_init__(self) -> None:
             with Refusals(self) as check:
                 check.refuse(
-                    "nothing", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                    "nothing", says("is refused"), Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
 
     with pytest.raises(AssertionError, match="Box.nothing"):
