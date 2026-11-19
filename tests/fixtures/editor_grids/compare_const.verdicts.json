@@ -1,0 +1,9 @@
+{
+  "compare \"A\" == \"B\"": {"verdict": "accepted"},
+  "compare \"A\" != \"A\"": {"verdict": "accepted"},
+  "compare \"A\"==\"B\" == \"C\"": {"verdict": "accepted"},
+  "compare 5 == 6": {"verdict": "accepted"},
+  "compare 5 == \"A\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: '5' (numeric) and \"A\" (text) are not in one compare group; hex, numeric and text operands do not mix (OBJ-007)"},
+  "compare \"A\" == 5": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: \"A\" (text) and '5' (numeric) are not in one compare group; hex, numeric and text operands do not mix (OBJ-007)"},
+  "compare \"A\" == TXT1": {"verdict": "accepted"}
+}

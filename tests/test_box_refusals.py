@@ -186,7 +186,7 @@ def test_call_reports_its_one_field_once() -> None:
         ),
         (
             lambda: CompareContact("==", "DS1", "DH1"),
-            ("CompareContact.left", Reason.CONFLICT, None),
+            ("CompareContact.left", Reason.CONFLICT, "OBJ-007"),
         ),
         (
             lambda: CompareContact("<", "TXT1", "TXT2"),

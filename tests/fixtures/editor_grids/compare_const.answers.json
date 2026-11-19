@@ -1,0 +1,217 @@
+{
+ "grid": "compare_const.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "c1"
+ ],
+ "cases": [
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" == \"B\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "\"B\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.891,
+   "read_back": {
+    "a": "\"A\"",
+    "b": "\"B\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"\"\"A\"\"==\"\"B\"\"\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ]
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" != \"A\"",
+   "instruction": "compare",
+   "mode": "!=",
+   "fields": {
+    "a": "\"A\"",
+    "b": "\"A\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.512,
+   "read_back": {
+    "a": "\"A\"",
+    "b": "\"A\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"\"\"A\"\"!=\"\"A\"\"\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ]
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\"==\"B\" == \"C\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"==\"B\"",
+    "b": "\"C\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.669,
+   "read_back": {
+    "a": "\"A\"==\"B\"",
+    "b": "\"C\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,\"UNDECODED: rung 0, row 0: no CSV token holds this unknown condition (7 bytes)\"",
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"undecoded(\"\"no CSV token holds this unknown condition (7 bytes)\"\",rung=0,row=0,column=0,stop=end)\""
+   ]
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare 5 == 6",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "5",
+    "b": "6"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.352,
+   "read_back": {
+    "a": "5",
+    "b": "6"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,5==6,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ]
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare 5 == \"A\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "5",
+    "b": "\"A\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-007",
+   "message": "The data types are different. Please specify the same data type.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "a": "5",
+    "b": "\"A\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" == 5",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-007",
+   "message": "The data types are different. Please specify the same data type.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "a": "\"A\"",
+    "b": "5"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.constants.control",
+   "case": "compare \"A\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.889,
+   "read_back": {
+    "a": "\"A\"",
+    "b": "TXT1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"\"\"A\"\"==TXT1\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ]
+  }
+ ]
+}

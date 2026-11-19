@@ -1,0 +1,74 @@
+{
+ "cases": [
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" == \"B\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "\"B\""
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" != \"A\"",
+   "instruction": "compare",
+   "mode": "!=",
+   "fields": {
+    "a": "\"A\"",
+    "b": "\"A\""
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\"==\"B\" == \"C\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"==\"B\"",
+    "b": "\"C\""
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare 5 == 6",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "5",
+    "b": "6"
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare 5 == \"A\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "5",
+    "b": "\"A\""
+   }
+  },
+  {
+   "row": "compare.constants",
+   "case": "compare \"A\" == 5",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "5"
+   }
+  },
+  {
+   "row": "compare.constants.control",
+   "case": "compare \"A\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"",
+    "b": "TXT1"
+   }
+  }
+ ]
+}

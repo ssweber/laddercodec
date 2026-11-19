@@ -52,6 +52,7 @@ from .._layout import LayoutError, circuit, drawn
 from ..decode import Rung
 from ..errors import CsvWriteError
 from ..instructions import (
+    CompareContact,
     Condition,
     Instruction,
     RawInstruction,
@@ -63,7 +64,7 @@ from ..model import PinnedInstruction
 from ..operands.unchecked import refusals, unchecked
 from ..undecoded import Undecoded, UndecodedRungWarning, UndecodedStop, marker_rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import _is_blank_row, convert_rung, pinned_gap_height
+from .converter import _is_blank_row, convert_rung, pinned_gap_height, reads_back
 from .parser import _parse_single_rung_rows
 
 # ---------------------------------------------------------------------------
@@ -639,7 +640,9 @@ def write_csv(
 
     No CSV token can hold the bytes of an unknown condition or instruction.
     A rung that holds one is written as an undecoded marker rung, with an
-    ``UndecodedRungWarning``.
+    ``UndecodedRungWarning``.  So is a rung that holds a compare whose cell
+    does not read back as that compare, such as ``"A"=="B"`` compared with
+    ``"C"``.
 
     Parameters
     ----------
@@ -678,9 +681,10 @@ def write_rows(path: Path, rows: Iterable[Sequence[str]]) -> None:
 
 
 def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:
-    """Return ``(row, column, error)`` for the first unknown condition or instruction in *rung*.
+    """Return ``(row, column, error)`` for the first cell of *rung* that no CSV token holds.
 
-    ``row`` and ``column`` count from 0.  Return None if *rung* holds no unknown token.
+    That is an unknown condition or instruction, or a compare whose cell does not read back
+    as it.  ``row`` and ``column`` count from 0.  Return None if *rung* holds no such cell.
     """
     for row, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=False)):
         cells = [*enumerate(conditions), (len(CONDITION_COLUMNS), af)]
@@ -693,4 +697,7 @@ def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:
                     column,
                     f"no CSV token holds this unknown {kind} ({len(token.raw)} bytes)",
                 )
+            # Only a compare of two texts can fail to read back, such as "A"=="B" with "C".
+            if isinstance(token, CompareContact) and not reads_back(token):
+                return row, column, "no CSV cell reads back as this compare"
     return None

@@ -172,7 +172,8 @@ def compare_rule(other_group: str, *, data_b: bool) -> Callable[[Any, str], None
     a hex operand a hex constant, and opposite a text operand quoted text or ``$hh``. Data B
     (``data_b``) also takes ``$`` and one hex digit, and text of the characters a single
     Copy's text holds, and refuses a hex constant that spells a bank name (``DH``) opposite
-    a hex operand. Data A takes printable ASCII text.
+    a hex operand. Data A takes printable ASCII text. Both sides take a quote inside the
+    text.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -181,6 +182,7 @@ def compare_rule(other_group: str, *, data_b: bool) -> Callable[[Any, str], None
             real_id="OBJ-005",
             one_digit_char=data_b,
             printable=not data_b,
+            quote=True,
         )
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "CompareContact.x", ns.compare_banks, constants)

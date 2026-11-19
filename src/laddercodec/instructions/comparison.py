@@ -66,14 +66,82 @@ _TYPE_IDX_TO_OP: dict[str, CompareOp] = {
 }
 
 
-def split_comparison(token: str) -> tuple[str, str, str] | None:
-    """Split ``left<op>right`` at the first operator outside a quoted text constant.
+#: The operators of a compare token, longest first, so that ``>=`` is read before ``>``.
+_OPS = ("==", "!=", ">=", "<=", ">", "<")
 
-    A double quote starts a text constant that ends at the next double quote, and an
-    operator inside the constant does not count. A double quote with no closing quote is an
-    ordinary character. Returns ``(left, op, right)``, or None when there is no operator or
-    one side is empty.
+
+def split_comparison(token: str) -> tuple[str, str, str] | None:
+    """Split ``left<op>right`` at its operator, outside quoted text.
+
+    A side that is quoted text runs as typed from its first quote to its last, and each
+    quote between them is a character of the text.
+
+    - If the token starts with a quote and does not end with one, the left side is text.
+      The operator is the first one after the last quote: ``"A==B"==TXT1``.
+    - If the token ends with a quote and does not start with one, the right side is text.
+      The operator is the first one before the first quote: ``TXT1!="x<y"``.
+    - If the token starts and ends with a quote, both sides are text. The operator is the
+      one that leaves a text of at least one character on each side: ``"A"=="B"``. Such a
+      side starts and ends with a quote, spaces aside. If two operators do that, as in
+      ``"A"=="B"=="C"``, the token reads two ways, and :class:`~laddercodec.CsvReadError`
+      is raised. If no operator does, the token is read as any other token is.
+
+    In any other token, a quote starts a text that ends at the next quote, and an operator
+    inside that text does not count. A quote with no closing quote is an ordinary
+    character.
+
+    Return ``(left, op, right)``, or None when there is no operator or one side is empty.
     """
+    first, last = token.find('"'), token.rfind('"')
+    if first < last:
+        left_text = token[:first].strip() == ""
+        right_text = token[last + 1 :].strip() == ""
+        if left_text and not right_text:
+            return _split_at(token, range(last + 1, len(token)))
+        if right_text and not left_text:
+            return _split_at(token, range(first))
+        if left_text and right_text:
+            found = _split_texts(token, range(first + 1, last))
+            if found is not None:
+                return found
+    return _split_outside_pairs(token)
+
+
+def _split_at(token: str, at: range) -> tuple[str, str, str] | None:
+    """Split *token* at the first operator that starts at an index in *at*."""
+    for i in at:
+        for op in _OPS:
+            if token.startswith(op, i):
+                left, right = token[:i].strip(), token[i + len(op) :].strip()
+                return (left, op, right) if left and right else None
+    return None
+
+
+def _split_texts(token: str, at: range) -> tuple[str, str, str] | None:
+    """Split *token* at the operator that starts at an index in *at* and leaves a text of at
+    least one character on each side.  Return None if no operator does.  Raise
+    :class:`~laddercodec.CsvReadError` if two operators do."""
+    found: list[tuple[str, str, str]] = []
+    for i in at:
+        for op in _OPS:
+            if not token.startswith(op, i):
+                continue
+            left, right = token[:i].strip(), token[i + len(op) :].strip()
+            # Each side starts with a quote, so a side that ends with a quote and has at
+            # least 3 characters is a text of at least one character.
+            if len(left) >= 3 and left[-1] == '"' and len(right) >= 3 and right[0] == '"':
+                found.append((left, op, right))
+    if len(found) > 1:
+        (a, a_op, b), (c, c_op, d) = found[:2]
+        raise CsvReadError(
+            f"{token!r} reads as a compare two ways: {a} {a_op} {b}, and {c} {c_op} {d}. "
+            f"Put a TXT register on one side, such as TXT1{c_op}{d}."
+        )
+    return found[0] if found else None
+
+
+def _split_outside_pairs(token: str) -> tuple[str, str, str] | None:
+    """Split *token* at the first operator outside a pair of quotes."""
     i = 0
     while i < len(token):
         if token[i] == '"':
@@ -81,7 +149,7 @@ def split_comparison(token: str) -> tuple[str, str, str] | None:
             if close > i:
                 i = close + 1
                 continue
-        for op in ("==", "!=", ">=", "<=", ">", "<"):
+        for op in _OPS:
             if token.startswith(op, i):
                 left, right = token[:i].strip(), token[i + len(op) :].strip()
                 return (left, op, right) if left and right else None
@@ -110,8 +178,9 @@ def bank_group(bank: str) -> str | None:
 
 #: The constants Data A takes. A compare accepts every kind of constant. A hex constant must
 #: fit in 16 bits. A real constant must fit float32, and CLICK refuses a larger one with
-#: OBJ-005. Text holds printable ASCII only.
-_DATA_A = Constants(ALL_KINDS, hex_high=HEX16_MAX, real_id="OBJ-005")
+#: OBJ-005. Text holds printable ASCII only. It may hold a quote, and each quote between the
+#: outer quotes is one character that the compare matches.
+_DATA_A = Constants(ALL_KINDS, hex_high=HEX16_MAX, real_id="OBJ-005", quote=True)
 #: The constants that Data B accepts. They are Data A's, with two differences. ``$`` and
 #: one hex digit (``$1``) is a character code, kept as typed. Text may hold any character
 #: that CLICK keeps, and :func:`_operand_group` checks it. The contact also refuses a hex
@@ -194,6 +263,7 @@ class CompareContact(Condition):
                         right_group=right,
                     ),  # fmt: skip
                     Reason.CONFLICT,
+                    "OBJ-007",
                     code=Code.COMPARE_MIXED_TYPES,
                 )
             elif right == "hex" and self.right.upper() in ADDRESS_BANKS:

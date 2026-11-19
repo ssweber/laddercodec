@@ -118,7 +118,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 
 | Code | Meaning | CLICK id |
 |---|---|---|
-| `compare-mixed-types` | Compare operands in different groups (hex, numeric, text). |  |
+| `compare-mixed-types` | Compare operands in different groups (hex, numeric, text). | OBJ-007 |
 | `search-value-bank` | A Search value whose kind or compare group doesn't search the table's bank. | OBJ-004 |
 | `coil-time-unit` | An Out variant with a time unit its kind lacks. |  |
 | `debounce-needs-phase` | A debounce with neither phase filled. | OBJ-006 |

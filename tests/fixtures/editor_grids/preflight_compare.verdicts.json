@@ -2,14 +2,14 @@
   "compare DS1 == DS2": {"verdict": "accepted"},
   "compare DS1 != DS2": {"verdict": "accepted"},
   "compare TXT1 != TXT2": {"verdict": "accepted"},
-  "compare DH1 == DS1": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: 'DH1' (hex) and 'DS1' (numeric) are not in one compare group; hex, numeric and text operands do not mix"},
+  "compare DH1 == DS1": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: 'DH1' (hex) and 'DS1' (numeric) are not in one compare group; hex, numeric and text operands do not mix (OBJ-007)"},
   "compare X001 == DS2": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.left", "message": "CompareContact.left: 'X001' is not allowed; CompareContact.left takes DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT"},
   "compare DS1 == X001": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: 'X001' is not allowed; CompareContact.right takes DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT"},
   "compare X[DS1] == DS2": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.left", "message": "CompareContact.left: 'X[DS1]' is a pointer; CompareContact.left can't be a pointer, and only a single Copy takes one. Write an address, such as DS1."},
   "compare DS1 == X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: 'X[DS1]' is a pointer; CompareContact.right can't be a pointer, and only a single Copy takes one. Write an address, such as DS1."},
   "compare DS1 == 0": {"verdict": "accepted"},
   "compare 5 == DS2": {"verdict": "accepted"},
-  "compare DS1 == XD0": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: 'DS1' (numeric) and 'XD0' (hex) are not in one compare group; hex, numeric and text operands do not mix"},
+  "compare DS1 == XD0": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: 'DS1' (numeric) and 'XD0' (hex) are not in one compare group; hex, numeric and text operands do not mix (OBJ-007)"},
   "compare DS1 == 1.5": {"verdict": "accepted"},
-  "compare TXT1 == \"A\"\"B\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.right", "message": "CompareContact.right: '\"A\"\"B\"' holds a quote with other characters, which a text constant can't hold; write the text without it, such as \"AB\""}
+  "compare TXT1 == \"A\"\"B\"": {"verdict": "accepted"}
 }

@@ -801,15 +801,12 @@ def test_an_email_with_a_quote_inside_its_text_decodes_as_the_email(text: str) -
 
 
 @pytest.mark.parametrize("text", ['"A""B"', '"A"B"', '""""', '"""'])
-def test_other_text_fields_refuse_a_quote_inside(text: str) -> None:
-    """Compare and Fill refuse a quote inside their text. ``$22`` is a lone quote."""
-    for build, field in (
-        (lambda: CompareContact("==", "TXT1", text), "CompareContact.right"),
-        (lambda: CompareContact("==", text, "TXT1"), "CompareContact.left"),
-        (lambda: Fill(text, "TXT1", "TXT10"), "Fill.value"),
-    ):
-        [error] = _errors(build)
-        assert (error.field, error.code) == (field, Code.INVALID_TEXT_CONSTANT)
+def test_a_fill_refuses_a_quote_inside_its_text(text: str) -> None:
+    """A Fill refuses a quote inside its text, and either side of a Compare takes it."""
+    [error] = _errors(lambda: Fill(text, "TXT1", "TXT10"))
+    assert (error.field, error.code) == ("Fill.value", Code.INVALID_TEXT_CONSTANT)
+    assert CompareContact("==", "TXT1", text).right == text
+    assert CompareContact("==", text, "TXT1").left == text
 
 
 # ---------------------------------------------------------------------------

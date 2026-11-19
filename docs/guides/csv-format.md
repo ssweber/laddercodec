@@ -736,8 +736,8 @@ Producer may emit:
   instruction, so the program stops where the rung was. `encode()` refuses the
   marker, so it never reaches CLICK. `write_csv()` also writes a marker, with an
   `UndecodedRungWarning`, for a rung it can't write, such as one holding an
-  instruction that no token holds. The `stop` argument of `write_csv()` sets the
-  marker's `stop`.
+  instruction that no token holds or a compare whose cell reads two ways. The
+  `stop` argument of `write_csv()` sets the marker's `stop`.
 
 Pin tokens:
 
@@ -791,8 +791,8 @@ currently emit:
       -2147483648 to 2147483647. A real is at most `3.4028235E+38` in size, and a
       larger one raises `FieldError` with `OBJ-005`.
     - text: TXT, or 1 to 128 characters in quotes such as `"A"` or `"AB"`, or
-      `$41`. A quote is `$22`, and `"$41"` is text. The left side takes printable
-      ASCII only.
+      `$41`. `$22` is a lone quote, and a quote inside quoted text is one
+      character of it. `"$41"` is text. The left side takes printable ASCII only.
 
     A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
@@ -1032,13 +1032,24 @@ currently emit:
     text would run past TXT1000 raises `AddressError`.
   - A `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters.
     CLICK stores no end for it.
-  - A Fill value and a compare's left side take 1 to 128 printable ASCII
-    characters in quotes. When the CSV is read or the instruction is built, they
-    refuse `""`, a longer or non-ASCII text and a quote inside the text. Spell
-    any other character as its `$hh` code, and a quote as `$22`.
-  - A compare's right side takes 1 to 128 characters in quotes, and refuses
-    `""`, a longer text and a quote inside the text. A compare of text matches
-    consecutive TXT registers (`TXT771=="AB"` compares TXT771 and TXT772).
+  - A Fill value takes 1 to 128 printable ASCII characters in quotes. When the
+    CSV is read or the instruction is built, it refuses `""`, a longer or
+    non-ASCII text and a quote inside the text. Spell any other character as its
+    `$hh` code, and a quote as `$22`.
+  - A compare's left side takes 1 to 128 printable ASCII characters in quotes,
+    and its right side takes 1 to 128 characters. Both refuse `""` and a longer
+    text. A compare of text matches consecutive TXT registers (`TXT771=="AB"`
+    compares TXT771 and TXT772).
+  - Either side of a compare may hold a quote, and each quote between the outer
+    quotes is one character: `TXT1=="A""B"` matches the four characters `A""B`.
+    `$22` is a lone quote character. The text runs from its first quote to its
+    last, and the operator is read outside it, so `"A==B"==TXT1` matches the
+    characters `A==B`. When both sides are text, the operator is the one that
+    leaves a text of at least one character on each side. A cell with two such
+    operators reads two ways, such as `"A"=="B"=="C"`. `read_csv` raises
+    `CsvReadError` for such a cell. CLICK accepts `"A"=="B"` compared with `"C"`,
+    so a decoded program can hold that compare. `write_csv` writes the rung that
+    holds it as an `undecoded(...)` marker, with an `UndecodedRungWarning`.
   - A Copy source, a compare's right side and a search value take any character
     from U+0001 to U+FFFF except a surrogate (`copy("é",TXT1)`, `"€"`, a tab, a
     line break). CLICK keeps these as typed. They refuse NUL and a character
