@@ -353,9 +353,10 @@ location at the end, and `short()` and `detail()` leave it out.
 Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack`,
 `Unpack`, `Coil`, `OutVariant`, `Contact`, `CompareContact`, `Timer`, `Counter`,
 `Shift`, `ForLoop`, `Drum`, `Send`, `Receive`, `ModbusRtuTarget`,
-`ModbusTcpTarget`, `ModbusAddress` and `Search`, and those of the address, operand
-and flag checks that other instructions share, such as the bank check on
-`Coil.operand`. The refusals of `Call`, `Tee`, `RawInstruction`, `Undecoded`,
+`ModbusTcpTarget`, `ModbusAddress`, `Search` and `Math`, and those of the address,
+operand and flag checks that other instructions share, such as the bank check on
+`Coil.operand`. A `Math` refusal that quotes the whole formula shows the formula as
+it is, with no names. The refusals of `Call`, `Tee`, `RawInstruction`, `Undecoded`,
 `Series`, `Parallel`, `Box`, `Branch` and `Circuit` name no address, so names
 change nothing in them, and `short()` and `detail()` still split them. For an error that keeps no parts, `message()` returns `str(exc)`.
 `short()` returns that text without its `Class.field:` prefix, and `detail()`

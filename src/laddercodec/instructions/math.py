@@ -42,6 +42,7 @@ from ..model import FieldError, Instruction, Reason, check_address
 from ..operands.address import read_as_typed
 from ..operands.checks import HEX_MATH_RESULT, Refusals, check_csv_flag, check_writable_sd
 from ..operands.constants import INT16_MAX, INT16_MIN
+from ..operands.message import operand, says
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse, stored_reals_written
@@ -165,8 +166,8 @@ def _reconstruct_expression(template_display: str, formula_internal: str) -> str
 
     parts = template_display.split("@")
     rebuilt = [parts[0]]
-    for operand, suffix in zip(operand_occurrences, parts[1:], strict=True):
-        rebuilt.append(operand)
+    for address, suffix in zip(operand_occurrences, parts[1:], strict=True):
+        rebuilt.append(address)
         rebuilt.append(suffix)
     return "".join(rebuilt)
 
@@ -212,15 +213,21 @@ class Math(Instruction):
             if self.mode not in RESULT_BANKS:
                 check.refuse(
                     "mode",
-                    f"{self.mode!r} is not 'decimal' or 'hex'",
+                    says("{mode} is not 'decimal' or 'hex'", mode=operand(self.mode)),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
             if _holds_nickname(self.expression):
                 check.refuse(
                     "expression",
-                    f"{self.expression!r} holds a <nickname>; Math takes addresses, not "
-                    "nicknames (laddercodec cannot resolve a nickname to its address)",
+                    # A whole formula is quoted as it is. A name never replaces an
+                    # address in it.
+                    says(
+                        "{expression!r} holds a <nickname>",
+                        "Math takes addresses, not nicknames (laddercodec cannot resolve a "
+                        "nickname to its address)",
+                        expression=self.expression,
+                    ),
                     Reason.ADDRESS,
                     code=Code.MATH_NICKNAME,
                 )
