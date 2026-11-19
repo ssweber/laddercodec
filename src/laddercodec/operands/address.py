@@ -21,6 +21,7 @@ from typing import Any, NamedTuple
 from ..codes import Code
 from .banks import WORD_IO_BANKS, XY_BANKS
 from .errors import AddressError, FieldError, Reason
+from .message import LABEL, Op, make_refusal, parts_of, says, set_parts
 
 #: The pattern of an address token, in any letter case.  The CSV token parser uses it to tell
 #: a contact from other condition tokens.  :func:`check_address` checks the bank and number.
@@ -114,9 +115,13 @@ def to_display(value: str, display: str, field: str | None) -> str:
     for, as the message of every refusal does.
     """
     if display != value and _DISPLAY_FORM_ONLY.get():
-        prefix = f"{field}: " if field else ""
-        raise NotDisplayForm(
-            f"{prefix}{value!r} is not CLICK's display form {display!r}",
+        # The display form is CLICK's, not the caller's, so it is plain text.
+        raise make_refusal(
+            NotDisplayForm,
+            field or None,
+            says(
+                "{value} is not CLICK's display form {display!r}", value=Op(value), display=display
+            ),
             field=field,
             reason=Reason.FORM,
             code=Code.NOT_CLICK_FORM,
@@ -407,24 +412,36 @@ def check_address(
     """
     name = label or field
     if value == "":
-        raise AddressError(
-            f"{name}: is blank; it needs an address",
+        raise make_refusal(
+            AddressError,
+            name,
+            says("is blank", "it needs an address"),
             field=field,
             reason=Reason.MISSING,
             code=Code.BLANK_FIELD,
         )
     parts = _address_parts(value)
     if parts is None:
-        raise AddressError(
-            f"{name}: {value!r} is not a CLICK address",
+        raise make_refusal(
+            AddressError,
+            name,
+            says("{value} is not a CLICK address", value=Op(value)),
             field=field,
             reason=Reason.ADDRESS,
             code=Code.NOT_AN_ADDRESS,
         )
     bank, digits, upper = parts
     if bank not in ADDRESS_BANKS:
-        raise AddressError(
-            f"{name}: {value!r} has no CLICK bank {bank!r}; banks are {', '.join(ADDRESS_BANKS)}",
+        raise make_refusal(
+            AddressError,
+            name,
+            says(
+                "{value} has no CLICK bank {bank!r}",
+                "banks are {banks}",
+                value=Op(value),
+                bank=bank,
+                banks=", ".join(ADDRESS_BANKS),
+            ),  # fmt: skip
             field=field,
             reason=Reason.ADDRESS,
             code=Code.NOT_AN_ADDRESS,
@@ -436,17 +453,31 @@ def check_address(
             names = (
                 ", ".join(allowed[:-1]) + " and " + allowed[-1] if len(allowed) > 1 else allowed[0]
             )
-            raise AddressError(
-                f"{name}: {value!r} is outside the range of {outside_range_of or name} "
-                f"({specific}); it takes {names}",
+            raise make_refusal(
+                AddressError,
+                name,
+                says(
+                    "{value} is outside the range of {of}",
+                    "it takes {banks}",
+                    value=Op(value),
+                    of=outside_range_of or LABEL,
+                    banks=names,
+                ),  # fmt: skip
                 field=field,
                 reason=Reason.BANK,
                 code=bank_code,
                 click_id=specific,
+                id_after_short=True,
             )
-        tail = f" ({bank_id})" if bank_id else ""
-        raise AddressError(
-            f"{name}: {value!r} is not allowed; {name} takes {', '.join(allowed)}{tail}",
+        raise make_refusal(
+            AddressError,
+            name,
+            says(
+                "{value} is not allowed",
+                "{label} takes {banks}",
+                value=Op(value),
+                banks=", ".join(allowed),
+            ),  # fmt: skip
             field=field,
             reason=Reason.BANK,
             code=bank_code,
@@ -457,23 +488,40 @@ def check_address(
         in_range = (range_ids or {}).get(bank)
         if in_range is not None:
             takes = ", ".join(_bank_range_text(b) for b in ADDRESS_BANKS if b in (banks or {bank}))
-            raise AddressError(
-                f"{name}: {value!r} is outside the range of {outside_range_of or name} "
-                f"({in_range}); it takes {takes}",
+            raise make_refusal(
+                AddressError,
+                name,
+                says(
+                    "{value} is outside the range of {of}",
+                    "it takes {banks}",
+                    value=Op(value),
+                    of=outside_range_of or LABEL,
+                    banks=takes,
+                ),  # fmt: skip
                 field=field,
                 reason=Reason.ADDRESS,
                 code=Code.ADDRESS_OUT_OF_RANGE,
                 click_id=in_range,
+                id_after_short=True,
             )
-        raise AddressError(
-            f"{name}: {value!r} is outside {_bank_range_text(bank)}",
+        raise make_refusal(
+            AddressError,
+            name,
+            says("{value} is outside {range}", value=Op(value), range=_bank_range_text(bank)),
             field=field,
             reason=Reason.ADDRESS,
             code=Code.ADDRESS_OUT_OF_RANGE,
         )
     if upper and banks is None:
-        raise AddressError(
-            f"{name}: {value!r} is not allowed; {name} does not take {bank}0u",
+        raise make_refusal(
+            AddressError,
+            name,
+            says(
+                "{value} is not allowed",
+                "{label} does not take {bank}0u",
+                value=Op(value),
+                bank=bank,
+            ),
             field=field,
             reason=Reason.FORM,
             code=Code.UPPER_BYTE_NOT_ALLOWED,
@@ -496,14 +544,13 @@ def _text_fields(inst: object) -> dict[str, Any]:
     }
 
 
-def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> str:
-    """Return ``message`` with the typed text beside each display form that it quotes.
+def _typed_forms(before: dict[str, Any], after: dict[str, Any]) -> dict[str, str]:
+    """Return the text that the caller typed for each display form, keyed by display form.
 
-    For example, ``'X000'`` becomes ``'x0' (X000)``.  A quoted range of two display forms
-    gets the typed text of both ends: ``'X001..X002'`` becomes ``'x1..x2' (X001..X002)``.
-    If two fields reached the same display form from different text, such as ``C1`` and
-    ``C001``, leave that form as it is, because the message does not say which field it
-    quotes.
+    ``before`` and ``after`` are the text fields before and after the instruction wrote them
+    in display form.  If two fields reached the same display form from different text, such
+    as ``C1`` and ``C001``, leave that form out, because a message does not say which field
+    it quotes.
     """
     typed: dict[str, set[str]] = {}
     for name, old in before.items():
@@ -514,7 +561,18 @@ def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> 
         for o, n in zip(olds, news, strict=True):
             if isinstance(n, str) and normalize_address(o) == n:
                 typed.setdefault(n, set()).add(o)
-    single = {display: next(iter(texts)) for display, texts in typed.items() if len(texts) == 1}
+    return {display: next(iter(texts)) for display, texts in typed.items() if len(texts) == 1}
+
+
+def _typed_text(message: str, single: dict[str, str]) -> str:
+    """Return ``message`` with the typed text beside each display form that it quotes.
+
+    ``single`` is what :func:`_typed_forms` returns.  For example, ``'X000'`` becomes
+    ``'x0' (X000)``.  A quoted range of two display forms gets the typed text of both ends:
+    ``'X001..X002'`` becomes ``'x1..x2' (X001..X002)``.  A refusal that keeps the parts of
+    its message gets its typed text from
+    :meth:`~laddercodec.operands.message.Parts.typed` instead.
+    """
     for first, first_text in single.items():
         for last, last_text in single.items():
             shown = f"{first}..{last}"
@@ -522,8 +580,8 @@ def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> 
                 message = message.replace(
                     repr(shown), f"{f'{first_text}..{last_text}'!r} ({shown})"
                 )
-    for display, texts in typed.items():
-        if len(texts) == 1 and (text := next(iter(texts))) != display:
+    for display, text in single.items():
+        if text != display:
             message = message.replace(repr(display), f"{text!r} ({display})")
     return message
 
@@ -558,10 +616,15 @@ def _refused(inst: object, exc: FieldError, before: dict[str, Any] | None) -> No
     With ``before``, the text fields as typed, add the typed text to each message.  Skip a
     refusal whose ``obj`` is another instance.  It comes from an instruction built inside
     the checks of ``inst``, and that instruction's own wrapper has completed it."""
-    after = None if before is None else _text_fields(inst)
+    single = None if before is None else _typed_forms(before, _text_fields(inst))
     for error in exc.errors:
         if error.obj is not None and error.obj is not inst:
             continue
         error.obj = inst
-        if before is not None and after is not None:
-            error.args = (_typed_text(str(error), before, after),)
+        if single is None:
+            continue
+        parts = parts_of(error)
+        if parts is None:
+            error.args = (_typed_text(str(error), single),)
+            continue
+        set_parts(error, parts.typed(single))

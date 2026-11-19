@@ -11,6 +11,8 @@ also checks the shape of each refusal:
   always has a reason.
 - ``code`` is a :class:`~laddercodec.Code`.  ``click_id`` is None or one of the ids that
   ``CLICK_IDS`` lists for that code.
+- A refusal by a class in ``NAMED`` keeps the parts of its message, and ``str(err)`` is the
+  text that the parts render.  ``err.message(names)`` can then show the user's names.
 
 A refusal that breaks a rule fails the test that built it with an ``AssertionError``.
 
@@ -32,6 +34,7 @@ import pytest
 from laddercodec.codes import CLICK_IDS, Code
 from laddercodec.operands import address
 from laddercodec.operands.errors import FieldError, Reason
+from laddercodec.operands.message import parts_of
 
 _FIELD = re.compile(r"(\w+)\.(\w+)(?:\[\d+\])?")
 
@@ -62,6 +65,9 @@ REASONED = frozenset(
     }
 )
 
+#: The instruction classes whose refusals keep the parts of their messages.
+NAMED = frozenset({"Copy", "BlockCopy", "Fill", "Pack", "Unpack"})
+
 
 def refusal_problems(error: FieldError) -> list[str]:
     """Return a message for each fault in the shape of *error*, a refusal raised while
@@ -80,6 +86,8 @@ def refusal_problems(error: FieldError) -> list[str]:
         problems.append(f"reason {error.reason!r} is not a Reason")
     if error.reason is None and cls.__name__ in REASONED:
         problems.append(f"{error.field!r} has no reason")
+    if cls.__name__ in NAMED and parts_of(error) is None:
+        problems.append(f"{error.field!r}: {str(error)!r} keeps no parts")
     problems += code_problems(error)
     return problems
 

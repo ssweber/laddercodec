@@ -72,6 +72,17 @@ from ..operands.constants import (
     real_beyond_kept_digits,
     significant_digits,
 )
+from ..operands.message import (
+    Op,
+    Parts,
+    Rule,
+    from_parts,
+    make_refusal,
+    operand,
+    parts_of,
+    says,
+    with_click_id,
+)
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -265,8 +276,10 @@ def _is_text_constant(operand: str) -> bool:
 def _ascii_code(code: int) -> str:
     """Return a character code as CLICK writes it: ``$`` and two hex digits (``$0D``)."""
     if not 0 <= code <= 0xFF:
-        raise FieldError(
-            f"Copy.termination_code: ASCII code {code} is outside 0 to 0xFF",
+        raise make_refusal(
+            FieldError,
+            "Copy.termination_code",
+            says("ASCII code {code} is outside 0 to 0xFF", code=code),
             field="Copy.termination_code",
             reason=Reason.RANGE,
             code=Code.INVALID_CHAR_CODE,
@@ -317,17 +330,19 @@ def _source_display(source: str, kind: Kind) -> str:
 _REAL_HEX_WORDS = {"EH": "0.0", "1EH": "1.0"}
 
 
-def _real_hex_refusal(source: str) -> str | None:
+def _real_hex_refusal(source: str) -> Rule | None:
     """Return the reason a single Copy refuses ``source`` if it is a hex constant that CLICK
     reads as a real. Return None for any other ``source``."""
     real = _REAL_HEX_WORDS.get(source.upper())
     if real is None:
         return None
     digits = source[:-1].upper()
-    return (
-        f"{source!r} is refused; CLICK's Copy reads it as the real {real}, not as hex "
-        f"{digits}: write {real} for the real, or {int(digits, 16)} for the value of hex {digits}"
-    )
+    return says(
+        "{source} is refused",
+        "CLICK's Copy reads it as the real {real}, not as hex {digits}: write {real} for the "
+        "real, or {value} for the value of hex {digits}",
+        source=Op(source), real=real, digits=digits, value=int(digits, 16),
+    )  # fmt: skip
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +409,10 @@ def check_box_operand(
         and bank.isupper()
         and len(bank) <= 3
     ):
-        raise AddressError(
-            f"{name}: {value!r} is a pointer; only a single Copy takes one",
+        raise make_refusal(
+            AddressError,
+            name,
+            says("{value} is a pointer", "only a single Copy takes one", value=Op(value)),
             field=name,
             reason=Reason.POINTER,
             code=Code.POINTER_OUTSIDE_COPY,
@@ -406,23 +423,25 @@ def check_box_operand(
 def _refusal(
     cls: str,
     attrs: tuple[str, ...],
-    rule: str,
+    said: Rule,
     reason: Reason,
     click_id: str | None = None,
     error: type[FieldError] = AddressError,
     *,
     code: Code,
+    then: str = "",
 ) -> FieldError:
     """Return an ``error`` that refuses the field ``cls.attrs[0]``.
 
     The message is ``Class.attr: rule``, with CLICK's id in parentheses at the end when there
-    is one. When the rule is about several fields, ``attrs`` lists them all, and the error's
-    ``fields`` holds them all."""
+    is one. ``then`` is a sentence that tells the user what to do, after the id. When the
+    rule is about several fields, ``attrs`` lists them all, and the error's ``fields`` holds
+    them all."""
     fields = tuple(f"{cls}.{attr}" for attr in attrs)
-    tail = f" ({click_id})" if click_id else ""
-    return error(
-        f"{fields[0]}: {rule}{tail}", field=fields, reason=reason, click_id=click_id, code=code
-    )
+    return make_refusal(
+        error, fields[0], said,
+        field=fields, reason=reason, click_id=click_id, code=code, then=then,
+    )  # fmt: skip
 
 
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
@@ -498,10 +517,10 @@ def _range_refusal(start: str, end: str, first: FieldError, last: FieldError) ->
     are not.
 
     ``first`` refuses ``start`` and ``last`` refuses ``end``. The two are refused for the
-    same reason when they have the same class, code, reason and CLICK id, and their
-    messages are the same apart from the field and the quoted value. The error names both
-    fields, and its message quotes the range once, as ``'C1..C2'``, or as ``'C1'`` when
-    the start and the end are the same text.
+    same reason when they have the same class, code, reason and CLICK id, and their parts
+    are the same apart from the label and the operand. The error names both fields, and
+    its message names the range once, as ``'C1..C2'``, or as ``'C1'`` when the start and
+    the end are the same text.
 
     Two ends that are pointers, are not addresses or name no CLICK bank stay two
     refusals. A message such as ``'5..6' is not a CLICK address`` would read as if the
@@ -512,21 +531,32 @@ def _range_refusal(start: str, end: str, first: FieldError, last: FieldError) ->
     )  # fmt: skip
     if not same or first.code not in _MERGED_CODES or first.field is None or last.field is None:
         return None
-    first_text, last_text = str(first), str(last)
-    start_text, end_text = repr(start), repr(end)
-    if first_text.count(start_text) != 1 or last_text.count(end_text) != 1:
+    first_parts, last_parts = parts_of(first), parts_of(last)
+    if first_parts is None or last_parts is None:
         return None
-    first_rule = first_text.replace(first.field, "\0").replace(start_text, "\1")
-    if first_rule != last_text.replace(last.field, "\0").replace(end_text, "\1"):
+    rule = _rule_of(first_parts, start)
+    if rule is None or rule != _rule_of(last_parts, end):
         return None
     span = start if start == end else f"{start}..{end}"
-    return type(first)(
-        first_text.replace(start_text, repr(span)),
+    merged = first_parts.map_ops(lambda op: op._replace(text=span) if op == Op(start) else op)
+    return from_parts(
+        type(first),
+        merged,
         field=(first.field, last.field),
         reason=first.reason,
         code=first.code,
         click_id=first.click_id,
     )
+
+
+def _rule_of(parts: Parts, value: str) -> Parts | None:
+    """Return ``parts`` with no label and a blank operand in place of ``value``, the rule
+    that two refusals of a range's ends share. Return None if ``parts`` names ``value``
+    other than once."""
+    if parts.ops().count(Op(value)) != 1:
+        return None
+    blank = Op("")
+    return replace(parts.map_ops(lambda op: blank if op == Op(value) else op), label=None)
 
 
 def check_range_ends(
@@ -590,7 +620,12 @@ def _check_relation(
         raise _refusal(
             cls,
             pair,
-            f"{end!r} is not in the bank of {start!r}; both ends of a range are in one bank",
+            says(
+                "{end} is not in the bank of {start}",
+                "both ends of a range are in one bank",
+                end=Op(end),
+                start=Op(start),
+            ),  # fmt: skip
             Reason.CONFLICT,
             "OBJ-008" if ids else None,
             code=Code.RANGE_MIXED_BANKS,
@@ -600,8 +635,12 @@ def _check_relation(
         raise _refusal(
             cls,
             pair,
-            f"{start}..{end} {'is one address' if same else 'runs backwards'}; "
-            "a range ends after its start",
+            says(
+                "{range} {what}",
+                "a range ends after its start",
+                range=Op(f"{start}..{end}", quoted=False),
+                what="is one address" if same else "runs backwards",
+            ),  # fmt: skip
             Reason.CONFLICT,
             ("OBJ-012" if same else "OBJ-009") if ids else None,
             code=Code.RANGE_NOT_ASCENDING,
@@ -610,8 +649,12 @@ def _check_relation(
         raise _refusal(
             cls,
             pair,
-            f"{start}..{end} spans two {first.bank} slots; "
-            f"the range stays in one 16-point {first.bank} slot",
+            says(
+                "{range} spans two {bank} slots",
+                "the range stays in one 16-point {bank} slot",
+                range=Op(f"{start}..{end}", quoted=False),
+                bank=first.bank,
+            ),  # fmt: skip
             Reason.CONFLICT,
             module_id,
             code=Code.RANGE_CROSSES_SLOT,
@@ -710,8 +753,14 @@ def _check_pair(
         raise _refusal(
             cls,
             (dest_field, source_field),
-            f"{destination!r} can't take {source!r}; "
-            f"{_KIND_TEXT[kind]} copies to {_bank_list(allowed)}",
+            says(
+                "{dest} can't take {source}",
+                "{kind} copies to {banks}",
+                dest=Op(destination),
+                source=Op(source),
+                kind=_KIND_TEXT[kind],
+                banks=_bank_list(allowed),
+            ),  # fmt: skip
             Reason.CONFLICT,
             click_id,
             code=code,
@@ -733,7 +782,14 @@ def _check_kind(
         raise _refusal(
             cls,
             (field_name, kind_field),
-            f"{value!r} is {what}; {kind} needs {need}",
+            says(
+                "{value} is {what}",
+                "{kind} needs {need}",
+                value=Op(value),
+                what=what,
+                kind=kind,
+                need=need,
+            ),
             Reason.CONFLICT,
             code=Code.PACK_KIND_MISMATCH,
         )
@@ -812,16 +868,24 @@ def _check_count(
     """
     if limit is not None and count is not None and count > limit:
         unit = _UNITS[kind]
+        short = "{range} is {count} {unit}"
+        span = Op(span_text, quoted=False)
         if single is None:
-            rule = f"a pack of {unit} takes at most {limit}"
+            said = says(
+                short, "a pack of {unit} takes at most {limit}",
+                range=span, count=count, unit=unit, limit=limit,
+            )  # fmt: skip
         else:
-            verb = "a pack into" if cls == "Pack" else "an unpack from"
-            rule = f"{verb} {single!r} takes at most {limit}"
+            said = says(
+                short, "{verb} {single} takes at most {limit}",
+                range=span, count=count, unit=unit, limit=limit, single=Op(single),
+                verb="a pack into" if cls == "Pack" else "an unpack from",
+            )  # fmt: skip
         pack_id, unpack_id = _COUNT_IDS[(kind, limit)]
         raise _refusal(
             cls,
             (end_field, start_field, other_field),
-            f"{span_text} is {count} {unit}; {rule}",
+            said,
             Reason.RANGE,
             pack_id if cls == "Pack" else unpack_id,
             FieldError,
@@ -918,13 +982,7 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
             or not is_pointer(destination)
         ):
             raise
-        raise AddressError(
-            f"{exc} (OBJ-004)",
-            field=exc.fields,
-            reason=exc.reason,
-            click_id="OBJ-004",
-            code=exc.code,
-        ) from None
+        raise with_click_id(exc, "OBJ-004") from None
 
 
 def _check_source_value(source: str, field: str) -> Constant:
@@ -950,13 +1008,7 @@ def _check_source_value(source: str, field: str) -> Constant:
             shape is Kind.HEX or (shape is Kind.TEXT and '"' not in source[1:-1])
         ):
             raise
-        raise FieldError(
-            f"{exc} (OBJ-005)",
-            field=exc.fields,
-            reason=exc.reason,
-            click_id="OBJ-005",
-            code=exc.code,
-        ) from None
+        raise with_click_id(exc, "OBJ-005") from None
 
 
 def _check_source_text(source: str, field: str) -> Constant:
@@ -984,8 +1036,13 @@ def _check_hex32(source: str, dest_field: str, destination: str, dest_bank: str)
         raise _refusal(
             "Copy",
             (dest_field, "source"),
-            f"{destination!r} can't take {source!r}; a hex constant above "
-            f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}",
+            says(
+                "{dest} can't take {source}",
+                "a hex constant above FFFFh copies to {banks}",
+                dest=Op(destination),
+                source=Op(source),
+                banks=_bank_list(_HEX32_DEST_BANKS),
+            ),  # fmt: skip
             Reason.CONFLICT,
             "OBJ-024",
             code=Code.COPY_BANK_INCOMPATIBLE,
@@ -1149,7 +1206,13 @@ def _check_row(
         raise _refusal(
             cls,
             (dest_field, source_field),
-            f"{destination!r} can't take {source!r}; {rule}",
+            says(
+                "{dest} can't take {source}",
+                "{rule}",
+                dest=Op(destination),
+                source=Op(source),
+                rule=rule,
+            ),  # fmt: skip
             Reason.CONFLICT,
             _UNPACK_Y_ID if cls == "Unpack" and dest_bank == "Y" else _ROW_IDS[cls],
             code=Code.COPY_BANK_INCOMPATIBLE,
@@ -1182,9 +1245,15 @@ def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
     raise _refusal(
         "BlockCopy",
         ("dest_start", "source_start", "source_end"),
-        f"{source[0]}..{source[1]} into {dest.display} fills "
-        f"{dest.display}..{Address('SD', end).display}, and {first} is not a writable SD "
-        f"register; the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
+        says(
+            "{source} into {dest} fills {fills}, and {first} is not a writable SD register",
+            "the writable SD are {sds}",
+            source=Op(f"{source[0]}..{source[1]}", quoted=False),
+            dest=Op(dest.display, quoted=False),
+            fills=Op(f"{dest.display}..{Address('SD', end).display}", quoted=False),
+            first=Op(first, quoted=False),
+            sds=", ".join(f"SD{n}" for n in sorted(WRITABLE_SD)),
+        ),
         Reason.NOT_WRITABLE,
         click_id,
         code=Code.NOT_WRITABLE,
@@ -1206,11 +1275,15 @@ def _check_fill_txt_number(value: str, const: Constant) -> None:
         raise _refusal(
             "Fill",
             ("value",),
-            f"{value!r} is {len(value)} characters, and a Fill into TXT takes one. Write one "
-            "character, such as '5', or a real, such as 1.5.",
+            says(
+                "{value} is {count} characters, and a Fill into TXT takes one",
+                value=Op(value),
+                count=len(value),
+            ),  # fmt: skip
             Reason.RANGE,
             error=FieldError,
             code=Code.CONSTANT_OUT_OF_RANGE,
+            then="Write one character, such as '5', or a real, such as 1.5.",
         )
 
 
@@ -1230,8 +1303,13 @@ def _check_fill_sd(first: Address, last: Address) -> None:
     raise _refusal(
         "Fill",
         ("dest_start", "dest_end"),
-        f"{span!r} holds SD{unwritable[0]}, which is not a writable SD register; "
-        f"the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
+        says(
+            "{span} holds {sd}, which is not a writable SD register",
+            "the writable SD are {sds}",
+            span=Op(span),
+            sd=Op(f"SD{unwritable[0]}", quoted=False),
+            sds=", ".join(f"SD{n}" for n in sorted(WRITABLE_SD)),
+        ),  # fmt: skip
         Reason.NOT_WRITABLE,
         "OBJ-004",
         code=Code.NOT_WRITABLE,
@@ -1291,8 +1369,10 @@ def _parse_convert_kwarg(raw: str) -> tuple[CopyConvert, dict[str, str]]:
             k, v = part.split("=", 1)
             k = k.strip()
             if fmt == "binary" and k != "termination_code":
-                raise FieldError(
-                    f"to_binary: {k!r} is not an option; it takes only termination_code",
+                raise make_refusal(
+                    FieldError,
+                    "to_binary",
+                    says("{key} is not an option", "it takes only termination_code", key=Op(k)),
                     field="Copy.convert",
                     reason=Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
@@ -1337,7 +1417,7 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
     if inst.termination_code == "":
         check.refuse(
             "termination_code",
-            "is blank; it needs a code, or 'none' for no code",
+            says("is blank", "it needs a code, or 'none' for no code"),
             Reason.MISSING,
             code=Code.BLANK_FIELD,
         )
@@ -1357,8 +1437,11 @@ def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
     if not inst.termination_code.startswith("$") and inst.termination_code != "0":
         check.refuse(
             "termination_code",
-            f"{inst.termination_code!r} is not allowed; it is a "
-            "character code ($0D), or '0' or 'none' for no code",
+            says(
+                "{code} is not allowed",
+                "it is a character code ($0D), or '0' or 'none' for no code",
+                code=operand(inst.termination_code),
+            ),  # fmt: skip
             Reason.FORM,
             "OBJ-036",
             code=Code.INVALID_CHAR_CODE,
@@ -1458,8 +1541,11 @@ class Copy(Instruction):
             if self.convert not in _VALID_CONVERTS:
                 check.refuse(
                     "convert",
-                    f"{self.convert!r} is not allowed; it is None, 'to_value', 'to_text', "
-                    "'to_binary' or 'to_ascii'",
+                    says(
+                        "{convert} is not allowed",
+                        "it is None, 'to_value', 'to_text', 'to_binary' or 'to_ascii'",
+                        convert=operand(self.convert),
+                    ),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -1531,10 +1617,16 @@ class Copy(Instruction):
                     # is not known, so laddercodec refuses them.
                     check.refuse(
                         ("termination_code", "convert", "source", "dest"),
-                        f"{self.termination_code!r} needs a copy into TXT: of a numeric "
-                        "register with to_text or to_binary, of a decimal integer or a real "
-                        "with to_text, or of a TXT register or quoted text, not "
-                        f"{self.source!r} -> {self.dest!r} with convert {self.convert!r}",
+                        says(
+                            "{code} needs a copy into TXT: of a numeric register with to_text "
+                            "or to_binary, of a decimal integer or a real with to_text, or of "
+                            "a TXT register or quoted text, not {source} -> {dest} with "
+                            "convert {convert}",
+                            code=Op(self.termination_code),
+                            source=Op(self.source),
+                            dest=Op(self.dest),
+                            convert=operand(self.convert),
+                        ),  # fmt: skip
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
                     )
@@ -1543,8 +1635,11 @@ class Copy(Instruction):
                 # destination is a number register or TXT.
                 check.refuse(
                     ("suppress_zero", "source"),
-                    f"suppress_zero=1 is not an option for {self.source!r}; suppress zero is "
-                    "for a number copied to text",
+                    says(
+                        "suppress_zero=1 is not an option for {source}",
+                        "suppress zero is for a number copied to text",
+                        source=Op(self.source),
+                    ),
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -1556,16 +1651,23 @@ class Copy(Instruction):
                     if self.suppress_zero is not None and not check.refused("suppress_zero"):
                         check.refuse(
                             ("suppress_zero", "source"),
-                            f"to_text(suppress_zero=...) is not an option for {self.source!r}; "
-                            "a DF source or a real constant only has exponential",
+                            says(
+                                "to_text(suppress_zero=...) is not an option for {source}",
+                                "a DF source or a real constant only has exponential",
+                                source=Op(self.source),
+                            ),
                             Reason.CONFLICT,
                             code=Code.OPTION_NOT_OFFERED,
                         )
                 elif self.exponential is True:
                     check.refuse(
                         ("exponential", "source"),
-                        "to_text(exponential=1) needs a DF source or a real constant, not "
-                        f"{self.source!r}; an integer source only has suppress_zero",
+                        says(
+                            "to_text(exponential=1) needs a DF source or a real constant, not "
+                            "{source}",
+                            "an integer source only has suppress_zero",
+                            source=Op(self.source),
+                        ),
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
                     )
@@ -1580,8 +1682,14 @@ class Copy(Instruction):
                 # digits when it saves it.
                 check.refuse(
                     "source",
-                    f"{self.source!r} has {significant_digits(self.source)} significant "
-                    f"digits; CLICK keeps {REAL_DIGITS} significant digits: write {kept}",
+                    says(
+                        "{source} has {count} significant digits",
+                        "CLICK keeps {kept} significant digits: write {real}",
+                        source=Op(self.source),
+                        count=significant_digits(self.source),
+                        kept=REAL_DIGITS,
+                        real=kept,
+                    ),  # fmt: skip
                     Reason.FORM,
                     code=Code.INVALID_CONSTANT,
                 )
@@ -1597,9 +1705,15 @@ class Copy(Instruction):
                         _refusal(
                             "Copy",
                             ("dest",),
-                            f"{self.dest!r} can't take {self.source!r}; its "
-                            f"{len(self.source) - 2} characters fill "
-                            f"{self.dest}..{end.display}, past TXT{_TXT_LAST}",
+                            says(
+                                "{dest} can't take {source}",
+                                "its {count} characters fill {fills}, past TXT{last}",
+                                dest=Op(self.dest),
+                                source=Op(self.source),
+                                count=len(self.source) - 2,
+                                fills=Op(f"{self.dest}..{end.display}", quoted=False),
+                                last=_TXT_LAST,
+                            ),  # fmt: skip
                             Reason.RANGE,
                             "OBJ-003",
                             code=Code.TEXT_PAST_BANK,
@@ -1611,8 +1725,14 @@ class Copy(Instruction):
                         _refusal(
                             "Copy",
                             ("dest",),
-                            f"{self.dest!r} can't take {self.source!r} as text; it "
-                            f"fills {self.dest}..{end.display}, past TXT{_TXT_LAST}",
+                            says(
+                                "{dest} can't take {source} as text",
+                                "it fills {fills}, past TXT{last}",
+                                dest=Op(self.dest),
+                                source=Op(self.source),
+                                fills=Op(f"{self.dest}..{end.display}", quoted=False),
+                                last=_TXT_LAST,
+                            ),  # fmt: skip
                             Reason.RANGE,
                             "OBJ-003",
                             code=Code.TEXT_PAST_BANK,
@@ -1661,9 +1781,14 @@ class Copy(Instruction):
             option = "exponential=0" if _real_text_source(self.source) else "suppress_zero=1"
             check.refuse(
                 ("convert", "source", "dest"),
-                f"{self.source!r} -> {self.dest!r} needs a converter: "
-                f"convert=to_text({option},termination_code=none), CLICK's default, or "
-                "convert=to_binary",
+                says(
+                    "{source} -> {dest} needs a converter: "
+                    "convert=to_text({option},termination_code=none), CLICK's default, or "
+                    "convert=to_binary",
+                    source=Op(self.source),
+                    dest=Op(self.dest),
+                    option=option,
+                ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_TXT_NEEDS_CONVERT,
             )
@@ -1672,8 +1797,13 @@ class Copy(Instruction):
             # CLICK's dialog offers no converter for TXT into DF, and saves a plain copy.
             check.refuse(
                 ("convert", "source", "dest"),
-                f"{convert} is not an option for {self.source!r} -> {self.dest!r}; "
-                "CLICK copies TXT into DF with no converter",
+                says(
+                    "{convert} is not an option for {source} -> {dest}",
+                    "CLICK copies TXT into DF with no converter",
+                    convert=Op(convert, quoted=False),
+                    source=Op(self.source),
+                    dest=Op(self.dest),
+                ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_CONVERTER_BANK,
             )
@@ -1683,8 +1813,12 @@ class Copy(Instruction):
             # saves one of them. It never saves a plain copy here.
             check.refuse(
                 ("convert", "source", "dest"),
-                f"{self.source!r} -> {self.dest!r} needs convert=to_value (the "
-                "character's value) or convert=to_ascii (its ASCII code)",
+                says(
+                    "{source} -> {dest} needs convert=to_value (the character's value) or "
+                    "convert=to_ascii (its ASCII code)",
+                    source=Op(self.source),
+                    dest=Op(self.dest),
+                ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_TXT_NEEDS_CONVERT,
             )
@@ -1701,7 +1835,13 @@ class Copy(Instruction):
         if not ok:
             check.refuse(
                 ("convert", "source", "dest"),
-                f"{convert} copies {need}, not {self.source!r} -> {self.dest!r}",
+                says(
+                    "{convert} copies {need}, not {source} -> {dest}",
+                    convert=Op(convert, quoted=False),
+                    need=need,
+                    source=Op(self.source),
+                    dest=Op(self.dest),
+                ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_CONVERTER_BANK,
             )
@@ -1879,7 +2019,11 @@ class BlockCopy(Instruction):
             if self.convert not in _BLOCKCOPY_CONVERTS:
                 check.refuse(
                     "convert",
-                    f"{self.convert!r} is not allowed; it is None, 'to_value' or 'to_ascii'",
+                    says(
+                        "{convert} is not allowed",
+                        "it is None, 'to_value' or 'to_ascii'",
+                        convert=operand(self.convert),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -1919,14 +2063,17 @@ class BlockCopy(Instruction):
                         _refusal(
                             cls,
                             ("dest_start", *spans),
-                            f"{self.source_start}..{self.source_end} into "
-                            f"{self.dest_start} runs past the end of its Y slot. A Y slot "
-                            "holds 16 addresses, such as Y001..Y016. laddercodec can't write "
-                            "a destination that crosses into the next slot. Copy at most 16 "
-                            "addresses into Y, and start where they all fit in one slot, such "
-                            "as C1..C16 into Y001.",
+                            says(
+                                "{source} into {dest} runs past the end of its Y slot",
+                                source=Op(f"{self.source_start}..{self.source_end}", quoted=False),
+                                dest=Op(self.dest_start, quoted=False),
+                            ),
                             Reason.CONFLICT,
                             code=Code.RANGE_CROSSES_SLOT,
+                            then="A Y slot holds 16 addresses, such as Y001..Y016. laddercodec "
+                            "can't write a destination that crosses into the next slot. Copy at "
+                            "most 16 addresses into Y, and start where they all fit in one "
+                            "slot, such as C1..C16 into Y001.",
                         )
                     )
                 if dest.bank == "SD" and not check.refused("dest_start"):
@@ -1937,18 +2084,27 @@ class BlockCopy(Instruction):
                         _refusal(
                             cls,
                             ("dest_end", "dest_start", *spans),
-                            f"{self.dest_end!r} is not where the copy ends; "
-                            f"{self.source_start}..{self.source_end} fills "
-                            f"{self.dest_start}..{spelled}",
+                            says(
+                                "{end} is not where the copy ends",
+                                "{source} fills {fills}",
+                                end=Op(self.dest_end),
+                                source=Op(f"{self.source_start}..{self.source_end}", quoted=False),
+                                fills=Op(f"{self.dest_start}..{spelled}", quoted=False),
+                            ),  # fmt: skip
                             Reason.CONFLICT,
                             code=Code.BLOCK_COPY_END_MISMATCH,
                         )
                     )
-            source = f"{self.source_start}..{self.source_end}"
+            source = Op(f"{self.source_start}..{self.source_end}", quoted=False)
+            dest_range = Op(f"{self.dest_start}..{self.dest_end}", quoted=False)
             if self.convert is not None and src is not None and src.bank != "TXT":
                 check.refuse(
                     ("convert", "source_start", "source_end"),
-                    f"{self.convert} needs a TXT source, not {source}",
+                    says(
+                        "{convert} needs a TXT source, not {source}",
+                        convert=Op(str(self.convert), quoted=False),
+                        source=source,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COPY_CONVERTER_BANK,
                 )
@@ -1960,8 +2116,12 @@ class BlockCopy(Instruction):
                 # converter.
                 check.refuse(
                     ("convert", "dest_start"),
-                    f"{self.convert} copies TXT to a number, not {source} -> "
-                    f"{self.dest_start}..{self.dest_end}",
+                    says(
+                        "{convert} copies TXT to a number, not {source} -> {dest}",
+                        convert=Op(str(self.convert), quoted=False),
+                        source=source,
+                        dest=dest_range,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COPY_CONVERTER_BANK,
                 )
@@ -1975,8 +2135,12 @@ class BlockCopy(Instruction):
                 # for a single Copy, and saves one of them.
                 check.refuse(
                     ("convert", "source_start", "dest_start"),
-                    f"{source} -> {self.dest_start}..{self.dest_end} needs convert=to_value "
-                    "(the characters' values) or convert=to_ascii (their ASCII codes)",
+                    says(
+                        "{source} -> {dest} needs convert=to_value (the characters' values) "
+                        "or convert=to_ascii (their ASCII codes)",
+                        source=source,
+                        dest=dest_range,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COPY_TXT_NEEDS_CONVERT,
                 )
@@ -1989,9 +2153,14 @@ class BlockCopy(Instruction):
                 # CLICK's dialog offers Termination Code for a TXT range copied to TXT only.
                 check.refuse(
                     ("termination_code", "source_start", "dest_start"),
-                    f"{self.termination_code!r} needs a TXT range copied to TXT with no "
-                    f"converter, not {source} -> {self.dest_start}..{self.dest_end} with "
-                    f"convert {self.convert!r}",
+                    says(
+                        "{code} needs a TXT range copied to TXT with no converter, not "
+                        "{source} -> {dest} with convert {convert}",
+                        code=Op(self.termination_code),
+                        source=source,
+                        dest=dest_range,
+                        convert=operand(self.convert),
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -2197,7 +2366,11 @@ class Pack(Instruction):
             if self.kind not in _PACK_KINDS:
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not allowed; it is 'pack_bits', 'pack_words' or 'pack_text'",
+                    says(
+                        "{kind} is not allowed",
+                        "it is 'pack_bits', 'pack_words' or 'pack_text'",
+                        kind=operand(self.kind),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -2235,11 +2408,21 @@ class Pack(Instruction):
                         _refusal(
                             "Pack",
                             ("source_start", "kind"),
-                            f"{self.source_start!r} is "
-                            f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
-                            f"{self.kind} "
-                            f"{'takes a TXT source' if self.kind == 'pack_text' else 'has no TXT source'}, "
-                            f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
+                            says(
+                                "{start} is {what}",
+                                "{kind} {has}, {other} does",
+                                start=Op(self.source_start),
+                                what="a TXT register"
+                                if first.bank == "TXT"
+                                else "not a TXT register",
+                                kind=Op(self.kind, quoted=False),
+                                has="takes a TXT source"
+                                if self.kind == "pack_text"
+                                else "has no TXT source",
+                                other="pack_text"
+                                if first.bank == "TXT"
+                                else "pack_words or pack_bits",
+                            ),  # fmt: skip
                             Reason.CONFLICT,
                             code=Code.PACK_KIND_MISMATCH,
                         )
@@ -2258,7 +2441,11 @@ class Pack(Instruction):
                 # Allow whitespace is a Pack Text option; pack_bits and pack_words have none.
                 check.refuse(
                     ("allow_whitespace", "kind"),
-                    f"allow_whitespace is a pack_text option; {self.kind} has none",
+                    says(
+                        "allow_whitespace is a pack_text option",
+                        "{kind} has none",
+                        kind=Op(self.kind, quoted=False),
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -2361,7 +2548,11 @@ class Unpack(Instruction):
             if self.kind not in _UNPACK_KINDS:
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not allowed; it is 'unpack_to_bits' or 'unpack_to_words'",
+                    says(
+                        "{kind} is not allowed",
+                        "it is 'unpack_to_bits' or 'unpack_to_words'",
+                        kind=operand(self.kind),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -2693,11 +2884,17 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
         # TXT, with no converter. "none" and "0" both mean no code, and every copy
         # accepts them.
         if convert_raw:
-            raise FieldError(
-                f"Copy.termination_code: {kwargs['termination_code']!r} stands alone only "
-                f"for TXT copied to TXT, with no converter, not beside {convert_raw}; a "
-                "number copied to TXT takes it inside the converter "
-                "(to_text(...,termination_code=$0D))",
+            raise make_refusal(
+                FieldError,
+                "Copy.termination_code",
+                says(
+                    "{code} stands alone only for TXT copied to TXT, with no converter, not "
+                    "beside {convert}",
+                    "a number copied to TXT takes it inside the converter "
+                    "(to_text(...,termination_code=$0D))",
+                    code=Op(kwargs["termination_code"]),
+                    convert=Op(convert_raw, quoted=False),
+                ),  # fmt: skip
                 field=("Copy.termination_code", "Copy.convert"),
                 reason=Reason.CONFLICT,
                 code=Code.OPTION_NOT_OFFERED,

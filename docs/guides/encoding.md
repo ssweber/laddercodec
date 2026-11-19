@@ -308,6 +308,54 @@ unchanged, you get the bytes it was decoded from. If you change it with
 building it raises. If you read it from CSV, it has no bytes to write, and
 `encode()` raises that error.
 
+### Show Your Names In A Refusal
+
+```python
+from laddercodec import Copy, FieldError
+
+names = {"C1": "Valve", "DS1": "Count"}
+try:
+    Copy(source="DS1", dest="C1")
+except FieldError as exc:
+    print(exc)
+    print(exc.message(names))
+    print(exc.short(names))
+    print(exc.detail(names))
+# Copy.dest: 'C1' can't take 'DS1'; a numeric register copies to DS, DD, DH, DF, YD, TD, CTD, SD, TXT (OBJ-024)
+# Copy.dest: Valve (C1) can't take Count (DS1); a numeric register copies to DS, DD, DH, DF, YD, TD, CTD, SD, TXT (OBJ-024)
+# Valve (C1) can't take Count (DS1)
+# a numeric register copies to DS, DD, DH, DF, YD, TD, CTD, SD, TXT
+```
+
+`names` maps an address to your name for it. `message(names)` returns the text of
+`str(exc)` with each named address replaced by its name. CLICK's form of the value
+follows in parentheses. `short(names)` returns only the refused value and its rule.
+`detail(names)` returns only the explanation. It returns an empty string when the
+refusal has none.
+
+A range or a pointer is shown in the same way:
+
+| Value     | Names                              | Shown as                  |
+|-----------|------------------------------------|---------------------------|
+| `C1..C2`  | `{"C1": "Valve1", "C2": "Valve2"}` | `Valve1..Valve2 (C1..C2)` |
+| `C1..C2`  | `{"C1": "Valve1"}`                 | `Valve1..C2 (C1..C2)`     |
+| `DS[DD1]` | `{"DD1": "Ptr"}`                   | `DS[Ptr] (DS[DD1])`       |
+| `x1`      | `{"X001": "Start"}`                | `Start (X001)`            |
+
+When you pass names, a value that holds an address is shown without quotes. This
+holds even if none of your keys is a CLICK address. The parentheses are left out
+when the value as shown is CLICK's form. A constant, a bank list and a limit are
+never replaced. You can write a key in any form that CLICK reads, such as `ds1` or
+`DS001`. A key that is not a CLICK address is ignored. With no names, `message()`
+returns `str(exc)`. If `read_csv` raised the refusal, `message()` keeps the CSV
+location at the end, and `short()` and `detail()` leave it out.
+
+Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack` and
+`Unpack`, and those of the address, operand and flag checks that other instructions
+share, such as the bank check on `Coil.operand`. For any other error, `message()`
+returns `str(exc)`. `short()` returns that text without its `Class.field:` prefix,
+and `detail()` returns an empty string.
+
 ## Change An Instruction
 
 ```python
