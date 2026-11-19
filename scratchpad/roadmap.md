@@ -99,11 +99,12 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
 - **Token-syntax class split.** Some token-syntax errors are a `CsvReadError` and others are a `FieldError` with no
   field. Pick one class for a token that is not syntax.
 - **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
-- **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`. It should
-  raise `FieldError`.
-- **A number too long for `int()`.** `int()` raises Python's plain `ValueError` for a string of more than 4300
-  digits, where a `LaddercodecError` is expected. `send_receive._parse_range_quantity` and `_addr_end` call it
-  with no guard, so `send(source=DS<5000 ones>..DS5)` raises it. The Slave ID check tests the length first.
+- **Falsy Send and Receive status fields.** A Send or Receive accepts a status field (`sending`, `receiving`,
+  `success`, `error`, `exception_response`) that is falsy, such as `0`, `None` or `[]`, without a refusal. It
+  checks the field only when the value is true. Choose whether a falsy value that is not `""` is refused as
+  the wrong type.
+- **Large raw array counts.** A `raw(...)` field spec with an array count, such as `2237[100000000]=0`, builds
+  one field per entry, so a large count builds 10^8 tuples and can hang. Choose a limit for the count.
 - **Three pointer readers.** `split_pointer` (`operands/address.py`), `_LOOSE_POINTER_RE` in
   `normalize_address` and the partition in `check_box_operand` (`copy.py`) each read a pointer. They disagree
   on a line break in the index, on nested brackets and on lower case. A Pack destination `DS[DS1\n]` is

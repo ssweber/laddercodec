@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, TypeVar, cast, get_args
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
@@ -34,9 +34,9 @@ from ..model import (
 )
 from ..operands.address import address_shape
 from ..operands.banks import BIT_BANKS
-from ..operands.checks import Constants, Refusals, check_operand
+from ..operands.checks import Constants, Refusals, check_operand, choice_operand, is_choice
 from ..operands.constants import INT16_MAX, Kind
-from ..operands.message import Op, Rule, operand, says
+from ..operands.message import Op, Rule, operand, says, shown
 from .family import AfInstructionFamilySpec
 from .timer import TimeUnit
 
@@ -111,6 +111,9 @@ _KIND_LISTS: dict[str, tuple[str, ...]] = {
     "time_drum": ("outputs", "presets", "pattern"),
     "time_event_drum": ("outputs", "presets", "events", "pattern"),
 }
+
+#: The list fields of addresses and constants.
+_LISTS = ("outputs", "presets", "events")
 
 
 def _is_blank(value: object) -> bool:
@@ -297,6 +300,15 @@ def _timer_done_bit(accumulator: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _iterable(value: Any) -> bool:
+    """Return whether ``value`` can be iterated."""
+    try:
+        iter(value)
+    except TypeError:
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class Drum(PinnedInstruction):
     """A drum sequencer instruction: an event_drum, a time_drum or a time_event_drum.
@@ -339,9 +351,11 @@ class Drum(PinnedInstruction):
             # A blank list that the kind uses stays "", so that it is refused as missing.
             uses = _KIND_LISTS[self.kind] if self.kind in _DRUM_KINDS else ()
             blank = [name for name in uses if _is_blank(getattr(self, name))]
-            for name in ("outputs", "presets", "events"):
+            for name in _LISTS:
                 if name not in blank:
                     check.run(normalize_items, self, name)
+            if not all(_iterable(getattr(self, name)) for name in _LISTS):
+                return  # The checks below read these lists, so they can't run.
             if "pattern" not in blank:
                 self._freeze_pattern()
             check.normalize("current_step", "completion_flag", "accumulator", "jump_step")
@@ -467,6 +481,22 @@ class Drum(PinnedInstruction):
 
     def _check_pattern(self, check: Refusals, steps: int, outputs: int) -> None:
         """Refuse the pattern unless it has a row per step and a cell per output, each 0 or 1."""
+        # The pattern is a tuple of tuples unless it, or a row of it, can't be iterated.
+        if not isinstance(self.pattern, tuple) or not all(
+            isinstance(row, tuple) for row in self.pattern
+        ):
+            check.refuse(
+                "pattern",
+                says(
+                    "needs {steps} steps of {outputs} cells each, got {pattern}",
+                    steps=steps,
+                    outputs=outputs,
+                    pattern=shown(self.pattern),
+                ),
+                Reason.FORM,
+                code=Code.DRUM_PATTERN_SHAPE,
+            )
+            return
         if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
             check.refuse(
                 "pattern",
@@ -497,12 +527,12 @@ class Drum(PinnedInstruction):
         """Check the fields that a time or time & event drum adds.
 
         These are the unit, the accumulator, and each step's duration and event."""
-        if self.unit not in _DRUM_UNIT_TO_INDEX:
+        if not is_choice(self.unit, _DRUM_UNIT_TO_INDEX):
             check.refuse(
                 "unit",
                 says(
                     "{unit} is not one of {units}",
-                    unit=operand(self.unit),
+                    unit=choice_operand(self.unit),
                     units=", ".join(_DRUM_UNIT_TO_INDEX),
                 ),
                 Reason.CHOICE,

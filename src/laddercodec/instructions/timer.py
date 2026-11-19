@@ -103,7 +103,7 @@ class Timer(PinnedInstruction):
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
-            check.normalize("done", "accumulator", "preset")
+            check.normalize("done", "accumulator", "preset", values=("preset",))
             done = check("done", check_address, banks={"T"})
             accumulator = check("accumulator", check_address, banks={"TD"})
             if done is not None and accumulator is not None and done.number != accumulator.number:

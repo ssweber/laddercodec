@@ -39,6 +39,7 @@ from ..operands.checks import (
     Refusals,
     check_csv_flag,
     check_quoted_text,
+    choice_operand,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
 from ..operands.message import Op, says
@@ -171,14 +172,16 @@ class Search(Instruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             # A constant search value comes back from normalize_address as written.
-            check.normalize("table_start", "table_end", "value", "result", "found")
-            if self.op not in _OP_TO_FUNC:
+            check.normalize(
+                "table_start", "table_end", "value", "result", "found", values=("value",)
+            )
+            if not isinstance(self.op, str) or self.op not in _OP_TO_FUNC:
                 check.refuse(
                     "op",
                     says(
-                        "{op!r} is not allowed",
+                        "{op} is not allowed",
                         "it is one of {ops}",
-                        op=self.op,
+                        op=repr(self.op) if isinstance(self.op, str) else choice_operand(self.op),
                         ops=", ".join(_OP_TO_FUNC),
                     ),  # fmt: skip
                     Reason.CHOICE,

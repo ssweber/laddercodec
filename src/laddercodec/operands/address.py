@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import re
+import sys
 from collections.abc import Collection, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -21,7 +22,7 @@ from typing import Any, NamedTuple
 from ..codes import Code
 from .banks import WORD_IO_BANKS, XY_BANKS
 from .errors import AddressError, FieldError, Reason
-from .message import LABEL, Op, make_refusal, parts_of, says, set_parts
+from .message import LABEL, Op, make_refusal, parts_of, says, set_parts, wrong_type
 
 #: The pattern of an address token, in any letter case.  The CSV token parser uses it to tell
 #: a contact from other condition tokens.  :func:`check_address` checks the bank and number.
@@ -160,30 +161,73 @@ def read_typed_address(value: str, *, trim: bool = False) -> str:
     return display if parse_address(display) is not None else value
 
 
-def normalize_fields(inst: object, *names: str) -> None:
+def require_text(
+    value: object, field: str, label: str | None = None, *, what: str = "the address"
+) -> str:
+    """Return ``value`` if it is text, or raise :class:`AddressError` naming ``field``.
+
+    An instruction field holds an address or a constant as a string.  The refusal of any
+    other value, such as ``5`` or ``None``, names the value's type and says to pass
+    ``what`` as a str.  The message names ``label``, or the field when no label is given.
+    """
+    if isinstance(value, str):
+        return value
+    raise make_refusal(
+        AddressError,
+        label or field,
+        wrong_type(value, "text"),
+        field=field,
+        reason=Reason.ADDRESS,
+        code=Code.NOT_AN_ADDRESS,
+        then=f"Pass {what} as a str.",
+    )
+
+
+def normalize_fields(inst: object, *names: str, values: Collection[str] = ()) -> None:
     """Write each named text field of ``inst`` in display form with :func:`normalize_address`.
 
-    Every value goes to :func:`normalize_address`, so a value that is not text raises
-    ``TypeError``.  If a field may be None or a ``ModbusAddress``, the caller does not
-    pass its name.  A refusal names the field as ``Class.name``.
+    A value that is not text raises :class:`AddressError` (see :func:`require_text`).
+    ``values`` names the fields that hold a constant as well as an address, so that the
+    refusal says "the value" and not "the address".  If a field may be None or a
+    ``ModbusAddress``, the caller does not pass its name.  A refusal names the field as
+    ``Class.name``.
     """
     cls = type(inst).__name__
     for name in names:
-        value = normalize_address(getattr(inst, name), f"{cls}.{name}")
+        field = f"{cls}.{name}"
+        what = "the value" if name in values else "the address"
+        value = normalize_address(require_text(getattr(inst, name), field, what=what), field)
         object.__setattr__(inst, name, value)  # Works on a frozen Modbus target too.
 
 
 def normalize_items(inst: object, *names: str) -> None:
     """Write each item of each named list field of ``inst`` in display form.
 
-    The field becomes the tuple of its items, each through :func:`normalize_address`, so a
-    value that can't be iterated, or an item that is not text, raises ``TypeError``.  A
-    refusal names ``Class.name[i]``.
+    The field becomes the tuple of its items, each through :func:`normalize_address`.  An
+    item that is not text raises :class:`AddressError` naming ``Class.name[i]``.  A value
+    that can't be iterated raises :class:`AddressError` naming ``Class.name``.
     """
     cls = type(inst).__name__
     for name in names:
         items = getattr(inst, name)
-        value = tuple(normalize_address(v, f"{cls}.{name}[{i}]") for i, v in enumerate(items))
+        try:
+            iter(items)
+        except TypeError:
+            raise make_refusal(
+                AddressError,
+                f"{cls}.{name}",
+                wrong_type(items, "a list"),
+                field=f"{cls}.{name}",
+                reason=Reason.FORM,
+                code=Code.NOT_AN_ADDRESS,
+                then="Pass a list of str.",
+            ) from None
+        value = tuple(
+            normalize_address(
+                require_text(v, f"{cls}.{name}[{i}]", what="each item"), f"{cls}.{name}[{i}]"
+            )
+            for i, v in enumerate(items)
+        )
         object.__setattr__(inst, name, value)
 
 
@@ -363,6 +407,32 @@ def bank_prefix(text: str) -> str:
     return match.group(0) if match else ""
 
 
+#: What :func:`digits_value` returns for digits that ``int()`` refuses to convert.
+TOO_BIG = 10**9
+
+
+def too_long(digits: str) -> bool:
+    """Return whether ``digits``, which are ASCII digits, are a number too long for ``int()``.
+
+    ``int()`` raises ``ValueError`` for more than ``sys.get_int_max_str_digits()`` digits,
+    which is 4300 by default.  Leading zeros do not count, so ``"0" * 5000 + "1"`` is not
+    too long.  :func:`digits_value` reads it as 1.
+    """
+    limit = sys.get_int_max_str_digits()
+    return bool(limit) and len(digits.lstrip("0")) > limit
+
+
+def digits_value(digits: str) -> int:
+    """Return the value of ``digits``, which are ASCII digits.
+
+    Leading zeros are dropped before ``int()`` reads the number.  A number that is still too
+    long for ``int()`` is above every limit that a field has, so this function returns
+    :data:`TOO_BIG` for it.  A check that compares the value with a limit then refuses it
+    as it refuses any number that is too large.
+    """
+    return TOO_BIG if too_long(digits) else int(digits.lstrip("0") or "0")
+
+
 def address_shape(text: str) -> tuple[str, str] | None:
     """Return the letters and the digits of ``text`` if it is uppercase ASCII letters
     followed by ASCII digits. Return None for any other text.
@@ -411,6 +481,7 @@ def check_address(
     given.  It also says what the field takes.
     """
     name = label or field
+    value = require_text(value, field, label)
     if value == "":
         raise make_refusal(
             AddressError,

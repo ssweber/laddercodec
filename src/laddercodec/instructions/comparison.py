@@ -178,7 +178,7 @@ class CompareContact(Condition):
                 )
             # normalize_address returns a constant as it was written, so an operand that is a
             # constant is safe to normalize.
-            check.normalize("left", "right")
+            check.normalize("left", "right", values=("left", "right"))
             left = check("left", _operand_group, _DATA_A)
             right = check("right", _operand_group, _DATA_B)
             if left is not None and right is not None and left != right:

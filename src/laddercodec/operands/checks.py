@@ -49,7 +49,7 @@ from .constants import (
     printable,
 )
 from .errors import AddressError, FieldError, Reason
-from .message import Op, Parts, Rule, make_refusal, operand, says, set_parts
+from .message import Op, Parts, Rule, make_refusal, operand, says, set_parts, shown
 
 __all__ = [
     "ALL_KINDS",
@@ -74,6 +74,8 @@ __all__ = [
     "check_quoted_text",
     "check_writable_sd",
     "constant_shape",
+    "choice_operand",
+    "is_choice",
 ]
 
 #: Every constant kind.
@@ -762,6 +764,32 @@ def check_out_target(
     return address
 
 
+def is_choice(value: object, choices: Collection[Any]) -> bool:
+    """Return whether ``value`` is one of ``choices``.
+
+    A value that can't be hashed, such as a list, is not one of them.  ``value in choices``
+    raises ``TypeError`` for it when ``choices`` is a set or a dict.
+    """
+    try:
+        return value in choices
+    except TypeError:
+        return False
+
+
+def choice_operand(value: object) -> Op | str:
+    """Return ``value`` as the refusal of a choice field names it.
+
+    Text and a value that can be hashed are named as :func:`operand` names them, so a
+    value that is not text has its whole repr.  A value that can't be hashed, such as a
+    list, is named by :func:`shown`, which shortens a long repr.
+    """
+    try:
+        hash(value)
+    except Exception:  # noqa: BLE001 - a caller's __hash__ can raise anything
+        return shown(value)
+    return operand(value)
+
+
 def check_flag(value: object, field: str) -> bool:
     """Return ``value`` as a bool; raise :class:`FieldError` naming ``field`` unless it is
     True, False, 1 or 0."""
@@ -841,8 +869,7 @@ class Refusals:
     :attr:`~FieldError.errors` joins the refusals by the same rules.  An instruction built
     inside the block brings all of its own refusals this way.  Any other exception also
     ends the block.  If refusals were already kept, the first of them is raised from that
-    exception.  A value that crashes a later check, such as None where text belongs,
-    therefore does not hide the refusals before it.
+    exception.  A later check that crashes therefore does not hide the refusals before it.
     """
 
     def __init__(self, inst: object) -> None:
@@ -998,8 +1025,10 @@ class Refusals:
             if value is not None:
                 object.__setattr__(self._inst, attr, value)
 
-    def normalize(self, *attrs: str) -> None:
+    def normalize(self, *attrs: str, values: Collection[str] = ()) -> None:
         """Write each field in display form (see
-        :func:`~laddercodec.operands.address.normalize_fields`)."""
+        :func:`~laddercodec.operands.address.normalize_fields`).
+
+        ``values`` names the fields that hold a constant as well as an address."""
         for attr in attrs:
-            self.run(normalize_fields, self._inst, attr)
+            self.run(normalize_fields, self._inst, attr, values=values)

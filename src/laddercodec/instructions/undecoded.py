@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 
 from ..codes import Code
 from ..model import FieldError, Instruction, Reason
+from ..operands.address import digits_value, too_long
 from ..operands.checks import Refusals
 from ..operands.message import make_refusal, says
 from .family import AfInstructionFamilySpec
@@ -162,7 +163,7 @@ def _whole_number(call: AfCall, key: str) -> int | None:
     text = call.kwargs.get(key)
     if text is None:
         return None
-    if not (text.isascii() and text.isdigit()):
+    if not (text.isascii() and text.isdigit()) or too_long(text):
         raise make_refusal(
             FieldError,
             f"Undecoded.{key}",
@@ -171,7 +172,7 @@ def _whole_number(call: AfCall, key: str) -> int | None:
             reason=Reason.FORM,
             code=Code.INVALID_UNDECODED,
         )
-    return int(text)
+    return digits_value(text)
 
 
 def parse_af_call(call: AfCall) -> Undecoded:

@@ -33,11 +33,24 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.address import address_shape, parse_address, xy_points, xy_room
+from ..operands.address import (
+    address_shape,
+    digits_value,
+    parse_address,
+    too_long,
+    xy_points,
+    xy_room,
+)
 from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS
-from ..operands.checks import Constants, Refusals, check_constant, check_csv_flag
+from ..operands.checks import (
+    Constants,
+    Refusals,
+    check_constant,
+    check_csv_flag,
+    choice_operand,
+)
 from ..operands.constants import Kind, hex_display
-from ..operands.message import Op, Rule, make_refusal, operand, says
+from ..operands.message import Op, Rule, make_refusal, operand, says, wrong_type
 from ..operands.unchecked import allowed, holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -81,13 +94,13 @@ class ModbusRtuTarget:
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.com_port not in _RTU_PORT_MODE:
+            if not isinstance(self.com_port, str) or self.com_port not in _RTU_PORT_MODE:
                 check.refuse(
                     "com_port",
                     says(
                         "must be one of {ports}, got {com_port}",
                         ports=", ".join(_RTU_PORT_MODE),
-                        com_port=operand(self.com_port),
+                        com_port=choice_operand(self.com_port),
                     ),
                     _choice_reason(self.com_port),
                     code=Code.INVALID_CHOICE,
@@ -109,13 +122,13 @@ class ModbusTcpTarget:
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.com_port not in _TCP_PORT_MODE:
+            if not isinstance(self.com_port, str) or self.com_port not in _TCP_PORT_MODE:
                 check.refuse(
                     "com_port",
                     says(
                         "must be one of {ports}, got {com_port}",
                         ports=", ".join(_TCP_PORT_MODE),
-                        com_port=operand(self.com_port),
+                        com_port=choice_operand(self.com_port),
                     ),
                     _choice_reason(self.com_port),
                     code=Code.INVALID_CHOICE,
@@ -247,7 +260,15 @@ class ModbusAddress:
                     _choice_reason(self.register_type),
                     code=Code.INVALID_CHOICE,
                 )
-            if self.address.endswith(("h", "H")):
+            if not isinstance(self.address, str):
+                check.refuse(
+                    "address",
+                    wrong_type(self.address, "text"),
+                    Reason.KIND,
+                    code=Code.NOT_AN_ADDRESS,
+                    then="Pass the MODBUS address as a str.",
+                )
+            elif self.address.endswith(("h", "H")):
                 if check("address", check_constant, _REMOTE_HEX) is not None:
                     # The range check reads the value, not the number of digits. So leading
                     # zeros do not take it out of range, even past four digits. CLICK stores
@@ -484,7 +505,9 @@ def _addr_end(start: str, quantity: int, cls: str) -> str:
     shape = address_shape(start)
     if shape is None:
         return start
-    prefix, number = shape[0], int(shape[1])
+    if too_long(shape[1]):
+        return start  # not an address, so it has no end
+    prefix, number = shape[0], digits_value(shape[1])
     if prefix in XY_BANKS:
         return Address(prefix, _xy_nth(prefix, number, quantity - 1, cls)).display
     return Address(prefix, number + quantity - 1).display
@@ -614,6 +637,15 @@ def _check_target(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rt
             "target", says("is blank", "it needs a value"), Reason.MISSING, code=Code.BLANK_FIELD
         )
         return
+    if not isinstance(target, (ModbusRtuTarget, ModbusTcpTarget)):
+        check.refuse(
+            "target",
+            wrong_type(target, "a Modbus target"),
+            Reason.FORM,
+            code=Code.INVALID_MODBUS_TARGET,
+            then="Pass a ModbusTcpTarget or ModbusRtuTarget.",
+        )
+        return
     device_id = target.device_id
     if isinstance(device_id, str):
         return
@@ -628,6 +660,24 @@ def _check_target(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rt
             Reason.RANGE,
             code=Code.INVALID_MODBUS_TARGET,
         )
+
+
+def _check_remote_type(check: Refusals, inst: Send | Receive) -> bool:
+    """Refuse a ``remote_start`` that is neither text nor a ``ModbusAddress``.  Return
+    whether it is either one.
+
+    The checks of the remote start read it as text or as a ``ModbusAddress``, so they run
+    only when this returns True."""
+    if isinstance(inst.remote_start, (str, ModbusAddress)):
+        return True
+    check.refuse(
+        "remote_start",
+        wrong_type(inst.remote_start, "text or a ModbusAddress"),
+        Reason.ADDRESS,
+        code=Code.NOT_AN_ADDRESS,
+        then="Pass the address as a str, or a ModbusAddress.",
+    )
+    return False
 
 
 def _normalize_operands(check: Refusals, inst: Send | Receive, names: tuple[str, ...]) -> None:
@@ -1028,6 +1078,8 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     _check_function_code(check, send.function_code, tuple(_SD_FC_SUBTYPE))
     remote, quantity = send.remote_start, send.quantity
     _check_int_quantity(check, quantity)
+    if not _check_remote_type(check, send):
+        return None
     counted = not check.refused("quantity")
     remote_addr: Address | None = None
     bit: bool | None = None  # None: the remote_start is refused, so its kind is not known
@@ -1203,6 +1255,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
     _check_function_code(check, receive.function_code, tuple(_RD_FC_SUBTYPE))
     remote, quantity = receive.remote_start, receive.quantity
     _check_int_quantity(check, quantity)
+    if not _check_remote_type(check, receive):
+        return None
     counted = not check.refused("quantity")
     remote_addr: Address | None = None
     kind_984: str | None = None
@@ -1958,9 +2012,19 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
 
     name = _strip_quotes(kw.get("name", ""))
     raw_id = _strip_quotes(kw.get("device_id", "0"))
-    device_id: int | str = (
-        int(raw_id) if raw_id.isascii() and raw_id.lstrip("-").isdigit() else raw_id
-    )
+    device_id: int | str = raw_id
+    digits = raw_id.removeprefix("-")
+    if digits.isascii() and digits.isdigit():
+        if too_long(digits):
+            high = 247 if cls_name == "ModbusRtuTarget" else 255
+            raise _target_number_refusal(
+                "device_id",
+                cls_name,
+                says(
+                    "must be 0-{high} or a DS address, got {device_id}", high=high, device_id=raw_id
+                ),
+            )
+        device_id = -digits_value(digits) if raw_id != digits else digits_value(digits)
 
     # A target refuses a com_port that is not one of its ports.
     if cls_name == "ModbusRtuTarget":
@@ -1969,7 +2033,7 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
         raw_port = kw.get("port", "502")
-        if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
+        if not raw_port.isascii() or not raw_port.removeprefix("-").isdigit():
             raise make_refusal(
                 FieldError,
                 "ModbusTcpTarget.port",
@@ -1979,7 +2043,12 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
                 code=Code.INVALID_MODBUS_TARGET,
                 then="Enter a whole number, such as 502.",
             )
-        port = int(raw_port)
+        if too_long(raw_port.removeprefix("-")):
+            raise _target_number_refusal(
+                "port", cls_name, says("must be 1-65535, got {port}", port=raw_port)
+            )
+        port_digits = raw_port.removeprefix("-")
+        port = -digits_value(port_digits) if raw_port != port_digits else digits_value(port_digits)
         com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise make_refusal(
@@ -1990,6 +2059,22 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         reason=Reason.FORM,
         code=Code.INVALID_TOKEN,
         then="Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
+    )
+
+
+def _target_number_refusal(field: str, cls_name: str, said: Rule) -> FieldError:
+    """Return the refusal of a number in a target token that is too long for ``int()``.
+
+    ``said`` is the refusal that the target gives a number outside its range, with the text
+    of the number in it."""
+    name = f"{cls_name}.{field}"
+    return make_refusal(
+        FieldError,
+        name,
+        said,
+        field=name,
+        reason=Reason.RANGE,
+        code=Code.INVALID_MODBUS_TARGET,
     )
 
 
@@ -2046,7 +2131,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 code=Code.RANGE_MIXED_BANKS,
             )
         check_address(end, field, {prefix}, label=f"range end of {raw!r}")
-        first, last = int(m_start[1]), int(m_end[1])
+        first, last = digits_value(m_start[1]), digits_value(m_end[1])
         if last < first:
             raise make_refusal(
                 FieldError,
@@ -2065,7 +2150,7 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
     raw = kw.get("function_code")
     if raw is None:
         return None
-    if not raw.isascii() or not raw.isdigit():
+    if not raw.isascii() or not raw.isdigit() or too_long(raw):
         raise make_refusal(
             FieldError,
             None,
@@ -2074,7 +2159,7 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
             reason=Reason.FORM,
             code=Code.INVALID_CHOICE,
         )
-    return int(raw)
+    return digits_value(raw)
 
 
 def parse_af_call(call: AfCall) -> Receive | Send:

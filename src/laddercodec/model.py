@@ -40,7 +40,7 @@ from .operands.checks import check_flag as check_flag
 from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
 from .operands.errors import Reason as Reason
-from .operands.message import make_refusal, operand, says
+from .operands.message import make_refusal, operand, says, wrong_type
 from .operands.unchecked import holds_refusals, rebuilt
 
 if TYPE_CHECKING:
@@ -268,7 +268,18 @@ def check_program_name(name: str, field_name: str) -> None:
     - the part before its last dot is a Windows device name (GUI-040).
 
     The check accepts ``Main``, ``.``, spaces inside the name, ``-`` and a leading digit.
+    A name that is not text is refused as ``invalid-subroutine-name``.
     """
+    if not isinstance(name, str):
+        raise make_refusal(
+            FieldError,
+            field_name,
+            wrong_type(name, "text"),
+            field=field_name,
+            reason=Reason.FORM,
+            code=Code.INVALID_SUBROUTINE_NAME,
+            then="Pass the name as a str.",
+        )
     text = name.strip()
     if not text:
         raise make_refusal(
