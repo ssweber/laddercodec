@@ -350,15 +350,15 @@ never replaced. You can write a key in any form that CLICK reads, such as `ds1` 
 returns `str(exc)`. If `read_csv` raised the refusal, `message()` keeps the CSV
 location at the end, and `short()` and `detail()` leave it out.
 
-Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack`,
-`Unpack`, `Coil`, `OutVariant`, `Contact`, `CompareContact`, `Timer`, `Counter`,
-`Shift`, `ForLoop`, `Drum`, `Send`, `Receive`, `ModbusRtuTarget`,
-`ModbusTcpTarget`, `ModbusAddress`, `Search` and `Math`, and those of the address,
-operand and flag checks that other instructions share, such as the bank check on
-`Coil.operand`. A `Math` refusal that quotes the whole formula shows the formula as
-it is, with no names. The refusals of `Call`, `Tee`, `RawInstruction`, `Undecoded`,
-`Series`, `Parallel`, `Box`, `Branch` and `Circuit` name no address, so names
-change nothing in them, and `short()` and `detail()` still split them. For an error that keeps no parts, `message()` returns `str(exc)`.
+A `FieldError` from any instruction or Modbus target shows your name for each
+address it names. When a `Math` refusal quotes the whole formula, names do not
+replace the addresses in it. The refusals of `Call`, `Tee`, `RawInstruction`,
+`Undecoded`, `Series`, `Parallel`, `Box`, `Branch` and `Circuit` name no address, so
+names change nothing in them, and `short()` and `detail()` still split them. A
+`CsvReadError` about the shape of a token shows no names. For example, `read_csv`
+refuses `blockcopy(DS1,DS10..DS20)` with `'DS1' is not a range`, and `message()`
+returns that text with no name in it. For an error that keeps no parts, `message()`
+returns `str(exc)`.
 `short()` returns that text without its `Class.field:` prefix, and `detail()`
 returns an empty string.
 

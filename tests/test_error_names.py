@@ -1514,6 +1514,36 @@ def test_a_math_address_in_a_refused_bank_shows_its_name() -> None:
     )
 
 
+def test_a_math_sum_with_one_end_in_the_option_slot_names_that_end() -> None:
+    error = _refusal(lambda: Math("SUM ( X001 : X036 )", "DS3"))
+    assert error.short({"X036": "Top"}) == (
+        "SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option slot "
+        "(X021-X036), and CLICK sums the wrong bits for this range."
+    )
+    assert error.detail({"X036": "Top"}) == ""
+    assert error.message({"X036": "Top"}) == (
+        "Math.expression: SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option "
+        "slot (X021-X036), and CLICK sums the wrong bits for this range."
+    )
+
+
+def test_a_math_token_not_in_display_form_shows_its_name_in_an_order_refusal() -> None:
+    """Under ``display_form_only()``, ``Y1`` keeps its typed text, and ``Y001`` names it."""
+    with display_form_only(), pytest.raises(FieldError) as raised:
+        Math("Y1 DS1", "DS3")
+    error = raised.value.errors[1]
+    assert str(error) == (
+        "Math.expression: 'DS1' after 'Y1': two values need an operator between them (OBJ-1001)"
+    )
+    assert error.short({"Y001": "Out"}) == (
+        "DS1 after Out (Y1): two values need an operator between them"
+    )
+    assert error.detail({"Y001": "Out"}) == ""
+    assert error.message({"Y001": "Out"}) == (
+        "Math.expression: DS1 after Out (Y1): two values need an operator between them (OBJ-1001)"
+    )
+
+
 def test_a_math_address_typed_in_another_form_takes_the_name_of_its_display_form() -> None:
     """A hex Math refuses ``ds1``.  The refusal names DS1, and ``{"DS1": ...}`` names it."""
     error = _refusal(lambda: Math("ds1 + DH2", "DH3", "hex"))
@@ -1616,8 +1646,10 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
     """Name each address in the formula, and no address is left in quotes or bare.
 
     A refusal that quotes the whole formula leaves it as it is, so a quoted text is not
-    checked for the addresses that it holds.  A limit such as ``DS1-DS4500`` is plain on
-    purpose, so a refusal that states one is not checked either.
+    checked for the addresses that it holds.  A limit such as ``DS1-DS4500`` or
+    ``X021-X036`` is plain on purpose, so the test removes it before the check.  The test
+    skips the refusals of an address outside its bank, because their lists of limits also
+    hold single addresses such as ``XD0``.
     """
     plain: dict[str, str] = {}
     count = 0
@@ -1630,9 +1662,11 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
             for error in exc.errors:
                 count += 1
                 assert parts_of(error) is not None, str(error)
-                if re.search(r"\b[A-Z]+\d+-[A-Z]*\d+", str(error)):
+                if " is outside " in str(error):
                     continue
-                text = _outside_parentheses(error.message(names))
+                # Remove CLICK's form after each name, then the limits.
+                text = re.sub(r"(?<=>) \([^()]*\)", "", error.message(names))
+                text = re.sub(r"\b[A-Z]+\d+-[A-Z]*\d+", "", text)
                 for display, typed in addresses.items():
                     if f"'{display}'" in text or f"'{typed}'" in text:
                         plain.setdefault(str(error), display)
