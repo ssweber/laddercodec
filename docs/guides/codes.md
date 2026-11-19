@@ -32,7 +32,7 @@ These rules are the same in every instruction. `field` names the field.
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `blank-field` | A field that needs a value is blank. |  |
-| `not-an-address` | Text that is no CLICK address, or names no bank. |  |
+| `not-an-address` | Text that is no CLICK address or names no bank, or a value that is not text. |  |
 | `address-out-of-range` | A number outside its bank (`DS5000`, `X017`). | OBJ-003 |
 | `bank-not-allowed` | An address in a bank the field doesn't take. | OBJ-003, OBJ-004 |
 | `upper-byte-not-allowed` | `XD0u` or `YD0u` in a field that takes no upper byte. |  |
@@ -67,7 +67,7 @@ These rules apply to several instructions. `invalid-subroutine-name` and `duplic
 | `immediate-edge-contact` | Immediate on a rise or fall contact. |  |
 | `immediate-not-allowed` | Immediate on an instruction with no immediate form. |  |
 | `text-order-compare` | `<` or `>` on text, in a Compare or a Search. |  |
-| `invalid-subroutine-name` | A subroutine name over 24 characters, with a forbidden character, or a device name. | GUI-040 |
+| `invalid-subroutine-name` | A subroutine name that is not text, is over 24 characters, holds a forbidden character or is a device name. | GUI-040 |
 | `duplicate-subroutine-name` | Two subroutine names that are equal when the case of A-Z is ignored, such as `Pump` and `pump`. | GUI-036 |
 | `invalid-input-rows` | `pin_rows` that is not one ascending row (1 to 255) per box input. |  |
 
@@ -94,7 +94,7 @@ These rules apply to the formula of a Math instruction.
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `math-nickname` | A formula that holds a `<nickname>`. |  |
-| `math-invalid-token` | A word or character that is no formula part. | OBJ-1001 |
+| `math-invalid-token` | A word or character that is no formula part, or a formula that is not text. | OBJ-1001 |
 | `math-constant-kind` | A hex constant in a decimal Math, a constant without an `h` in a hex Math, or a text constant in any Math. | OBJ-1001 |
 | `math-constant-out-of-range` | Hex over 4 digits, a real past float32 or with more digits than CLICK keeps, an integer past int32, or leading zeros. | OBJ-1009 |
 | `math-nesting-depth` | Parentheses more than 8 deep. | OBJ-1010 |
@@ -128,7 +128,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `function-code-mismatch` | A Modbus function code that doesn't fit the remote type or the count. | OBJ-004 |
 | `count-out-of-range` | A Send or Receive count past its cap or room, or an odd TXT count. | OBJ-010, OBJ-029 |
 | `remote-address-out-of-range` | A remote start outside the MODBUS 984 ranges, or past FFFDh. | OBJ-010 |
-| `invalid-modbus-target` | A Modbus target with a bad device_id, IP or port. |  |
+| `invalid-modbus-target` | A Modbus target with a bad device_id, IP or port, or a Send or Receive target that is no Modbus target. |  |
 | `for-count-bank` | A For loop count in a bank the count doesn't take. | OBJ-004 |
 | `invalid-token` | A CSV token that doesn't follow its instruction's syntax. |  |
 | `invalid-raw` | A `RawInstruction` field with a value of the wrong type or out of range, or a `raw(...)` token whose `rows=` does not fit its `pins=`. |  |

@@ -40,9 +40,16 @@ from ..codes import Code
 from ..errors import CsvReadError
 from ..model import FieldError, Instruction, Reason, check_address
 from ..operands.address import read_as_typed
-from ..operands.checks import HEX_MATH_RESULT, Refusals, check_csv_flag, check_writable_sd
+from ..operands.checks import (
+    HEX_MATH_RESULT,
+    Refusals,
+    check_csv_flag,
+    check_writable_sd,
+    choice_operand,
+    is_choice,
+)
 from ..operands.constants import INT16_MAX, INT16_MIN
-from ..operands.message import operand, says
+from ..operands.message import says, wrong_type
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse, stored_reals_written
@@ -210,14 +217,25 @@ class Math(Instruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.mode not in RESULT_BANKS:
+            if not is_choice(self.mode, RESULT_BANKS):
                 check.refuse(
                     "mode",
-                    says("{mode} is not 'decimal' or 'hex'", mode=operand(self.mode)),
+                    says("{mode} is not 'decimal' or 'hex'", mode=choice_operand(self.mode)),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
-            if _holds_nickname(self.expression):
+            # The formula check below refuses an empty bytes, list, tuple or dict as blank.
+            if not isinstance(self.expression, str) and not (
+                isinstance(self.expression, (bytes, list, tuple, dict)) and not self.expression
+            ):
+                check.refuse(
+                    "expression",
+                    wrong_type(self.expression, "text"),
+                    Reason.FORM,
+                    code=Code.MATH_INVALID_TOKEN,
+                    then="Pass the formula as a str.",
+                )
+            elif isinstance(self.expression, str) and _holds_nickname(self.expression):
                 check.refuse(
                     "expression",
                     # A whole formula is quoted as it is. A name never replaces an

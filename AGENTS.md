@@ -71,15 +71,19 @@ src/laddercodec/
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
 ├── model.py              # InstructionType enum, Condition / Instruction bases; re-exports operands/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
-│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, normalize_fields,
-│   │                     #   normalize_items, display form, read_as_typed, X/Y slots, xy_points, xy_room;
-│   │                     #   readers that never raise: parse_address, split_pointer, is_pointer, bank_prefix, address_shape
+│   ├── address.py        # ADDRESS_BANKS, Address, check_address, require_text (refuses a value that is
+│   │                     #   not text), normalize_address, normalize_fields, normalize_items, display form,
+│   │                     #   read_as_typed, X/Y slots, xy_points, xy_room;
+│   │                     #   readers that never raise: parse_address, split_pointer, is_pointer, bank_prefix, address_shape;
+│   │                     #   too_long and digits_value (read a number that int() can't convert)
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names);
 │   │                     #   BIT_BANKS, REGISTER_BANKS, XY_BANKS, WORD_IO_BANKS, bits_per_register
 │   ├── checks.py         # Shared field checks: check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
 │   │                     #   check_flag (re-exported by model.py); check_csv_flag (a CSV 0/1 keyword:
 │   │                     #   Coil, Copy family); bank_of (the bank that check_operand accepts, or None);
+│   │                     #   is_choice (whether a value, hashable or not, is one of a set) and
+│   │                     #   choice_operand (the value as a refusal of a choice names it);
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)
@@ -88,6 +92,8 @@ src/laddercodec/
 │   │                     #   .in_range states the range rule. .stored states the text written for an integral real.
 │   │                     #   The other forms (refusal, stored type, held text) are derived from these three
 │   ├── message.py        # Parts of a refusal message: Op, says(), make_refusal(), parts_of(), with_click_id();
+│   │                     #   shown(): a short repr of a caller's value that never raises;
+│   │                     #   wrong_type(): the rule for a value of the wrong type, such as "5 is an int, not text";
 │   │                     #   str(err) and LaddercodecError.message()/short()/detail() render them
 │   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser

@@ -109,7 +109,7 @@ class Counter(PinnedInstruction):
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
-            check.normalize("done", "accumulator", "preset")
+            check.normalize("done", "accumulator", "preset", values=("preset",))
             done = check("done", check_address, banks={"CT"})
             accumulator = check("accumulator", check_address, banks={"CTD"})
             if done is not None and accumulator is not None and done.number != accumulator.number:

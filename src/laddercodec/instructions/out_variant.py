@@ -27,7 +27,15 @@ from ..binary_helpers import tag_value
 from ..codes import Code
 from ..errors import CsvReadError
 from ..model import Instruction, Reason, check_address
-from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand, check_out_target
+from ..operands.checks import (
+    Constants,
+    Refusals,
+    check_csv_flag,
+    check_operand,
+    check_out_target,
+    choice_operand,
+    is_choice,
+)
 from ..operands.constants import INT16_MAX, Kind
 from ..operands.message import operand, says
 from .family import AfInstructionFamilySpec
@@ -150,17 +158,24 @@ class OutVariant(Instruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.normalize("operand", "on_acc", "on_preset", "off_acc", "off_preset")
+            check.normalize(
+                "operand",
+                "on_acc",
+                "on_preset",
+                "off_acc",
+                "off_preset",
+                values=("on_preset", "off_preset"),
+            )
             # The target follows the same rules as an Out coil's target, including the list of
             # writable SC bits. A flag that is not a bool is passed on here as it is.
             # check.flag refuses it last, so its refusal comes after every other refusal.
             check("operand", check_out_target, immediate=self.immediate)
-            if self.kind not in _KIND_INDEX:
+            if not isinstance(self.kind, str) or self.kind not in _KIND_INDEX:
                 check.refuse(
                     "kind",
                     says(
                         "{kind} is not one of {kinds}",
-                        kind=operand(self.kind),
+                        kind=choice_operand(self.kind),
                         kinds=", ".join(_KIND_INDEX),
                     ),  # fmt: skip
                     Reason.CHOICE,
@@ -207,16 +222,15 @@ class OutVariant(Instruction):
         # ``maintained`` itself last. Skip the lookup if ``maintained`` was refused above,
         # for a kind that has no Output Maintained box, because that refusal already
         # explains the failure.
-        if (
-            not check.refused("maintained")
-            and (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES
+        if not check.refused("maintained") and not is_choice(
+            (self.kind, self.unit, self.maintained), OUT_VARIANT_FUNC_CODES
         ):
             check.refuse(
                 ("unit", "kind"),
                 says(
                     "{kind} does not support unit={unit}",
                     kind=self.kind,
-                    unit=operand(self.unit),
+                    unit=choice_operand(self.unit),
                 ),  # fmt: skip
                 Reason.CHOICE,
                 code=Code.COIL_TIME_UNIT,

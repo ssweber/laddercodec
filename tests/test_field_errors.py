@@ -312,23 +312,21 @@ def test_coil_sc_not_writable_is_obj_003(kind: CoilKind) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_timer_refusal_survives_a_later_crash() -> None:
-    with pytest.raises(FieldError) as caught:
-        Timer("on_delay", "T1", "TD1", None, unit="bogus")  # type: ignore[arg-type]
-    assert caught.value.field == "Timer.unit"
-    assert isinstance(caught.value.__cause__, TypeError)
+class _Probe:
+    """An object that holds a field, for a block of checks that crashes."""
 
 
-def test_coil_refusal_survives_a_later_crash() -> None:
-    with pytest.raises(FieldError) as caught:
-        Coil(5, immediate=2)  # type: ignore[arg-type]
-    assert caught.value.field == "Coil.immediate"
+def test_a_refusal_survives_a_later_crash() -> None:
+    with pytest.raises(FieldError) as caught, Refusals(_Probe()) as check:
+        check.refuse("unit", says("is refused"), Reason.CHOICE, code=Code.INVALID_CHOICE)
+        raise TypeError("a check crashed")
+    assert (str(caught.value), caught.value.field) == ("_Probe.unit: is refused", "_Probe.unit")
     assert isinstance(caught.value.__cause__, TypeError)
 
 
 def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
-    with pytest.raises(TypeError):
-        _timer(preset=None)
+    with pytest.raises(TypeError, match="a check crashed"), Refusals(_Probe()):
+        raise TypeError("a check crashed")
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ from ..binary_helpers import (
 )
 from ..codes import Code
 from ..model import FieldError, Instruction, Reason
+from ..operands.address import digits_value, too_long
 from ..operands.checks import Refusals
 from ..operands.message import Rule, make_refusal, says
 from .family import AfInstructionFamilySpec, cell_rows_spec
@@ -310,7 +311,9 @@ def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
         if not m:
             raise _token_error(says("Invalid field spec: {spec!r}", spec=spec))
         tag = int(m.group(1), 16)
-        array_count = int(m.group(2)) if m.group(2) else None
+        if m.group(2) and too_long(m.group(2)):
+            raise _token_error(says("Invalid field spec: {spec!r}", spec=spec))
+        array_count = digits_value(m.group(2)) if m.group(2) else None
         sentinel_hex = m.group(3)
         value = m.group(4)
 
@@ -648,14 +651,14 @@ class RawInstruction(Instruction):
                 )
             )
         type_marker = int(parts[0], 16)
-        part_count = int(parts[1])
+        part_count = digits_value(parts[1])
         if part_count > 0xFFFF:
             raise _token_error(
                 says(
                     "raw({class_name},...): part count {part_count} is not a whole number "
                     "from 0 to 65535",
                     class_name=class_name,
-                    part_count=part_count,
+                    part_count=parts[1].lstrip("0") if too_long(parts[1]) else part_count,
                 ),
                 reason=Reason.RANGE,
             )
@@ -677,6 +680,16 @@ class RawInstruction(Instruction):
             )
 
         fields = _parse_field_specs(field_specs)
+        if type_marker > 0xFFFFFFFF:
+            raise _token_error(
+                says(
+                    "raw({class_name},...): type marker {marker} is not a whole number "
+                    "from 0 to 0xFFFFFFFF",
+                    class_name=class_name,
+                    marker=parts[0],
+                ),
+                reason=Reason.RANGE,
+            )
         blob = _compose_blob(class_name, type_marker, part_count, extra_bytes, fields)
         return cls(class_name, blob, part_count, rows, sub)
 
@@ -720,7 +733,7 @@ def _take_box_rows(
         if i < len(parts) and parts[i].startswith(f"{key}="):
             text = parts[i][len(key) + 1 :]
             digits = text.isascii() and text.isdigit()
-            if not (digits and 1 <= int(text) <= limits[key]):
+            if not (digits and 1 <= digits_value(text) <= limits[key]):
                 raise _token_error(
                     says(
                         "raw({class_name},...): {key}={text!r} is not a whole number "
@@ -740,7 +753,7 @@ def _take_box_rows(
                     reason=Reason.RANGE if raw_token and digits else Reason.FORM,
                     code=Code.INVALID_RAW if raw_token else Code.INVALID_TOKEN,
                 )
-            values[key] = int(text)
+            values[key] = digits_value(text)
             i += 1
     pins = None
     if i < len(parts) and parts[i].startswith("pins="):
@@ -799,7 +812,7 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
                 want=want,
             )
         )
-    if not all(v.isascii() and v.isdigit() and 1 <= int(v) <= 31 for v in values):
+    if not all(v.isascii() and v.isdigit() and 1 <= digits_value(v) <= 31 for v in values):
         raise _token_error(
             says(
                 "raw({class_name},...): pins={text} holds a row that is not a whole number "
@@ -808,7 +821,7 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
                 text=text,
             )
         )
-    rows = [int(v) for v in values]
+    rows = [digits_value(v) for v in values]
     if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
         raise _token_error(
             says("raw({class_name},...): pins={text} must ascend", class_name=class_name, text=text)

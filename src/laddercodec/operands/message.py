@@ -26,6 +26,7 @@ Not public API.
 from __future__ import annotations
 
 import dataclasses
+import reprlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -49,7 +50,10 @@ __all__ = [
     "make_refusal",
     "says",
     "set_parts",
+    "shown",
+    "type_name",
     "with_click_id",
+    "wrong_type",
 ]
 
 
@@ -77,7 +81,82 @@ def operand(value: object) -> Op | str:
     ``str(err)`` shows both forms as ``repr(value)``.  A value that is not text is never an
     address.
     """
-    return Op(value) if isinstance(value, str) else repr(value)
+    return Op(value) if isinstance(value, str) else _repr(value)
+
+
+def _repr(value: object) -> str:
+    """Return ``repr(value)``, or the default repr of the object if ``repr()`` raises."""
+    try:
+        return repr(value)
+    except Exception:  # noqa: BLE001 - a caller's __repr__ can raise anything
+        return object.__repr__(value)
+
+
+#: The longest repr that :func:`shown` returns whole.
+_SHOWN_MAX = 80
+
+_SHORT = reprlib.Repr()
+_SHORT.maxstring = 40
+_SHORT.maxother = 40
+
+
+def shown(value: object) -> str:
+    """Return the repr of ``value`` for a message, shortened if it is long.
+
+    A repr of up to 80 characters is returned whole.  :mod:`reprlib` shortens a longer one,
+    so ``list(range(1000))`` is shown as ``[0, 1, 2, 3, 4, 5, ...]``.  If ``repr()`` raises,
+    the result is the default repr of the object, such as ``<Thing object at 0x...>``.
+    """
+    text = _repr(value)
+    if len(text) <= _SHOWN_MAX:
+        return text
+    try:
+        return _SHORT.repr(value)
+    except Exception:  # noqa: BLE001 - a caller's __repr__ can raise anything
+        return text[:_SHOWN_MAX] + "..."
+
+
+#: The names of the common Python types, as a refusal of a value of the wrong type says them.
+_TYPE_NAMES: dict[type, str] = {
+    type(None): "None",
+    bool: "a bool",
+    int: "an int",
+    float: "a float",
+    complex: "a complex",
+    bytes: "bytes",
+    bytearray: "a bytearray",
+    str: "a str",
+    list: "a list",
+    tuple: "a tuple",
+    dict: "a dict",
+    set: "a set",
+    frozenset: "a frozenset",
+}
+
+
+def type_name(value: object) -> str:
+    """Return the name of the type of ``value`` for a message, such as ``an int``.
+
+    A type that is not in :data:`_TYPE_NAMES` is named by its class, such as ``a Thing``.
+    """
+    known = _TYPE_NAMES.get(type(value))
+    if known is not None:
+        return known
+    name = type(value).__name__
+    return f"{'an' if name[:1].lower() in 'aeiou' else 'a'} {name}"
+
+
+def wrong_type(value: object, wanted: str) -> Rule:
+    """Return the rule that ``value`` is not ``wanted``, such as ``5 is an int, not text``.
+
+    The rule shows ``value`` with :func:`shown` and names its type with :func:`type_name`.
+    None is its own type, so its rule is ``None is not text``.
+    """
+    if value is None:
+        return says("None is not {wanted}", wanted=wanted)
+    return says(
+        "{value} is {kind}, not {wanted}", value=shown(value), kind=type_name(value), wanted=wanted
+    )
 
 
 class _Label(Enum):

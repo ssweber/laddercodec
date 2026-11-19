@@ -22,6 +22,7 @@ from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
 from ..errors import CsvReadError
 from ..model import FieldError, Instruction, InstructionType, Reason, normalize_address
+from ..operands.address import require_text
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
 from ..operands.message import Op, make_refusal, says
@@ -63,7 +64,7 @@ def _normalized_count(value: str) -> str:
     """Return *value* without the spaces at either end, in display form if it is an address,
     and as ``0`` if it is ``-0``. Raise :class:`FieldError` if it is blank or has a space
     inside it."""
-    text = value.strip()
+    text = require_text(value, "ForLoop.count", what="the count").strip()
     if not text:
         raise make_refusal(
             FieldError,

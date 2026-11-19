@@ -60,7 +60,9 @@ from ..operands.checks import (
     check_kept_text,
     check_operand,
     check_writable_sd,
+    choice_operand,
     constant_shape,
+    is_choice,
 )
 from ..operands.constants import (
     REAL_DIGITS,
@@ -82,6 +84,7 @@ from ..operands.message import (
     parts_of,
     says,
     with_click_id,
+    wrong_type,
 )
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
@@ -1414,7 +1417,15 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
     ``"none"`` is the CSV form of no code, and ``to_csv`` writes it. A blank code is
     refused.
     """
-    if inst.termination_code == "":
+    if not isinstance(inst.termination_code, str):
+        check.refuse(
+            "termination_code",
+            wrong_type(inst.termination_code, "text"),
+            Reason.FORM,
+            code=Code.INVALID_CHAR_CODE,
+            then="Pass the character code as a str.",
+        )
+    elif inst.termination_code == "":
         check.refuse(
             "termination_code",
             says("is blank", "it needs a code, or 'none' for no code"),
@@ -1434,13 +1445,14 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
 def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
     """Refuse a termination code that is neither a character code nor ``"0"``. The blob can
     store only a character code."""
-    if not inst.termination_code.startswith("$") and inst.termination_code != "0":
+    code = inst.termination_code
+    if isinstance(code, str) and not code.startswith("$") and code != "0":
         check.refuse(
             "termination_code",
             says(
                 "{code} is not allowed",
                 "it is a character code ($0D), or '0' or 'none' for no code",
-                code=operand(inst.termination_code),
+                code=operand(code),
             ),  # fmt: skip
             Reason.FORM,
             "OBJ-036",
@@ -1531,20 +1543,20 @@ class Copy(Instruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             # normalize_address returns a constant as it was written.
-            check.normalize("source", "dest")
+            check.normalize("source", "dest", values=("source",))
             if _is_one_digit_code(self.source):
                 # A single Copy accepts $ and one hex digit as a character code. CLICK
                 # stores it with two digits, so $1 becomes $01.
                 object.__setattr__(self, "source", f"$0{self.source[1]}")
             elif (why := _real_hex_refusal(self.source)) is not None:
                 check.refuse("source", why, Reason.FORM, code=Code.COPY_HEX_READS_AS_REAL)
-            if self.convert not in _VALID_CONVERTS:
+            if not is_choice(self.convert, _VALID_CONVERTS):
                 check.refuse(
                     "convert",
                     says(
                         "{convert} is not allowed",
                         "it is None, 'to_value', 'to_text', 'to_binary' or 'to_ascii'",
-                        convert=operand(self.convert),
+                        convert=choice_operand(self.convert),
                     ),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
@@ -2016,13 +2028,13 @@ class BlockCopy(Instruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("source_start", "source_end", "dest_start", "dest_end")
-            if self.convert not in _BLOCKCOPY_CONVERTS:
+            if not is_choice(self.convert, _BLOCKCOPY_CONVERTS):
                 check.refuse(
                     "convert",
                     says(
                         "{convert} is not allowed",
                         "it is None, 'to_value' or 'to_ascii'",
-                        convert=operand(self.convert),
+                        convert=choice_operand(self.convert),
                     ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
@@ -2247,7 +2259,7 @@ class Fill(Instruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.normalize("value", "dest_start", "dest_end")
+            check.normalize("value", "dest_start", "dest_end", values=("value",))
             kind = check("value", _source_kind, REGISTER_BANKS)
             dest, last = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
@@ -2363,13 +2375,13 @@ class Pack(Instruction):
             check.normalize("source_start", "source_end", "dest")
             # The checks and messages use the short name of the kind: bits, words or text.
             short = str(self.kind).removeprefix("pack_")
-            if self.kind not in _PACK_KINDS:
+            if not is_choice(self.kind, _PACK_KINDS):
                 check.refuse(
                     "kind",
                     says(
                         "{kind} is not allowed",
                         "it is 'pack_bits', 'pack_words' or 'pack_text'",
-                        kind=operand(self.kind),
+                        kind=choice_operand(self.kind),
                     ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
@@ -2545,13 +2557,13 @@ class Unpack(Instruction):
             check.normalize("source", "dest_start", "dest_end")
             # The checks and messages use the short name of the kind: bits or words.
             short = str(self.kind).removeprefix("unpack_to_")
-            if self.kind not in _UNPACK_KINDS:
+            if not is_choice(self.kind, _UNPACK_KINDS):
                 check.refuse(
                     "kind",
                     says(
                         "{kind} is not allowed",
                         "it is 'unpack_to_bits' or 'unpack_to_words'",
-                        kind=operand(self.kind),
+                        kind=choice_operand(self.kind),
                     ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
