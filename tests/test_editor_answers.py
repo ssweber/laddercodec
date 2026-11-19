@@ -113,9 +113,10 @@ CMP_SPACE = (
 )
 DH_NO_NUMBER = "kept: CLICK accepts DH1 == DH and saves B empty, so laddercodec refuses it"
 TEXT_QUOTE = (
-    "laddercodec refuses these until a PLC run shows what such text matches or writes. CLICK "
-    "accepts them and saves the text as typed, with no end register. A save whose CSV token "
-    "does not read back stays raw"
+    "CLICK accepts a quote inside the text of a Fill value or of either side of a Compare. "
+    'A Fill reads """" as one quote, and laddercodec refuses a quote inside a Fill text '
+    "until it reads it that way. Each quote inside a Compare text is one character, as it "
+    "is in a Search, and laddercodec does not take it there yet"
 )
 SEARCH_TABLE_ID = (
     "CLICK refuses this Search table with OBJ-004. The rules refuse it with OBJ-008, or "
@@ -397,31 +398,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (CMP_SPACE, "search", "outcome", ("search DS1..DS10 == DS 1 -> DS30,C1",)),
-    (
-        TEXT_QUOTE,
-        "search",
-        "outcome",
-        (
-            'search TXT1..TXT10 != "A""B" -> DS30,C1',
-            'search TXT1..TXT10 == "A""B" -> DS30,C1',
-            'search TXT1..TXT10 == "A"B" -> DS30,C1',
-            'search TXT1..TXT10 == """" -> DS30,C1',
-            'search TXT1..TXT10 == """ -> DS30,C1',
-        ),
-    ),
-    (
-        TEXT_QUOTE,
-        "search",
-        "stored",
-        (
-            'search TXT1..TXT10 != "A""B" -> DS30,C1',
-            'search TXT1..TXT10 == "A""B" -> DS30,C1',
-            'search TXT1..TXT10 == "A"B" -> DS30,C1',
-            'search TXT1..TXT10 == """ -> DS30,C1',
-        ),
-    ),
-    (TEXT_QUOTE, "preflight", "outcome", ('search TXT1..TXT10 == "A"B" -> DS30,C1',)),
-    (TEXT_QUOTE, "preflight", "stored", ('search TXT1..TXT10 == "A"B" -> DS30,C1',)),
     (
         TEXT_QUOTE,
         "compare",

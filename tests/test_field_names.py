@@ -36,7 +36,6 @@ _FIELD_SECOND = {
     "check_operand",
     "check_constant",
     "check_out_target",
-    "check_quoted_text",
     "check_flag",
     "normalize_address",
     "check_box_operand",

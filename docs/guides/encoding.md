@@ -236,12 +236,16 @@ empty `""` writes nothing.
   above U+FFFF.
 - A quote inside a `Copy` text is one character of the text, so
   `Copy('"A"B"', "TXT1")` writes TXT1 to TXT3.
-- `Search` and the right side of `CompareContact` take the characters that
-  `Copy` takes, except a quote inside the text.
+- `Search` takes the characters that `Copy` takes, a quote inside the text
+  included. `Search("TXT1", "TXT10", '"A"B"', "DS30", "C1", "==")` searches for
+  the three characters `A"B`.
+- The right side of `CompareContact` takes the characters that `Copy` takes,
+  except a quote inside the text.
 - The left side of `CompareContact` takes printable ASCII.
 
 `Search` and `CompareContact` match consecutive TXT registers (`"AB"`). They raise
-`FieldError` for `""`, for a longer text and for a quote inside the text.
+`FieldError` for `""` and for a longer text. `CompareContact` also raises it for a
+quote inside the text.
 
 Each check runs when you build the instruction and when you read it from CSV. A
 quoted `"$41"` is text. Use `$00` for the blank (NUL) character.

@@ -110,5 +110,5 @@
   "search DS1..DS10 == DS20 -> DS30,X001": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'X001' is not allowed; Search.found takes C"},
   "search DS1..DS10 == DS20 -> DS[DS1],C1": {"verdict": "refused", "error": "AddressError", "field": "Search.result", "message": "Search.result: 'DS[DS1]' is a pointer; only a single Copy takes one"},
   "search DS1..DS10 == DS20 -> DS30,DS[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS[DS1]' is a pointer; only a single Copy takes one"},
-  "search TXT1..TXT10 == \"A\"B\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"A\"B\"' holds a quote, which a Search text value can't hold; write the text without it, such as \"AB\""}
+  "search TXT1..TXT10 == \"A\"B\" -> DS30,C1": {"verdict": "accepted"}
 }

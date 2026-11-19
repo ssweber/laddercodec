@@ -91,9 +91,10 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
   The coil parser drops a blank argument. It accepts `out(C1,)`. It reads `out(,oneshot=)` with `oneshot=` as
   the operand, which is an `address` refusal.
 - **One parser per token.** Each family's `from_csv_token` parses with its own regex. Twice, one has disagreed
-  with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route every
-  `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their
-  equivalent, so that one parser reads each token.
+  with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`, and it raises
+  for `copy("A",B",TXT1)`, which `read_csv` reads). Route every `from_csv_token` through
+  `parse_af_token` and `parse_af_call`, and the condition tokens through their equivalent, so that one parser
+  reads each token.
 - **Token-syntax class split.** Some token-syntax errors are a `CsvReadError` and others are a `FieldError` with no
   field. Pick one class for a token that is not syntax.
 - **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
@@ -231,7 +232,7 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
       the destination's bank first, with no id, and refuse the constant after it.
     - The single Copy reports its source value refusals as OBJ-005, as CLICK does. The shared constant check,
       which Math and Fill use too, gives no id to an empty text, a signed hex constant, or a hex constant of
-      more than 8 digits. A quote inside the text (`"a"b"`) has no answer and no id.
+      more than 8 digits. A quote inside the text (`"a"b"`) is accepted in a Copy and in a Search.
     - Not answered, rules None. CLICK reports OBJ-005 for DS2 or 5 into `X[DS1]`, `Y[DS1]`, `T[DS1]`,
       `CT[DS1]` or `SC[DS1]`, and OBJ-004 into `XD[DS1]` or `SD[DS1]`. The rules refuse each as a pointer
       with no id. CLICK reports OBJ-005 for `-$41` into DS1. The rules refuse it as no address, with no id.
@@ -521,9 +522,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   save it? Data B and a Search value keep `$1` as typed. The code still refuses it in Data A.
 - **Text outside printable ASCII in Compare's Data A:** does the dialog accept `compare "é" == TXT1` and a tab,
   and are they saved as typed? Data B keeps them. The code still refuses them in Data A.
-- **A doubled quote in a Search text value:** CLICK accepts `search TXT1..TXT10 == "A""B"` and saves the
-  value as `"A""B"`. On the PLC, does it match `A"B` or `A""B`? This needs a PLC. The code refuses the value,
-  since no form of a Search text value holds a quote.
+- **A quote inside a Compare text:** CLICK accepts a quote inside the text of either side of a Compare
+  (`compare TXT1 == "A"B"`) and saves it as typed. Each quote is one character, as in a Search (Sam,
+  2026-11-19). Branch fix/quotes-in-compare takes it. Until it lands, the code refuses the quote.
 - **`DH` as a hex constant elsewhere:** CLICK saves Compare's Data B empty when you type `DH`, and the code
   refuses it there opposite a hex Data A. Does CLICK blank a `DH` constant in a Search value, Compare's Data A,
   a Copy, a Fill or a Math, or as the hex remote address of a Send or Receive? The code accepts it in each of
@@ -711,8 +712,6 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   - a Search table in a bank that Search doesn't take: OBJ-004, and OBJ-005 for an XD0u or YD0u start;
   - a Search table whose end is in another bank than its start (`DH1..DS1`, `DH1..TXT1`, `TXT1..DS1`) and a
     one-register TXT table (`TXT1..TXT1`): OBJ-004, where the code says OBJ-008 or OBJ-012.
-- **A quote inside Copy text (CLICK).** Does a single Copy's source accept `"A""B"`, and what does CLICK
-  save? laddercodec refuses it and says to write the text without the quote.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.

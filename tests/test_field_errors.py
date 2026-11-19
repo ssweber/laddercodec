@@ -40,9 +40,9 @@ from laddercodec.operands.checks import (
     Refusals,
     check_constant,
     check_flag,
+    check_kept_text,
     check_operand,
     check_out_target,
-    check_quoted_text,
 )
 from laddercodec.operands.constants import Kind
 from laddercodec.operands.message import says
@@ -569,9 +569,7 @@ _TEXT1 = Constants(frozenset({Kind.TEXT}), text_max=1)
         (lambda: check_out_target("C1", "X.f", immediate=True), "conflict", None),
         (lambda: check_out_target("SC1", "X.f"), "not_writable", None),
         (lambda: check_flag(2, "X.f"), "flag", None),
-        (lambda: check_quoted_text('""', "X.f"), "range", None),
-        (lambda: check_quoted_text('"\t"', "X.f"), "form", None),
-        (lambda: check_quoted_text('"a"b"', "X.f"), "form", None),
+        (lambda: check_kept_text('"\x00"', "\x00", "X.f"), "form", None),
     ],
 )
 def test_shared_check_reason(call: Any, reason: str, click_id: str | None) -> None:

@@ -80,7 +80,7 @@ src/laddercodec/
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names);
 │   │                     #   BIT_BANKS, REGISTER_BANKS, XY_BANKS, WORD_IO_BANKS, bits_per_register
 │   ├── checks.py         # Shared field checks: check_operand, check_constant,
-│   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
+│   │                     #   check_out_target with per-field Constants; check_kept_text (Copy, Compare, Search);
 │   │                     #   check_flag (re-exported by model.py); check_csv_flag (a CSV 0/1 keyword:
 │   │                     #   Coil, Copy family); bank_of (the bank that check_operand accepts, or None);
 │   │                     #   is_choice (whether a value, hashable or not, is one of a set) and

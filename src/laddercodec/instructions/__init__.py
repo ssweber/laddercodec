@@ -421,8 +421,7 @@ def _from_tags(
     - a refusal that no instruction can keep, such as text CLICK never writes like ``x1``
       or ``C001`` (see :mod:`laddercodec.operands.unchecked`);
     - the parser fails on a value that the checks refused;
-    - the instruction holds a refusal, or it is a Copy whose source is quoted text with a
-      quote inside it, and the instruction's CSV token does not read back to it.
+    - the instruction holds a refusal, and its CSV token does not read back to it.
     """
     for spec in specs:
         if spec.from_tags is None:
@@ -442,27 +441,10 @@ def _from_tags(
                 raise
             if result is None:
                 continue
-            if (refusals(result) or _copy_quote_inside(class_name, tags)) and not _reads_back(
-                result
-            ):
+            if refusals(result) and not _reads_back(result):
                 return None
             return result
     return None
-
-
-def _copy_quote_inside(class_name: str, tags: dict[int, str]) -> bool:
-    """Return True if the blob is a Copy whose source (tag 0x6074) is quoted text with a
-    quote inside it.
-
-    A Copy keeps such text as typed, and its CSV token may not read back, as with
-    ``"A",B"``."""
-    text = tags.get(0x6074, "")
-    return (
-        class_name == "Copy"
-        and len(text) > 2
-        and text[0] == text[-1] == '"'
-        and ('"' in text[1:-1])
-    )
 
 
 def _reads_back(token: object) -> bool:

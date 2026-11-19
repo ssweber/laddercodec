@@ -567,8 +567,12 @@ String rendering:
 - A text constant, such as a Copy source or a compare side, is written as typed:
   its outer quotes and every character between them, with no escaping.
   `copy("A""B",TXT1)` copies the four characters `A""B`.
-- In a keyword value in quotes, and in the error text of an `undecoded(...)`
-  marker, a `"` is written as `""`. No backslash escaping.
+- In `copy` and `search`, write keyword values without quotes. The text runs from
+  the first quote to the last, and each comma, bracket and quote between them is
+  part of it, so `copy("A",B",TXT1)` copies the four characters `A",B`.
+  `read_csv` raises `CsvReadError` for `copy("AB",TXT1,oneshot="1")`.
+- In a keyword value in quotes in any other call, and in the error text of an
+  `undecoded(...)` marker, a `"` is written as `""`. No backslash escaping.
 - The CSV file then quotes the whole cell, as any CSV writer does.
 
 Boolean rendering:
@@ -923,8 +927,9 @@ currently emit:
   address comes from the table's compare group: XD, YD or DH for a DH table, TXT
   for a TXT table, and TD, CTD, DS, DD, DF or SD for the others.
   `search(DS1..DS10 == TXT20,result=DS30,found=C1)` is rejected with `OBJ-004`.
-  A text value can't hold a quote together with other characters, and `"A""B"`
-  is rejected. `$22` searches for a lone quote character.
+  A text value may hold a quote, and each quote between the outer quotes is one
+  character: `search(TXT1..TXT10 == "A""B",result=DS30,found=C1)` searches for
+  the four characters `A""B`. `$22` searches for a lone quote character.
 - In a decimal `math`, an integer constant must read back as typed. CLICK keeps
   its low 32 bits and refuses it when they print at a different length
   (`3000000000`, `007` and `-0` are rejected).
@@ -1025,10 +1030,6 @@ currently emit:
   - CLICK writes one TXT register per character of a text constant, so `""`
     writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2. A `copy` whose
     text would run past TXT1000 raises `AddressError`.
-  - A `copy` text may hold a quote. Each quote between the outer quotes is one
-    character of the text, so `copy("A"B",TXT1)` writes TXT1 to TXT3 and
-    `copy("A""B",TXT1)` writes TXT1 to TXT4. `write_csv` raises `CsvWriteError`
-    for a text that `read_csv` can't read back, such as `"A",B"`.
   - A `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters.
     CLICK stores no end for it.
   - A Fill value and a compare's left side take 1 to 128 printable ASCII

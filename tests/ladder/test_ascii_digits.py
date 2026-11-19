@@ -164,15 +164,15 @@ class TestSearchEmptyText:
             read_csv(_write(tmp_path, "C1", af))
 
     @pytest.mark.parametrize(
-        "source", ['"A"', '"AB"', '"$41"', '"' + "x" * 128 + '"', "$00", "$41", '"é"']
+        "source", ['"A"', '"AB"', '"$41"', '"' + "x" * 128 + '"', "$00", "$41", '"é"', '"a"b"']
     )
     def test_text_and_code_accepted(self, source: str) -> None:
         assert self._search(source).value == source
 
     @pytest.mark.parametrize(
         "source",
-        ['"' + "x" * 129 + '"', '"a"b"', '"\x00"'],
-        ids=["129-chars", "inner-quote", "nul"],
+        ['"' + "x" * 129 + '"', '"\x00"'],
+        ids=["129-chars", "nul"],
     )
     def test_refused_text(self, source: str) -> None:
         with pytest.raises(FieldError, match=r"^Search.value: "):

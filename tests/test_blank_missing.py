@@ -174,7 +174,6 @@ def _shared_checks() -> list[Any]:
         check_constant,
         check_operand,
         check_out_target,
-        check_quoted_text,
     )
 
     constants = Constants(ALL_KINDS)
@@ -186,7 +185,6 @@ def _shared_checks() -> list[Any]:
         lambda: check_operand("", "X.f", {"DS"}, constants, letter_first=True),
         lambda: check_operand("", "X.f", {"DS"}, pointer=True),
         lambda: check_out_target("", "X.f"),
-        lambda: check_quoted_text("", "X.f"),
     ]
 
 
