@@ -1,0 +1,148 @@
+{
+ "cases": [
+  {
+   "row": "set.ranges",
+   "case": "set C1..C1",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "C1"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set Y001..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "Y001",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set SC50..SC50",
+   "instruction": "set",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC50"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C2..C1",
+   "instruction": "set",
+   "fields": {
+    "address": "C2",
+    "address_end": "C1"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set Y002..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "Y002",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C1..DS1",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "DS1"
+   }
+  },
+  {
+   "row": "set.ranges",
+   "case": "set C1..Y001",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "set.ranges.control",
+   "case": "set C1..C2",
+   "instruction": "set",
+   "fields": {
+    "address": "C1",
+    "address_end": "C2"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..C1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "C1"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset Y001..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "Y001",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset SC50..SC50",
+   "instruction": "reset",
+   "fields": {
+    "address": "SC50",
+    "address_end": "SC50"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C2..C1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C2",
+    "address_end": "C1"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset Y002..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "Y002",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..DS1",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "DS1"
+   }
+  },
+  {
+   "row": "reset.ranges",
+   "case": "reset C1..Y001",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "Y001"
+   }
+  },
+  {
+   "row": "reset.ranges.control",
+   "case": "reset C1..C2",
+   "instruction": "reset",
+   "fields": {
+    "address": "C1",
+    "address_end": "C2"
+   }
+  }
+ ]
+}

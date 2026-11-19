@@ -1,0 +1,1062 @@
+{
+ "grid": "ip_field_neg.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "i3"
+ ],
+ "cases": [
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.-2'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.54,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-2",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.2.254\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.-0'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.869,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-0",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.3.0\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.-01'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-01"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.124,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-01",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.-256'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-256"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.855,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-256",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.2.231\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='-1.-1.3.4'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.-1.3.4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.241,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.-1.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='-1.2..4'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.2..4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.066,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.2..4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='.2.3.4'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": ".2.3.4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.077,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": ".2.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3."
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.205,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1...4'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1...4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.241,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1...4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.tcp.ip.control",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.4'",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.833,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.3.4\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.-2'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case10 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase10 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case10",
+    "lines": []
+   },
+   "seconds": 7.395,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-2",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"receive(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.2.254\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DS1,receiving=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.-0'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case11 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase11 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case11",
+    "lines": []
+   },
+   "seconds": 6.879,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-0",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"receive(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.3.0\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DS1,receiving=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.-01'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-01"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.167,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-01",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.-256'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-256"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 6.957,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-256",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"receive(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.2.231\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DS1,receiving=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='-1.-1.3.4'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.-1.3.4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.168,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.-1.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='-1.2..4'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.2..4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.164,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "-1.2..4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='.2.3.4'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": ".2.3.4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.166,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": ".2.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3."
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.12,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1...4'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1...4"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 3.168,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1...4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "receive.tcp.ip.control",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.4'",
+   "instruction": "receive",
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case14",
+    "lines": []
+   },
+   "seconds": 6.921,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4",
+    "server_port": "502"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"receive(target=ModbusTcpTarget(name=\"\"tcp\"\",ip=\"\"1.2.3.4\"\",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DS1,receiving=C100,success=C101,error=C102,exception_response=DS100)\""
+   ]
+  }
+ ]
+}

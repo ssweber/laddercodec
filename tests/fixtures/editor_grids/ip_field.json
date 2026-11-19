@@ -1,0 +1,647 @@
+{
+ "cases": [
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='256.0.0.1'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "256.0.0.1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.256'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.256"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.4.5'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4.5"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='01.2.3.4'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "01.2.3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='001.002.003.004'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "001.002.003.004"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='a.b.c.d'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "a.b.c.d"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.-1'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1..3.4'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1..3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.4.'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4."
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip=' 1.2.3.4'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": " 1.2.3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1.2.3.4 '",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4 "
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip='1,2,3,4'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1,2,3,4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip",
+   "case": "send fc06 984 400001 <- DS1 ip=blank",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "send.tcp.ip.control",
+   "case": "send fc06 984 400001 <- DS1 ip='192.168.1.1'",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "192.168.1.1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='256.0.0.1'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "256.0.0.1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.256'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.256"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.4.5'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4.5"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='01.2.3.4'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "01.2.3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='001.002.003.004'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "001.002.003.004"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='a.b.c.d'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "a.b.c.d"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.-1'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.-1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1..3.4'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1..3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.4.'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4."
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip=' 1.2.3.4'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": " 1.2.3.4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1.2.3.4 '",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1.2.3.4 "
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip='1,2,3,4'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "1,2,3,4"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip",
+   "case": "receive fc03 984 DS1 <- 400001 ip=blank",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  },
+  {
+   "row": "receive.tcp.ip.control",
+   "case": "receive fc03 984 DS1 <- 400001 ip='192.168.1.1'",
+   "instruction": "receive",
+   "fields": {
+    "slave_id": "1",
+    "server_port": "502",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "ip": "192.168.1.1"
+   },
+   "choices": {
+    "port": "CPU Port1",
+    "function": "03 - Read Holding Registers",
+    "addressing": "Modbus 984 Addressing"
+   }
+  }
+ ]
+}

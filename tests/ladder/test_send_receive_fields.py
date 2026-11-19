@@ -179,6 +179,55 @@ def test_tcp_ip_refused(ip) -> None:
         ModbusTcpTarget(name="t", ip=ip, port=502, device_id=1)
 
 
+@pytest.mark.parametrize(
+    ("ip", "click_id"),
+    [
+        ("", "OBJ-005"),
+        ("...", "OBJ-005"),
+        ("1..3.4", "OBJ-005"),
+        ("1...4", "OBJ-005"),
+        (".2.3.4", "OBJ-005"),
+        ("1.2.3.", "OBJ-005"),
+        ("1.2.3.-1", "OBJ-005"),
+        ("1.2.3.-01", "OBJ-005"),
+        ("-1.-1.3.4", "OBJ-005"),
+        ("-1.2..4", "OBJ-005"),
+        ("1.2.3.-0", None),
+        ("1.2.3.-2", None),
+        ("1.2.3.-256", None),
+        ("1.2.3.-001", None),
+        ("256..3.4", None),
+        ("1.2.3", None),
+        ("1.2.3.4.", None),
+        ("1.2.3.4.5", None),
+        ("1.2.3.-", None),
+        ("1.2.3.x", None),
+        ("1,2,3,4", None),
+        (" 1.2.3.4", None),
+        ("256.0.0.1", None),
+    ],
+)
+def test_tcp_ip_click_id(ip, click_id) -> None:
+    """A blank IP is refused with OBJ-005. So are four parts where each part is an octet, a
+    blank, -1 or -01, and at least one part is not an octet. Any other refused IP has no
+    CLICK id."""
+    with pytest.raises(FieldError) as info:
+        ModbusTcpTarget(name="t", ip=ip, port=502, device_id=1)
+    assert (info.value.field, info.value.click_id) == ("ModbusTcpTarget.ip", click_id)
+
+
+@pytest.mark.parametrize("ip", ["01.2.3.4", "001.002.003.004"])
+def test_tcp_ip_with_leading_zeros_is_kept_as_given(ip) -> None:
+    """An IP with leading zeros in a part is accepted. Encode writes it as given, and decode
+    reads it back the same."""
+    target = ModbusTcpTarget(name="tcp", ip=ip, port=502, device_id=1)
+    assert target.ip == ip
+    built = send(target=target)
+    blob = built.build_blob()
+    assert ip.encode("utf-16-le") in blob
+    assert parse_af_blob(blob) == built
+
+
 # --- register_type and remote address --------------------------------------
 
 

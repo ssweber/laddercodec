@@ -51,10 +51,11 @@ DIALOGS = {
     # Set and Reset have the fields of Out.
     "set": Dialog((), frozenset({"address", "address_end"})),
     "reset": Dialog((), frozenset({"address", "address_end"})),
+    # On a TCP port, Receive has the IP address and server port fields of Send.
     "receive": Dialog(
         (),
         frozenset(
-            {"slave_id", "slave_address", "master_address", "count"}
+            {"slave_id", "ip", "server_port", "slave_address", "master_address", "count"}
             | {"receiving", "success", "error", "exception"}
         ),
         lists=frozenset({"port", "function", "addressing", "word_swap"}),
@@ -116,6 +117,10 @@ UNDRIVEN_FILES = {
 UNDRIVEN_FILES["drum"] |= {
     f"drum_events{name}.json" for name in ("", "_names", "_shapes", "_padded", "_padded2")
 }
+#: The grids that ClickNick wrote with the cases of one dialog in UNDRIVEN and of dialogs in
+#: DIALOGS, each mapped to its dialog in UNDRIVEN. ``ip_field.json`` and ``ip_field_neg.json``
+#: hold Send cases, which are in UNDRIVEN, and Receive cases, which are in DIALOGS.
+MIXED_FILES = {"ip_field.json": "send", "ip_field_neg.json": "send"}
 #: The runner takes these keys of a case and no others.
 CASE_KEYS = {"row", "case", "instruction", "mode", "fields", "choices", "options"}
 #: The number of cases in each row, over the dialog grids and the risky files, as committed. If a
@@ -446,7 +451,10 @@ def test_cases_are_in_the_runners_shape() -> None:
             assert set(case) <= CASE_KEYS, where
             assert case["row"] and case["case"], where
             undriven = case["instruction"] if case["instruction"] in UNDRIVEN else None
-            assert undriven == undriven_file, where
+            if path.name in MIXED_FILES:
+                assert undriven in (None, MIXED_FILES[path.name]), where
+            else:
+                assert undriven == undriven_file, where
             dialog = UNDRIVEN[undriven] if undriven else DIALOGS[case["instruction"]]
             is_fill = (case["instruction"], case.get("mode")) == FILL
             assert is_fill == fill_file, where
