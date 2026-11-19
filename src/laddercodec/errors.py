@@ -26,15 +26,16 @@ class LaddercodecError(ValueError):
     ``except LaddercodecError`` catches all of them, and so does ``except ValueError``.
 
     :meth:`message`, :meth:`short` and :meth:`detail` return the error's text with your
-    names for the addresses in it.  Only these refusals show names: the refusals of
-    ``Copy``, ``BlockCopy``, ``Fill``, ``Pack``, ``Unpack``, ``Coil``, ``OutVariant``,
-    ``Contact``, ``CompareContact``, ``Timer``, ``Counter``, ``Shift``, ``ForLoop``,
-    ``Drum``, ``Send``, ``Receive``, ``ModbusRtuTarget``, ``ModbusTcpTarget``,
-    ``ModbusAddress`` and ``Search``, and the refusals of the address, operand and flag
-    checks that other instructions share, such as the bank check on ``Coil.operand``.
-    The refusals of ``Call``, ``Tee``, ``RawInstruction``, ``Undecoded``, ``Series``,
-    ``Parallel``, ``Box``, ``Branch`` and ``Circuit`` name no address, but they still
-    split into :meth:`short` and :meth:`detail`.  Any other error ignores the names.
+    names for the addresses in it.  A ``FieldError`` from any instruction, Modbus target
+    or ``ModbusAddress`` shows your name for each address it names, except in a ``Math``
+    refusal that quotes the whole formula.  The refusals of ``Call``, ``Tee``,
+    ``RawInstruction``, ``Undecoded``, ``Series``, ``Parallel``, ``Box``, ``Branch`` and
+    ``Circuit`` name no address, but they still split into :meth:`short` and
+    :meth:`detail`.  A
+    ``CsvReadError`` about the shape of a token shows no names.  For example,
+    ``read_csv`` refuses ``blockcopy(DS1,DS10..DS20)`` with ``'DS1' is not a range``, and
+    :meth:`message` returns that text with no name in it.  A ``CsvReadError`` that wraps a
+    box's refusal shows names as that refusal does.  Any other error ignores the names.
     """
 
     # The parts of the message (operands.message.Parts), for an error that keeps them.
@@ -48,7 +49,9 @@ class LaddercodecError(ValueError):
         With ``names`` None or empty, return ``str(err)``.  Otherwise each address that
         ``names`` maps is replaced by its name.  CLICK's form of the value follows in
         parentheses when the two differ.  A value that holds an address is shown without
-        quotes, even if no key of ``names`` is a CLICK address.  For the refusal ``err``
+        quotes, even if no key of ``names`` is a CLICK address.  When a ``Math`` refusal
+        quotes the whole formula, names do not replace the addresses in it, and the formula
+        stays in quotes.  For the refusal ``err``
         that ``Copy(source="DS1", dest="C1")`` raises::
 
             str(err)

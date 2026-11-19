@@ -26,6 +26,7 @@ from laddercodec import (
     Branch,
     Circuit,
     FieldError,
+    Math,
     Parallel,
     RefusedFieldWarning,
     Series,
@@ -63,6 +64,7 @@ from laddercodec.operands.address import (
     parse_address,
 )
 from laddercodec.operands.message import parts_of
+from laddercodec.operands.unchecked import refusals, unchecked
 
 
 def _refusal(build: Callable[[], object]) -> FieldError:
@@ -1329,3 +1331,348 @@ def test_a_circuit_refusal_keeps_its_parts(
     assert error.detail() == then
     assert error.message(_NAMES) == f"{field}: {short}. {then}"
     assert error.message() == error.message(_NAMES)
+
+
+# ---------------------------------------------------------------------------
+# Math
+# ---------------------------------------------------------------------------
+
+_DECIMAL_BANKS = (
+    "a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, and "
+    "X, Y, C, T and SC bits only as the range of SUM ( a : b )"
+)
+_MATH_NAMES = {"C1": "Valve", "DS1": "Count", "DS2": "Two", "DS5": "Last", "DH1": "Word"}
+
+
+@pytest.mark.parametrize(
+    ("build", "short", "detail", "named"),
+    [
+        pytest.param(
+            lambda: Math("C1 + DS2", "DS3"),
+            "C1 is refused",
+            _DECIMAL_BANKS,
+            f"Math.expression: Valve (C1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
+            id="bank",
+        ),
+        pytest.param(
+            lambda: Math("SUM ( DH1 : DH5 )", "DS3"),
+            "SUM ( DH1 : DH5 ) is refused for DH1",
+            _DECIMAL_BANKS,
+            f"Math.expression: SUM ( Word (DH1) : DH5 ) is refused for Word (DH1); "
+            f"{_DECIMAL_BANKS} (OBJ-1002)",
+            id="sum-bank",
+        ),
+        pytest.param(
+            lambda: Math("RAND ( DF1 , DS2 )", "DS3"),
+            "DF1 is refused",
+            "a decimal RAND bound is a DS or DD register or an integer constant: copy DF1 into "
+            "a DS or DD register first",
+            "Math.expression: Rate (DF1) is refused; a decimal RAND bound is a DS or DD "
+            "register or an integer constant: copy Rate (DF1) into a DS or DD register first "
+            "(OBJ-1002)",
+            id="rand-bank",
+        ),
+        pytest.param(
+            lambda: Math("RAND ( DS1 , DS1 )", "DS3"),
+            "RAND ( DS1 , DS1 ) has equal bounds",
+            "RAND takes two different bounds",
+            "Math.expression: RAND ( Count (DS1) , Count (DS1) ) has equal bounds; RAND takes "
+            "two different bounds (OBJ-1001)",
+            id="rand-equal",
+        ),
+        pytest.param(
+            lambda: Math("SUM ( DS5 : DS1 )", "DS3"),
+            "DS5 : DS1 runs high to low",
+            "a range runs low : high",
+            "Math.expression: Last (DS5) : Count (DS1) runs high to low; a range runs low : high "
+            "(OBJ-1014)",
+            id="range-order",
+        ),
+        pytest.param(
+            lambda: Math("SUM ( DS1 : DD5 )", "DS3"),
+            "DS1 : DD5 spans two banks",
+            "a range stays in one",
+            "Math.expression: Count (DS1) : DD5 spans two banks; a range stays in one (OBJ-1015)",
+            id="range-banks",
+        ),
+        pytest.param(
+            lambda: Math("MDN ( DS1 : DS600 )", "DS3"),
+            "MDN ( DS1 : DS600 ) covers 1200 bytes",
+            "a median covers at most 1024",
+            "Math.expression: MDN ( Count (DS1) : DS600 ) covers 1200 bytes; a median covers at "
+            "most 1024 (OBJ-1013)",
+            id="median",
+        ),
+        pytest.param(
+            lambda: Math("SUM ( X025 : X027 )", "DS3"),
+            "SUM ( X025 : X027 ) is refused: X025 and X027 are in the option slot (X021-X036), "
+            "and CLICK sums the wrong bits for this range.",
+            "",
+            "Math.expression: SUM ( Left (X025) : X027 ) is refused: Left (X025) and X027 are in "
+            "the option slot (X021-X036), and CLICK sums the wrong bits for this range.",
+            id="option-slot",
+        ),
+        pytest.param(
+            lambda: Math("DS1 DS2", "DS3"),
+            "'DS2' after 'DS1': two values need an operator between them",
+            "",
+            "Math.expression: Two (DS2) after Count (DS1): two values need an operator between "
+            "them (OBJ-1001)",
+            id="order-addresses",
+        ),
+        pytest.param(
+            lambda: Math("DS1 + -5", "DS3"),
+            "'-' after '+': a sign right after an operator is refused",
+            "put the signed value in parentheses",
+            "Math.expression: '-' after '+': a sign right after an operator is refused; put the "
+            "signed value in parentheses (OBJ-1001)",
+            id="order-sign",
+        ),
+        pytest.param(
+            lambda: Math("DS1 AND DS2", "DS3"),
+            "AND is hex only",
+            "'DS1 AND DS2' is a decimal Math",
+            "Math.expression: AND is hex only; 'DS1 AND DS2' is a decimal Math (OBJ-1006)",
+            id="key-of-the-other-mode",
+        ),
+        pytest.param(
+            lambda: Math("DS1 + <Foo>", "DS3"),
+            "'DS1 + <Foo>' holds a <nickname>",
+            "Math takes addresses, not nicknames (laddercodec cannot resolve a nickname to its "
+            "address)",
+            "Math.expression: 'DS1 + <Foo>' holds a <nickname>; Math takes addresses, not "
+            "nicknames (laddercodec cannot resolve a nickname to its address)",
+            id="nickname",
+        ),
+        pytest.param(
+            lambda: Math("DS1 + foo", "DS3"),
+            "'foo' is not an address, a function name or a constant",
+            "a Math formula takes only those",
+            "Math.expression: 'foo' is not an address, a function name or a constant; a Math "
+            "formula takes only those (OBJ-1001)",
+            id="word",
+        ),
+        pytest.param(
+            lambda: Math("DS1 + 1e50", "DS3"),
+            "1e50 is outside the float32 range",
+            "a real constant in Math is at most 3.402823E+38 in size",
+            "Math.expression: 1e50 is outside the float32 range; a real constant in Math is at "
+            "most 3.402823E+38 in size (OBJ-1009)",
+            id="real-range",
+        ),
+        pytest.param(
+            lambda: Math("DS1 + 1.23456789", "DS3"),
+            "1.23456789 has more digits than CLICK keeps in Math",
+            "CLICK saves it as 1.234568: write 1.234568",
+            "Math.expression: 1.23456789 has more digits than CLICK keeps in Math; CLICK saves it "
+            "as 1.234568: write 1.234568",
+            id="real-digits",
+        ),
+        pytest.param(
+            lambda: Math("DH1 + 5", "DH3", "hex"),
+            "5 has no h",
+            "a hex Math takes hex constants, and CLICK reads it as 5h: write 5h",
+            "Math.expression: 5 has no h; a hex Math takes hex constants, and CLICK reads it as "
+            "5h: write 5h",
+            id="hex-no-h",
+        ),
+        pytest.param(
+            lambda: Math(" + ".join(f"DS{n}" for n in range(1, 70)), "DS3"),
+            "the formula is 273 characters in CLICK's internal form",
+            "CLICK allows 270. Shorten the formula.",
+            "Math.expression: the formula is 273 characters in CLICK's internal form; CLICK "
+            "allows 270 (OBJ-1008). Shorten the formula.",
+            id="too-long",
+        ),
+        pytest.param(
+            lambda: Math("DS1", "DS3", "octal"),
+            "'octal' is not 'decimal' or 'hex'",
+            "",
+            "Math.mode: 'octal' is not 'decimal' or 'hex'",
+            id="mode",
+        ),
+    ],
+)
+def test_a_math_refusal_keeps_its_parts(
+    build: Callable[[], object], short: str, detail: str, named: str
+) -> None:
+    """A Math refusal names each address in it, a range's ends and a RAND bound included.
+    A whole formula, a constant, a key and a word stay as they are."""
+    error = _refusal(build)
+    assert parts_of(error) is not None
+    assert error.short() == short
+    assert error.detail() == detail
+    assert error.message({**_MATH_NAMES, "DF1": "Rate", "X025": "Left"}) == named
+
+
+def test_a_math_address_in_a_refused_bank_shows_its_name() -> None:
+    error = _refusal(lambda: Math("DS1 + C1", "DS3"))
+    assert error.short({"C1": "Valve"}) == "Valve (C1) is refused"
+    assert error.detail({"C1": "Valve"}) == _DECIMAL_BANKS
+    assert error.message({"C1": "Valve"}) == (
+        f"Math.expression: Valve (C1) is refused; {_DECIMAL_BANKS} (OBJ-1002)"
+    )
+
+
+def test_a_math_sum_with_one_end_in_the_option_slot_names_that_end() -> None:
+    error = _refusal(lambda: Math("SUM ( X001 : X036 )", "DS3"))
+    assert error.short({"X036": "Top"}) == (
+        "SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option slot "
+        "(X021-X036), and CLICK sums the wrong bits for this range."
+    )
+    assert error.detail({"X036": "Top"}) == ""
+    assert error.message({"X036": "Top"}) == (
+        "Math.expression: SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option "
+        "slot (X021-X036), and CLICK sums the wrong bits for this range."
+    )
+
+
+def test_a_math_token_not_in_display_form_shows_its_name_in_an_order_refusal() -> None:
+    """Under ``display_form_only()``, ``Y1`` keeps its typed text, and ``Y001`` names it."""
+    with display_form_only(), pytest.raises(FieldError) as raised:
+        Math("Y1 DS1", "DS3")
+    error = raised.value.errors[1]
+    assert str(error) == (
+        "Math.expression: 'DS1' after 'Y1': two values need an operator between them (OBJ-1001)"
+    )
+    assert error.short({"Y001": "Out"}) == (
+        "DS1 after Out (Y1): two values need an operator between them"
+    )
+    assert error.detail({"Y001": "Out"}) == ""
+    assert error.message({"Y001": "Out"}) == (
+        "Math.expression: DS1 after Out (Y1): two values need an operator between them (OBJ-1001)"
+    )
+
+
+def test_a_math_address_typed_in_another_form_takes_the_name_of_its_display_form() -> None:
+    """A hex Math refuses ``ds1``.  The refusal names DS1, and ``{"DS1": ...}`` names it."""
+    error = _refusal(lambda: Math("ds1 + DH2", "DH3", "hex"))
+    assert str(error) == (
+        "Math.expression: DS1 is refused; a hex Math takes only DH, XD and YD registers and hex "
+        "constants (OBJ-1002)"
+    )
+    assert error.short({"DS1": "Count"}) == "Count (DS1) is refused"
+    assert error.short({"ds1": "Count"}) == "Count (DS1) is refused"
+    assert error.detail({"DS1": "Count"}) == (
+        "a hex Math takes only DH, XD and YD registers and hex constants"
+    )
+    assert error.message({"DS1": "Count"}) == (
+        "Math.expression: Count (DS1) is refused; a hex Math takes only DH, XD and YD registers "
+        "and hex constants (OBJ-1002)"
+    )
+
+
+def test_each_refusal_of_a_math_formula_keeps_its_parts() -> None:
+    """``Math`` raises the first refusal of the formula, and its ``errors`` hold them all.
+    Each keeps its own parts, and so do a copy and a pickled copy of the error."""
+    error = _refusal(lambda: Math("C1 + DH1 + 1e50 + LSH ( DS1 , 2 )", "DS3"))
+    names = {"C1": "Valve", "DH1": "Word", "DS1": "Count"}
+    want_short = [
+        "1e50 is outside the float32 range",
+        "LSH is hex only",
+        "Valve (C1) is refused",
+        "Word (DH1) is refused",
+    ]
+    want_detail = [
+        "a real constant in Math is at most 3.402823E+38 in size",
+        "'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math",
+        _DECIMAL_BANKS,
+        _DECIMAL_BANKS,
+    ]
+    want_message = [
+        "Math.expression: 1e50 is outside the float32 range; a real constant in Math is at most "
+        "3.402823E+38 in size (OBJ-1009)",
+        "Math.expression: LSH is hex only; 'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math "
+        "(OBJ-1006)",
+        f"Math.expression: Valve (C1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
+        f"Math.expression: Word (DH1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
+    ]
+    for each in (error, copy.copy(error), pickle.loads(pickle.dumps(error))):
+        assert all(parts_of(e) is not None for e in each.errors)
+        assert [e.short(names) for e in each.errors] == want_short
+        assert [e.detail(names) for e in each.errors] == want_detail
+        assert [e.message(names) for e in each.errors] == want_message
+
+
+def test_a_math_refusal_that_unchecked_keeps_shows_names() -> None:
+    with unchecked():
+        math = Math("SUM ( X025 : X027 )", "DS3")
+    [error] = refusals(math)
+    assert error.short({"X027": "Right"}) == (
+        "SUM ( X025 : Right (X027) ) is refused: X025 and Right (X027) are in the option slot "
+        "(X021-X036), and CLICK sums the wrong bits for this range."
+    )
+
+
+def test_a_math_csv_token_refusal_keeps_its_parts(tmp_path: Path) -> None:
+    """``read_csv`` raises the refusal with its CSV location, and ``unchecked=True`` keeps it
+    in a warning.  Both keep the parts."""
+    with pytest.raises(FieldError) as raised:
+        _read_af(tmp_path, "math(DS1 + C1,DS3,mode=decimal)")
+    assert raised.value.short({"C1": "Valve"}) == "Valve (C1) is refused"
+    assert raised.value.detail() == _DECIMAL_BANKS
+    assert raised.value.message({"C1": "Valve"}).startswith(
+        "Math.expression: Valve (C1) is refused; "
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _read_af(tmp_path, "math(RAND ( DS1 , DS1 ),DS3,mode=decimal)", unchecked=True)
+    [warning] = [w.message for w in caught if isinstance(w.message, RefusedFieldWarning)]
+    assert warning.error.short({"DS1": "Count"}) == (
+        "RAND ( Count (DS1) , Count (DS1) ) has equal bounds"
+    )
+
+
+_MATH_ADDRESSES = (
+    "X001", "x1", "X021", "X030", "Y001", "C1", "c2", "T1", "CT1", "SC1", "DS1", "ds1", "DS001",
+    "DS5", "DS0", "DD1", "DH1", "dh1", "DF1", "XD0", "XD3", "YD0", "TD1", "CTD1", "SD1", "TXT1",
+)  # fmt: skip
+_MATH_SINGLE = ("A + 1", "RAND ( A , 2 )", "LSH ( A , 1h )", "A A", "SIN ( A )", "A +")
+_MATH_PAIR = ("A + B", "SUM ( A : B )", "MDN ( A : B )", "RAND ( A , B )")
+
+
+def _math_builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
+    """Yield each build of a Math in the corpus, with its formula."""
+    for mode, dest in (("decimal", "DS100"), ("hex", "DH100")):
+        for template, a in itertools.product(_MATH_SINGLE, _MATH_ADDRESSES):
+            formula = template.replace("A", a)
+            yield (lambda f=formula, m=mode, d=dest: Math(f, d, m)), (formula,)
+        for template, a, b in itertools.product(_MATH_PAIR, _MATH_ADDRESSES, _MATH_ADDRESSES):
+            formula = template.replace("A", "\0").replace("B", b).replace("\0", a)
+            yield (lambda f=formula, m=mode, d=dest: Math(f, d, m)), (formula,)
+
+
+def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
+    """Name each address in the formula, and no address is left in quotes or bare.
+
+    A refusal that quotes the whole formula leaves it as it is, so a quoted text is not
+    checked for the addresses that it holds.  A limit such as ``DS1-DS4500`` or
+    ``X021-X036`` is plain on purpose, so the test removes it before the check.  The test
+    skips each refusal of an address or a constant outside its range.  The limits that
+    such a refusal lists for an address also hold single addresses such as ``XD0``.
+    """
+    plain: dict[str, str] = {}
+    count = 0
+    for build, (formula,) in _math_builds():
+        try:
+            build()
+        except FieldError as exc:
+            addresses = _addresses(tuple(formula.split(" ")))
+            names = {display: f"<{display}>" for display in addresses}
+            for error in exc.errors:
+                count += 1
+                assert parts_of(error) is not None, str(error)
+                if " is outside " in str(error):
+                    continue
+                # Remove CLICK's form after each name, then the limits.
+                text = re.sub(r"(?<=>) \([^()]*\)", "", error.message(names))
+                text = re.sub(r"\b[A-Z]+\d+-[A-Z]*\d+", "", text)
+                for display, typed in addresses.items():
+                    if f"'{display}'" in text or f"'{typed}'" in text:
+                        plain.setdefault(str(error), display)
+                bare = re.sub(r"'[^']*'", "''", text)
+                for display in addresses:
+                    if re.search(rf"(?<![\w<]){re.escape(display)}(?![\w>])", bare):
+                        plain.setdefault(str(error), display)
+    assert count > 1000
+    assert not plain, plain
