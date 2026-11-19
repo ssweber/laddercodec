@@ -183,8 +183,8 @@ The grid learns only whether CLICK's dialog accepts each case. It does not learn
 a Send from X001 sends as its 17th element, which needs a PLC. It does not learn what CLICK
 stores for a slave address typed with `h`, which needs a saved project.
 
-The verdicts exist to be compared with CLICK's answers case by case. `--check` compares the
-messages too; the test compares the verdict, error and field only.
+The verdicts exist to be compared with CLICK's answers case by case. `--check` and the test
+both compare each whole verdict, its message included.
 
 ## CLICK's answers
 

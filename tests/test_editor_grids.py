@@ -370,15 +370,6 @@ def built(generator: Any) -> dict[str, str]:
     return generator.build()
 
 
-def _verdict_core(text: str) -> dict[str, Any]:
-    """Return the verdicts in *text* without their messages, so that the wording is not
-    compared."""
-    return {
-        label: {k: v for k, v in verdict.items() if k != "message"}
-        for label, verdict in json.loads(text).items()
-    }
-
-
 def _grid_files() -> list[Path]:
     """Return the grid files, leaving out the verdicts files and CLICK's answers
     (``<grid>.answers.json``)."""
@@ -415,7 +406,7 @@ def test_verdicts_match_the_generator(built: dict[str, str]) -> None:
     for name, text in built.items():
         if name.endswith(".verdicts.json"):
             committed = (GRIDS / name).read_text(encoding="utf-8")
-            assert _verdict_core(committed) == _verdict_core(text), name
+            assert json.loads(committed) == json.loads(text), name
 
 
 def test_every_case_has_a_verdict() -> None:

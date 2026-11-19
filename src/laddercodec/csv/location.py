@@ -13,6 +13,7 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import TypeVar
 
+from ..errors import LaddercodecError
 from ..operands.unchecked import refusals
 from .contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 
@@ -193,4 +194,8 @@ def _append_to_message(exc: BaseException) -> None:
         return
     if len(exc.args) != 1 or not isinstance(exc.args[0], str):
         return
-    exc.args = (f"{exc.args[0]} (at {CsvLocation.of(exc)})",)
+    suffix = f" (at {CsvLocation.of(exc)})"
+    exc.args = (f"{exc.args[0]}{suffix}",)
+    if isinstance(exc, LaddercodecError):
+        # LaddercodecError.message() adds the location to a message it renders with names.
+        exc._suffix += suffix

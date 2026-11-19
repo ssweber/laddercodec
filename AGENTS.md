@@ -87,6 +87,8 @@ src/laddercodec/
 │   ├── math_real.py      # MathReal: a real in a decimal Math formula. CLICK's save rule is stated once, in .saves.
 │   │                     #   .in_range states the range rule. .stored states the text written for an integral real.
 │   │                     #   The other forms (refusal, stored type, held text) are derived from these three
+│   ├── message.py        # Parts of a refusal message: Op, says(), make_refusal(), parts_of(), with_click_id();
+│   │                     #   str(err) and LaddercodecError.message()/short()/detail() render them
 │   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
