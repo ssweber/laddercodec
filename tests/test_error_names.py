@@ -20,7 +20,17 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, RefusedFieldWarning, read_csv
+from laddercodec import (
+    AddressError,
+    Box,
+    Branch,
+    Circuit,
+    FieldError,
+    Parallel,
+    RefusedFieldWarning,
+    Series,
+    read_csv,
+)
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.errors import CsvReadError, LaddercodecError
@@ -1173,3 +1183,149 @@ def test_every_address_that_a_search_refusal_names_takes_a_name() -> None:
                         plain.setdefault(str(error), display)
     assert count > 1000
     assert not plain, plain
+
+
+# ---------------------------------------------------------------------------
+# The circuit types
+# ---------------------------------------------------------------------------
+
+_CONTACT = Contact("X001")
+_COIL = Coil("Y001")
+_COIL_REPR = "Coil(operand='Y001', kind='out', range_end=None, immediate=False, oneshot=False)"
+_COUNTER = Counter("count_up", "CT1", "CTD1", "5")
+_NAMES = {"X001": "Start", "Y001": "Lamp"}
+
+_CIRCUIT_CASES = [
+    pytest.param(
+        lambda: Series(_CONTACT),
+        "Series.terms",
+        "Contact(operand='X001', kind='no', immediate=False) is not a tuple of parts",
+        "Write a tuple, such as Series((Contact('X001'), Contact('X002'))).",
+        id="series-not-a-tuple",
+    ),
+    pytest.param(
+        lambda: Series((Series(()),)),
+        "Series.terms[0]",
+        "Series(()) is empty, and an empty Series is a wire",
+        "Use one only as a leg of a Parallel, such as Parallel((Contact('X001'), Series(()))).",
+        id="series-empty-term",
+    ),
+    pytest.param(
+        lambda: Series(("X001",)),
+        "Series.terms[0]",
+        "'X001' is not a contact or a circuit",
+        "Write a Contact, a CompareContact, a Series or a Parallel, such as Contact('X001').",
+        id="series-address-text-as-a-term",
+    ),
+    pytest.param(
+        lambda: Parallel((_CONTACT,)),
+        "Parallel.legs",
+        "has 1 leg",
+        "A Parallel needs two or more legs, "
+        "such as Parallel((Contact('X001'), Contact('X002'))). "
+        "For one term, write the term without a Parallel.",
+        id="parallel-one-leg",
+    ),
+    pytest.param(
+        lambda: Parallel(()),
+        "Parallel.legs",
+        "has 0 legs",
+        "A Parallel needs two or more legs, such as Parallel((Contact('X001'), Contact('X002'))).",
+        id="parallel-no-legs",
+    ),
+    pytest.param(
+        lambda: Parallel((Series(()), Series(()))),
+        "Parallel.legs",
+        "holds only wires",
+        "A Parallel needs at least one leg that is not a wire, "
+        "such as Parallel((Contact('X001'), Series(()))).",
+        id="parallel-only-wires",
+    ),
+    pytest.param(
+        lambda: Box("COIL"),
+        "Box.instruction",
+        "'COIL' is not an output instruction",
+        "Write an Instruction or 'NOP', such as Box(Coil('Y001')).",
+        id="box-not-an-instruction",
+    ),
+    pytest.param(
+        lambda: Box(_COIL, {".reset": _CONTACT}),
+        "Box.pins[0]",
+        "'.reset' is not a pin of Coil",
+        "A Coil has no pins, so pass no pins.",
+        id="box-pin-of-a-pinless-instruction",
+    ),
+    pytest.param(
+        lambda: Box(_COIL, 5),
+        "Box.pins",
+        "5 is not a mapping of pin names to terms",
+        "Write a dict, such as {'.reset': Contact('X002')}.",
+        id="box-pins-not-a-mapping",
+    ),
+    pytest.param(
+        lambda: Box(_COUNTER, {".down": _CONTACT}),
+        "Box.pins[0]",
+        "'.down' is turned off in this Counter",
+        "Turn it on with down_enabled=True, or leave '.down' out of pins.",
+        id="box-pin-turned-off",
+    ),
+    pytest.param(
+        lambda: Box(_COUNTER, {".bad": _CONTACT}),
+        "Box.pins[0]",
+        "'.bad' is not a pin of Counter",
+        "Write one of '.down', '.reset', such as {'.down': Contact('X002')}.",
+        id="box-pin-not-listed",
+    ),
+    pytest.param(
+        lambda: Box("NOP", [(".reset", _CONTACT), (".reset", _CONTACT)]),
+        "Box.pins[1]",
+        "names the pin '.reset' twice",
+        "Give each pin one term.",
+        id="box-pin-twice",
+    ),
+    pytest.param(
+        lambda: Branch((_CONTACT,), ()),
+        "Branch.outputs",
+        "is empty",
+        "A Branch needs at least one output, "
+        "such as Branch((Contact('X001'),), (Box(Coil('Y001')),)).",
+        id="branch-no-outputs",
+    ),
+    pytest.param(
+        lambda: Branch((_CONTACT,), (_COIL,)),
+        "Branch.outputs[0]",
+        f"{_COIL_REPR} is not a Box or a Branch",
+        "Put an instruction in a Box, such as Box(Coil('Y001')).",
+        id="branch-output-not-a-box",
+    ),
+    pytest.param(
+        lambda: Circuit(_COIL),
+        "Circuit.branch",
+        f"{_COIL_REPR} is not a Branch",
+        "Write a Branch from the rail, "
+        "such as Circuit(Branch((Contact('X001'),), (Box(Coil('Y001')),))).",
+        id="circuit-not-a-branch",
+    ),
+    pytest.param(
+        lambda: Circuit(Branch((_CONTACT,), (Box(_COIL),)), 5),
+        "Circuit.comment",
+        "5 is not text",
+        "Write the comment as a str, or pass None.",
+        id="circuit-comment",
+    ),
+]
+
+
+@pytest.mark.parametrize(("build", "field", "short", "then"), _CIRCUIT_CASES)
+def test_a_circuit_refusal_keeps_its_parts(
+    build: Callable[[], object], field: str, short: str, then: str
+) -> None:
+    """A circuit type's refusal says its short rule, then what to do.  It names no address
+    of the user's, so the names leave it as it is."""
+    error = _refusal(build)
+    assert parts_of(error) is not None
+    assert error.field == field
+    assert error.short() == short
+    assert error.detail() == then
+    assert error.message(_NAMES) == f"{field}: {short}. {then}"
+    assert error.message() == error.message(_NAMES)

@@ -31,6 +31,7 @@ from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
 from .model import Instruction, PinnedInstruction, Reason
 from .operands.checks import Refusals
+from .operands.message import says
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -86,18 +87,19 @@ class Parallel:
                 one = " For one term, write the term without a Parallel." if items else ""
                 check.refuse(
                     "legs",
-                    f"has {len(items)} leg{'' if len(items) == 1 else 's'}. A Parallel needs two "
-                    f"or more legs, such as {example}.{one}",
+                    says("has {count} leg{plural}", count=len(items), plural=_s(len(items))),
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
+                    then=f"A Parallel needs two or more legs, such as {example}.{one}",
                 )
             elif items and all(isinstance(leg, Series) and not leg.terms for leg in items):
                 check.refuse(
                     "legs",
-                    "holds only wires. A Parallel needs at least one leg that is not a wire, "
-                    f"such as Parallel(({_CONTACT}, Series(()))).",
+                    says("holds only wires"),
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
+                    then="A Parallel needs at least one leg that is not a wire, "
+                    f"such as Parallel(({_CONTACT}, Series(()))).",
                 )
             for index, leg in enumerate(items or ()):
                 _check_term(check, f"legs[{index}]", leg, leg=True)
@@ -130,10 +132,10 @@ class Box:
             if not is_box:
                 check.refuse(
                     "instruction",
-                    f"{instruction!r} is not an output instruction. Write an Instruction or "
-                    f"'NOP', such as {_COIL_BOX}.",
+                    says("{instruction!r} is not an output instruction", instruction=instruction),
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
+                    then=f"Write an Instruction or 'NOP', such as {_COIL_BOX}.",
                 )
             pairs = _pairs(self, check, pins)
             names = instruction.pin_names() if isinstance(instruction, PinnedInstruction) else ()
@@ -170,18 +172,19 @@ class Branch:
             if items == ():
                 check.refuse(
                     "outputs",
-                    f"is empty. A Branch needs at least one output, such as {example}.",
+                    says("is empty"),
                     Reason.MISSING,
                     code=Code.INVALID_CIRCUIT,
+                    then=f"A Branch needs at least one output, such as {example}.",
                 )
             for index, item in enumerate(items or ()):
                 if not isinstance(item, (Box, Branch)):
                     check.refuse(
                         f"outputs[{index}]",
-                        f"{item!r} is not a Box or a Branch. Put an instruction in a Box, such "
-                        f"as {_COIL_BOX}.",
+                        says("{item!r} is not a Box or a Branch", item=item),
                         Reason.FORM,
                         code=Code.INVALID_CIRCUIT,
+                        then=f"Put an instruction in a Box, such as {_COIL_BOX}.",
                     )
 
 
@@ -202,17 +205,19 @@ class Circuit:
             if not isinstance(branch, Branch):
                 check.refuse(
                     "branch",
-                    f"{branch!r} is not a Branch. Write a Branch from the rail, such as "
-                    f"Circuit(Branch(({_CONTACT},), ({_COIL_BOX},))).",
+                    says("{branch!r} is not a Branch", branch=branch),
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
+                    then="Write a Branch from the rail, such as "
+                    f"Circuit(Branch(({_CONTACT},), ({_COIL_BOX},))).",
                 )
             if comment is not None and not isinstance(comment, str):
                 check.refuse(
                     "comment",
-                    f"{comment!r} is not text. Write the comment as a str, or pass None.",
+                    says("{comment!r} is not text", comment=comment),
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
+                    then="Write the comment as a str, or pass None.",
                 )
 
 
@@ -264,9 +269,10 @@ def _store(
         object.__setattr__(obj, attr, value)
         check.refuse(
             attr,
-            f"{value!r} is not a tuple of parts. Write a tuple, such as {example}.",
+            says("{value!r} is not a tuple of parts", value=value),
             Reason.FORM,
             code=Code.INVALID_CIRCUIT,
+            then=f"Write a tuple, such as {example}.",
         )
         return None
     items = tuple(value)
@@ -290,18 +296,20 @@ def _pairs(box: Box, check: Refusals, pins: object) -> list[tuple[object, object
         object.__setattr__(box, "pins", pins)
         check.refuse(
             "pins",
-            f"{pins!r} is not a mapping of pin names to terms. Write a dict, such as {example}.",
+            says("{pins!r} is not a mapping of pin names to terms", pins=pins),
             Reason.FORM,
             code=Code.INVALID_CIRCUIT,
+            then=f"Write a dict, such as {example}.",
         )
         return []
     for index, (name, _term) in enumerate(pairs):
         if any(name == earlier for earlier, _ in pairs[:index]):
             check.refuse(
                 f"pins[{index}]",
-                f"names the pin {name!r} twice. Give each pin one term.",
+                says("names the pin {name!r} twice", name=name),
                 Reason.CONFLICT,
                 code=Code.INVALID_CIRCUIT,
+                then="Give each pin one term.",
             )
     return pairs
 
@@ -312,9 +320,10 @@ def _check_pin(check: Refusals, attr: str, instruction: object, name: object) ->
     if not isinstance(instruction, PinnedInstruction):
         check.refuse(
             attr,
-            f"{name!r} is not a pin of {cls}. A {cls} has no pins, so pass no pins.",
+            says("{name!r} is not a pin of {cls}", name=name, cls=cls),
             Reason.CHOICE,
             code=Code.INVALID_CIRCUIT,
+            then=f"A {cls} has no pins, so pass no pins.",
         )
         return
     names = instruction.pin_names()
@@ -323,19 +332,20 @@ def _check_pin(check: Refusals, attr: str, instruction: object, name: object) ->
         listed = ", ".join(repr(n) for n in names)
         check.refuse(
             attr,
-            f"{name!r} is not a pin of {cls}. Write one of {listed}, such as "
-            f"{{{names[0]!r}: Contact('X002')}}.",
+            says("{name!r} is not a pin of {cls}", name=name, cls=cls),
             Reason.CHOICE,
             code=Code.INVALID_CIRCUIT,
+            then=f"Write one of {listed}, such as {{{names[0]!r}: Contact('X002')}}.",
         )
     elif name not in used:
         flag = _PIN_FLAGS.get((cls, str(name)))
         turn_on = f"Turn it on with {flag}" if flag else f"Turn it on in the {cls}"
         check.refuse(
             attr,
-            f"{name!r} is turned off in this {cls}. {turn_on}, or leave {name!r} out of pins.",
+            says("{name!r} is turned off in this {cls}", name=name, cls=cls),
             Reason.CONFLICT,
             code=Code.INVALID_CIRCUIT,
+            then=f"{turn_on}, or leave {name!r} out of pins.",
         )
 
 
@@ -347,16 +357,22 @@ def _check_term(check: Refusals, attr: str, term: object, *, leg: bool = False) 
     if isinstance(term, Series) and not term.terms and not leg:
         check.refuse(
             attr,
-            "Series(()) is empty, and an empty Series is a wire. Use one only as a leg of a "
-            f"Parallel, such as Parallel(({_CONTACT}, Series(()))).",
+            says("Series(()) is empty, and an empty Series is a wire"),
             Reason.FORM,
             code=Code.INVALID_CIRCUIT,
+            then="Use one only as a leg of a "
+            f"Parallel, such as Parallel(({_CONTACT}, Series(()))).",
         )
     elif not isinstance(term, (Contact, CompareContact, Series, Parallel)):
         check.refuse(
             attr,
-            f"{term!r} is not a contact or a circuit. Write a Contact, a CompareContact, a "
-            f"Series or a Parallel, such as {_CONTACT}.",
+            says("{term!r} is not a contact or a circuit", term=term),
             Reason.FORM,
             code=Code.INVALID_CIRCUIT,
+            then=f"Write a Contact, a CompareContact, a Series or a Parallel, such as {_CONTACT}.",
         )
+
+
+def _s(count: int) -> str:
+    """Return the plural ending for *count* items."""
+    return "" if count == 1 else "s"
