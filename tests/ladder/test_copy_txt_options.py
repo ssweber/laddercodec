@@ -514,15 +514,11 @@ def _receive(**kw) -> Receive:
     return Receive(**{**args, **kw})
 
 
+@pytest.mark.parametrize("code", [1, 2])
 @pytest.mark.parametrize("remote", ["DS1", "DD1", "DH1", "TXT1"])
-def test_receive_fc01_from_a_register_carries_obj_004(remote: str) -> None:
-    """A Receive that reads a register address on the slave with FC01, such as DS1 into C1,
-    is refused with OBJ-004. CLICK refuses it as an address that the instruction can't use."""
-    errors = _errors(lambda: _receive(remote_start=remote, dest="C1", function_code=1))
+def test_receive_bit_code_from_a_register_carries_obj_004(remote: str, code: int) -> None:
+    """A Receive that reads a register address on the slave with FC01 or FC02, such as DS1
+    into C1, is refused with OBJ-004."""
+    errors = _errors(lambda: _receive(remote_start=remote, dest="C1", function_code=code))
     assert errors[0].fields == ("Receive.function_code", "Receive.remote_start")
     assert (errors[0].reason, errors[0].click_id) == (Reason.CONFLICT, "OBJ-004")
-
-
-def test_receive_fc02_from_a_register_has_no_id() -> None:
-    errors = _errors(lambda: _receive(function_code=2))
-    assert (errors[0].reason, errors[0].click_id) == (Reason.CONFLICT, None)

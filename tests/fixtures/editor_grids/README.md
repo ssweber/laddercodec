@@ -31,6 +31,23 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `for.json` | For: each constant spelling, bank and pointer form as the number of loops; One Shot on and off |
 | `drum.json` | Drum, in Time Base and Event Base: each unit, and a unit on an event drum; a duration of 0, 32767, 32768, 39999, 40000 and -1 in each unit; each constant spelling, bank and pointer form as a duration; 0, 1, 16 and 17 steps and outputs; an output used twice, and the completion flag as an output; each bank as an output, the current step, the elapsed time, the completion flag and an event; jog, and the step number to jump to |
 | `send.json` | Modbus Send: each port; each function code with a 984 start of each kind and with each bank as the source; with CLICK addressing, each bit bank against each bit bank and each register bank against each register bank, and one case for each slave address bank that laddercodec refuses for the code; each bank as the source and as a CLICK slave address; the count at its caps, past a bank's end, from X001, X005, Y001, X101 and X816, and from TXT; each spelling of a 984 and a hex slave address, with `h` alone and `1HH`; a hex start near FFFEh with a DD, DF, CTD or TXT source; the Slave ID on each port, with a DS address; the server port and IP address of CPU Port1; each bank in each status field, with only its first address in the success and error bits, and one C bit in two of them; Word Swap |
+| `receive_click.json`, `receive_click_count1.json` | Modbus Receive with CLICK addressing: for each function code, each local bank against each remote bank, at the lowest address of each. The count is 1 for function codes 01 and 02, and 2 for 03 and 04. `receive_click_count1.json` holds the FC03 and FC04 cases into YD0, and into DH1 from XD0 or YD0, again with a count of 1 |
+| `drum_events.json` | an event drum whose first event is typed as `X001`, `~X001`, `!X001`, `/X001`, `rise(X001)`, `NC X001` or `X001,X002` |
+| `drum_events_names.json` | an event drum whose first event is `X001`, text that names no bank (`Q1`, `ABC`, `1`, `C1A`), or a bank name alone (`DS`, `X`) |
+| `drum_events_shapes.json` | an event drum and a time and event drum whose first event is `X001`, an address with a space (` DS1`, `DS 1`), a range, an address after `-` or `NOT `, `$41`, `X99999999`, a pointer, or `Y001,`; and a time and event drum whose first event is `~X001`, `rise(X001)`, `Q1`, `X`, `DS` or `DS1` |
+| `drum_events_padded.json`, `drum_events_padded2.json` | an event drum whose first event is `X001`, `C000001`, `X0000001`, `X00000100`, `SC0000000001` or `C0002001`; and again `X100`, `C000001` and `SC0000000001` |
+| `coil_sc.json` | Set and Reset of each SC address that Out writes, and of SC49 and SC163 |
+| `coil_sc_ranges.json` | Out, Set and Reset of the SC ranges SC50..SC60, SC50..SC53 and SC162..SC165, each of which holds a read-only SC between writable ends, and of SC50..SC51 and SC60..SC61 |
+
+ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
+`drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
+`drum_events_padded2.json`, `coil_sc.json` and `coil_sc_ranges.json`.
+The files hold ClickNick's text as it wrote it. The generator does not write them. It reads
+them and writes their verdicts files. A Receive case types `slave_address`, `master_address`,
+`count`, `receiving`, `success`, `error` and `exception`, and picks an item in the `function`
+and `addressing` lists. It types no Slave ID and picks no port. A Set or Reset case types
+`address` and `address_end` as an Out case does. A time and event drum case types the fields
+of a time drum and the events of an event drum.
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
 case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
@@ -175,6 +192,11 @@ minus sign, is built as that number. Any other text is passed as it is, so ladde
 it as not a number, or reads a Slave ID as a DS address. A case without `count` is built with
 a count of 1. Word Swap is on when the case picks `ON`.
 
+A Receive case is built as `Receive` with the function code that the case picks, from slave 1
+on CPU Port2. With CLICK addressing, the slave address is the address text. With any other
+addressing, or with none picked, it is a `ModbusAddress` of the text. A case without `count`
+is built with a count of 1.
+
 laddercodec reads a slave address that ends in `h` as hex, and an address of digits only as
 MODBUS 984. It would read `1h` typed in 984 addressing as hex, and `10` typed in hex addressing
 as a 984 address. The grid leaves out both cases.
@@ -205,10 +227,18 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `risky_timer.answers.json`, `risky_shift.answers.json`, `risky_for.answers.json`, `risky_drum.answers.json`, `risky_send.answers.json`, `risky_counter.answers.json`, `risky_fill.answers.json` | the answers to the files of those names (11, 4, 9, 15, 56, 11 and 14 cases). Two Counter cases and one Fill case are `crashed`. A `not_taken` or `crashed` case may have a null `read_back` and null `limits` |
 | `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file) |
 | `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
+| `receive_click.answers.json` | the answers to `receive_click.json` and then to `receive_click_count1.json` (512 and 36 cases, two runs). `read_back` holds the Slave ID too. The 32 cases into YD0 with a count of 2 are `not_taken`, because the dialog held the count at 1 |
+| `drum_events.answers.json` | the answers to `drum_events.json` (7 cases) |
+| `drum_events_names.answers.json` | the answers to `drum_events_names.json` (7 cases) |
+| `drum_events_shapes.answers.json` | the answers to `drum_events_shapes.json` (28 cases) |
+| `drum_events_padded.answers.json` | the answers to `drum_events_padded.json` and then to `drum_events_padded2.json` (6 and 3 cases, two runs) |
+| `coil_sc.answers.json` | the answers to `coil_sc.json` (54 cases) |
+| `coil_sc_ranges.answers.json` | the answers to `coil_sc_ranges.json` (15 cases) |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
 | `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused |
 | `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`) |
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
+| `coil_sc_picker.answers.json` | the same lists for the address and range end of Set and of Reset, laid out as `sc_sd_writable.answers.json` (4 fields) |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
 rule changes. The `plc`, `runs` and `clip` fields name no machine. The IP addresses in the Send
@@ -218,15 +248,16 @@ A case with `outcome` `not_taken` has no answer, because CLICK did not take the 
 must refuse it. A case with a null `outcome` has none either: CLICK closed before it answered. A case with
 `outcome` `crashed` has none: CLICK exited after the case's OK without answering. The `read_back`
 of a `not_taken` case shows what the dialog held. It differs from the text that the case asked
-for in two ways only. A Drum's dialog holds a step or output count past its bound at the bound,
-so 0 is held as 1 and 17 as 16. A dialog that closes the count box holds no count. 27 `not_taken` cases have a null
+for in three ways only. A Drum's dialog holds a step or output count past its bound at the bound,
+so 0 is held as 1 and 17 as 16. A Receive's dialog holds the count of a YD master address at 1.
+A dialog that closes the count box holds no count. 27 `not_taken` cases have a null
 `read_back` and null `limits`, because the runner never reached their fields. They are the Send
 cases on a slot port that the PLC's port list does not hold, two Send cases whose Word Swap list
 is closed, and a unit on an event drum.
 
 `tests/test_editor_answers.py` compares them with laddercodec's rules: each case is rebuilt with
-the generator's builders (Receive with its own, at the count the dialog held where an answer
-records one, else 1) and its outcome compared with CLICK's, then the
+the generator's builders (a Receive at the count that the case types, else at the count that
+the dialog held where an answer records one, else 1) and its outcome compared with CLICK's, then the
 refusal's `click_id` with CLICK's code (only where the rules give a `click_id`; most refusals have
 none yet, and the test records how many codes it compared), then the saved rows of an accepted case
 with what `read_csv` makes of them (a `raw(...)` is a difference), then the writable lists with the SC and

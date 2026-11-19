@@ -507,11 +507,49 @@ class TestDrumEventsAndOutputs:
 
     @pytest.mark.parametrize("event", ["DS1", "TD1", "XD0", "TXT1"])
     def test_other_event_banks_refused(self, event: str) -> None:
-        message = r"^Drum.events\[0\]: .* takes X, Y, C, T, CT, SC$"
+        message = r"^Drum.events\[0\]: .* takes X, Y, C, T, CT, SC \(OBJ-004\)$"
         with pytest.raises(AddressError, match=message):
             drum(events=[event, "C10"])
         with pytest.raises(AddressError, match=message):
             drum("time_event_drum", events=[event, ""])
+
+    @pytest.mark.parametrize(
+        ("event", "click_id"),
+        [
+            *[(e, "OBJ-005") for e in ("~X001", "!X001", "/X001", "-X001", "NC X001")],
+            *[(e, "OBJ-005") for e in ("NOT X001", "rise(X001)", "X001..X002", "C1..C2")],
+            *[(e, "OBJ-005") for e in ("X001,X002", "Y001,", "X[DS1]", "DS[DS1]", "$41")],
+            *[(e, "OBJ-005") for e in ("Q1", "ABC", "1", "C1A")],
+            ("X", "OBJ-002"),
+            ("DS", "OBJ-004"),
+            (" DS1", "OBJ-004"),
+            ("DS 1", "OBJ-004"),
+            ("X99999999", "OBJ-003"),
+            ("C0002001", "OBJ-003"),
+            ("X00000100", "OBJ-002"),
+        ],
+    )
+    def test_event_that_is_not_one_address_refused(self, event: str, click_id: str) -> None:
+        # An event has no NC or edge form, and it names one address.
+        for kind in ("event_drum", "time_event_drum"):
+            with pytest.raises(AddressError) as caught:
+                drum(kind, events=[event, "C10"])
+            error = caught.value
+            assert (error.field, error.code, error.click_id) == (
+                "Drum.events[0]",
+                Code.NOT_AN_ADDRESS,
+                click_id,
+            )
+            assert f" ({click_id}). " in str(error)
+
+    @pytest.mark.parametrize(
+        "event", [" X001", "X 001", "X001 ", "C1:C2", "~", ",", "C000001", "X0000001"]
+    )
+    def test_event_of_another_shape_has_no_id(self, event: str) -> None:
+        for kind in ("event_drum", "time_event_drum"):
+            with pytest.raises(AddressError) as caught:
+                drum(kind, events=[event, "C10"])
+            assert (caught.value.code, caught.value.click_id) == (Code.NOT_AN_ADDRESS, None)
 
     @pytest.mark.parametrize("second", ["C1", "C001"])
     def test_output_twice_refused(self, tmp_path: Path, second: str) -> None:

@@ -1,0 +1,5 @@
+{
+  "event_drum event 1 'X100'": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X100' is outside X001-X016, X021-X036, X101-X116 ... X801-X816"},
+  "event_drum event 1 'C000001'": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'C000001' is not a CLICK address"},
+  "event_drum event 1 'SC0000000001'": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'SC0000000001' is not a CLICK address"}
+}

@@ -1,0 +1,652 @@
+{
+ "cases": [
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click DH1 <- XD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "XD0",
+    "master_address": "DH1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click DH1 <- YD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "YD0",
+    "master_address": "DH1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- X001 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "X001",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- Y001 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "Y001",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- C1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "C1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- T1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "T1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- CT1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "CT1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- SC1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "SC1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- DS1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DS1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- DD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- DF1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DF1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- DH1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DH1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- XD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "XD0",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- YD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "YD0",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- TD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "TD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- CTD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "CTD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- SD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "SD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc03.count1",
+   "case": "receive fc03 click YD0 <- TXT1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "TXT1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click DH1 <- XD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "XD0",
+    "master_address": "DH1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click DH1 <- YD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "YD0",
+    "master_address": "DH1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- X001 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "X001",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- Y001 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "Y001",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- C1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "C1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- T1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "T1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- CT1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "CT1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- SC1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "SC1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- DS1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DS1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- DD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- DF1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DF1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- DH1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "DH1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- XD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "XD0",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- YD0 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "YD0",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- TD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "TD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- CTD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "CTD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- SD1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "SD1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  },
+  {
+   "row": "receive.click.fc04.count1",
+   "case": "receive fc04 click YD0 <- TXT1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "04 - Read Input Registers",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_address": "TXT1",
+    "master_address": "YD0",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   }
+  }
+ ]
+}

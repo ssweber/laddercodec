@@ -1,0 +1,305 @@
+{
+ "grid": "drum_events_names.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "d2"
+ ],
+ "cases": [
+  {
+   "row": "drum.event_form.control",
+   "case": "event_drum event 1 X001",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.319,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 Q1",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "Q1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.617,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "Q1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 ABC",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "ABC",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.595,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "ABC",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 1",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.6,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "1",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 DS",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.6,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "DS",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 X",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-002",
+   "message": "Please enter a correct address.",
+   "syntax_check": null,
+   "seconds": 0.622,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.event_form.no_bank",
+   "case": "event_drum event 1 C1A",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C1A",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.602,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C1A",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  }
+ ]
+}

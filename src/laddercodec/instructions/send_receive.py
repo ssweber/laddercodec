@@ -574,14 +574,22 @@ _SAME_TYPE: dict[str, frozenset[str]] = {
     for bank in group
 }
 
-#: For a Receive with a CLICK remote address, the remote banks that each local bank
-#: accepts.
+#: The remote banks that a Receive with a CLICK address reads into each local register bank:
+#:
+#: - DS reads DS, TD and SD.
+#: - DD reads DD and CTD.
+#: - DF reads DF.
+#: - DH reads DH, XD and YD. YD reads the same three banks.
+#: - TXT reads TXT.
+#:
+#: CLICK refuses any other pair with OBJ-004. A Receive into YD, and a Receive from XD or YD
+#: into DH, has a count of 1.
 _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
     dest: _SAME_TYPE[dest] for dest in ("DS", "DD", "DF", "DH", "YD", "TXT")
 }
 _RECEIVE_REMOTE_REGS = frozenset().union(*_RECEIVE_REMOTE_FOR_DEST.values())
-#: The local banks that a Receive accepts. CLICK's bank masks are 6 for FC01 and FC02, and
-#: 0x8bc0 for FC03 and FC04.
+#: The local banks that a Receive accepts. FC01 and FC02 read a remote X, Y, C, T, CT or SC
+#: bit into Y or C. FC03 and FC04 read a remote register into DS, DD, DF, DH, YD or TXT.
 _RECEIVE_LOCAL_BITS = frozenset({"Y", "C"})
 _RECEIVE_LOCAL_REGS = frozenset(_RECEIVE_REMOTE_FOR_DEST)
 
@@ -1284,17 +1292,21 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
     if fc is not None:
         if remote_addr is not None:
             # A Receive may read a CLICK address with either code for its kind: FC01 or FC02
-            # for a bit, and FC03 or FC04 for a register.
-            if bit is not None and fc not in ((1, 2) if bit else (3, 4)):
+            # for a bit, and FC03 or FC04 for a register. CLICK refuses the slave address
+            # of the other kind with OBJ-004.
+            codes = (1, 2) if bit else (3, 4)
+            if bit is not None and fc not in codes:
                 kind = "a bit" if bit else "a register"
                 check.refuse(
                     ("function_code", "remote_start"),
                     says("FC{fc:02d} cannot read {kind}", fc=fc, kind=kind),
                     Reason.CONFLICT,
-                    # When FC01 reads a register slave address, CLICK refuses it with
-                    # OBJ-004, as an address that the instruction can't use.
-                    _BANK_ID if fc == 1 and not bit else None,
+                    _BANK_ID,
                     code=Code.FUNCTION_CODE_MISMATCH,
+                    then=(
+                        f"Read {kind} with FC{codes[0]:02d} or FC{codes[1]:02d}, "
+                        f"such as function_code={codes[0]}."
+                    ),
                 )
         elif default_fc is not None and fc != default_fc and not isinstance(remote, str):
             check.refuse(

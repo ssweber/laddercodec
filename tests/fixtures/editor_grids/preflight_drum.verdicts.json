@@ -14,7 +14,7 @@
   "time_drum accumulator=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.accumulator", "message": "Drum.accumulator: 'X001' is not allowed; Drum.accumulator takes TD"},
   "time_drum completion_flag=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.completion_flag", "message": "Drum.completion_flag: 'X001' is not allowed; Drum.completion_flag takes C"},
   "event_drum events[0]=X016": {"verdict": "accepted"},
-  "event_drum events[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X[DS1]' is not a CLICK address"},
+  "event_drum events[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X[DS1]' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
   "time_drum jog_enabled=1": {"verdict": "accepted"},
   "time_drum jump_enabled=1 jump_step=DS2": {"verdict": "accepted"}
 }

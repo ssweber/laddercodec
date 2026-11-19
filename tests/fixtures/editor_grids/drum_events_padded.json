@@ -1,0 +1,100 @@
+{
+ "cases": [
+  {
+   "row": "drum.event_form.control",
+   "case": "event_drum event 1 'X001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.padded",
+   "case": "event_drum event 1 'C000001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C000001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.padded",
+   "case": "event_drum event 1 'X0000001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X0000001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.padded",
+   "case": "event_drum event 1 'X00000100'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X00000100",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.padded",
+   "case": "event_drum event 1 'SC0000000001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "SC0000000001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  },
+  {
+   "row": "drum.event_form.padded",
+   "case": "event_drum event 1 'C0002001'",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "C0002001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   }
+  }
+ ]
+}

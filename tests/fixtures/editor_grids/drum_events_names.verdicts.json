@@ -1,0 +1,9 @@
+{
+  "event_drum event 1 X001": {"verdict": "accepted"},
+  "event_drum event 1 Q1": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'Q1' has no CLICK bank 'Q'; banks are X, Y, C, T, CT, SC, DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 ABC": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'ABC' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 1": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: '1' is not a CLICK address (OBJ-005). Write one bit address, such as X001."},
+  "event_drum event 1 DS": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'DS' is not a CLICK address (OBJ-004). Write one bit address, such as X001."},
+  "event_drum event 1 X": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X' is not a CLICK address (OBJ-002). Write the number after the bank, such as X001."},
+  "event_drum event 1 C1A": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'C1A' is not a CLICK address (OBJ-005). Write one bit address, such as X001."}
+}
