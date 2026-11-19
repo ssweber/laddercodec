@@ -3,6 +3,7 @@
 
 worktree_root = "../laddercodec-wt"              # `run.py worktree new NAME` -> <worktree_root>/NAME
 procs_dir = "../laddercodec-wt/buildbot/procs"   # one file per live bounded run (`run.py ps`), and the slot locks
+jobs_dir = "../laddercodec-wt/buildbot/jobs"     # BRIEF, HANDOFF and REVIEW, which the read-only agents may also write
 base = "origin/main"                             # new worktrees start here, with no upstream
 branch_prefix = "feat/"                          # default; profile.md: pass --branch <type>/<name>
 job_memory_mb = 8192                             # cap per run, all its processes (Windows Job Object); 0 = no cap
@@ -29,6 +30,8 @@ reviewer_write_roots = ["$TEMP", "$TMP", "/tmp"]
 # <plugin>/scripts/run.py --timeout N [--name X] [--cwd D] -- [uv run --no-sync] python
 # <script>.py`, with N up to this.
 reviewer_max_timeout = 1800
+# Read-only checks the reviewer may run, inside the bounded runner only.
+reviewer_checks = ["devtools/editor_grids.py --check"]
 # No [queue] section, so nothing is heavy.
 
 [ps]
