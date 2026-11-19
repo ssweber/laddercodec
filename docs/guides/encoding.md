@@ -355,9 +355,9 @@ Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack`,
 `Shift`, `ForLoop`, `Drum`, `Send`, `Receive`, `ModbusRtuTarget`,
 `ModbusTcpTarget`, `ModbusAddress` and `Search`, and those of the address, operand
 and flag checks that other instructions share, such as the bank check on
-`Coil.operand`. The refusals of `Call`, `Tee`, `RawInstruction` and `Undecoded` name
-no address, so names change nothing in them, and `short()` and `detail()` still
-split them. For an error that keeps no parts, `message()` returns `str(exc)`.
+`Coil.operand`. The refusals of `Call`, `Tee`, `RawInstruction`, `Undecoded`,
+`Series`, `Parallel`, `Box`, `Branch` and `Circuit` name no address, so names
+change nothing in them, and `short()` and `detail()` still split them. For an error that keeps no parts, `message()` returns `str(exc)`.
 `short()` returns that text without its `Class.field:` prefix, and `detail()`
 returns an empty string.
 
