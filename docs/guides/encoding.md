@@ -351,9 +351,10 @@ returns `str(exc)`. If `read_csv` raised the refusal, `message()` keeps the CSV
 location at the end, and `short()` and `detail()` leave it out.
 
 Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack`,
-`Unpack`, `Send`, `Receive`, `ModbusRtuTarget`, `ModbusTcpTarget` and `ModbusAddress`,
-and those of the address, operand and flag checks that other instructions
-share, such as the bank check on `Coil.operand`. For any other error, `message()`
+`Unpack`, `Timer`, `Counter`, `Shift`, `ForLoop`, `Drum`, `Send`, `Receive`,
+`ModbusRtuTarget`, `ModbusTcpTarget` and `ModbusAddress`, and those of the
+address, operand and flag checks that other instructions share, such as the bank
+check on `Coil.operand`. For any other error, `message()`
 returns `str(exc)`. `short()` returns that text without its `Class.field:` prefix,
 and `detail()` returns an empty string.
 

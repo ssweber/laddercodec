@@ -22,6 +22,7 @@ from ..errors import CsvReadError, EncodeError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
+from ..operands.message import Op, operand, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -88,7 +89,7 @@ class Counter(PinnedInstruction):
             if self.kind not in _COUNTER_KINDS:
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not count_up or count_down",
+                    says("{kind} is not count_up or count_down", kind=operand(self.kind)),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -96,7 +97,7 @@ class Counter(PinnedInstruction):
             if self.reset_enabled is False:
                 check.refuse(
                     "reset_enabled",
-                    "a counter always has a Reset input",
+                    says("a counter always has a Reset input"),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -104,7 +105,7 @@ class Counter(PinnedInstruction):
                 # count_down's main input is Down.  Its box has no separate .down() input.
                 check.refuse(
                     ("down_enabled", "kind"),
-                    "count_down has no .down() input; only count_up does",
+                    says("count_down has no .down() input", "only count_up does"),
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -114,8 +115,12 @@ class Counter(PinnedInstruction):
             if done is not None and accumulator is not None and done.number != accumulator.number:
                 check.refuse(
                     ("accumulator", "done"),
-                    f"{self.accumulator!r} must be CTD{done.number} to match Counter.done "
-                    f"{self.done!r}",
+                    says(
+                        "{accumulator} must be {ctd} to match Counter.done {done}",
+                        accumulator=Op(self.accumulator),
+                        ctd=Op(f"CTD{done.number}", quoted=False),
+                        done=Op(self.done),
+                    ),
                     Reason.CONFLICT,
                     code=Code.TIMER_PAIR_MISMATCH,
                 )

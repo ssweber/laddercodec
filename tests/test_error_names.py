@@ -25,6 +25,9 @@ from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.errors import CsvReadError, LaddercodecError
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
+from laddercodec.instructions.counter import Counter
+from laddercodec.instructions.drum import Drum
+from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.send_receive import (
     ModbusAddress,
     ModbusRtuTarget,
@@ -32,6 +35,8 @@ from laddercodec.instructions.send_receive import (
     Receive,
     Send,
 )
+from laddercodec.instructions.shift import Shift
+from laddercodec.instructions.timer import Timer
 from laddercodec.operands.address import (
     check_address,
     display_form_only,
@@ -303,6 +308,13 @@ def test_a_copy_csv_token_refusal_keeps_its_parts(tmp_path: Path, af: str, short
     assert error.short() == short
 
 
+def test_a_for_count_refusal_says_its_short_rule_and_what_to_do() -> None:
+    error = _refusal(lambda: ForLoop("1 0"))
+    assert parts_of(error) is not None
+    assert error.short() == "'1 0' has a space in it"
+    assert error.detail() == "Write the count as digits only, such as 10."
+
+
 def test_a_refusal_that_read_csv_keeps_shows_names(tmp_path: Path) -> None:
     """``read_csv(..., unchecked=True)`` keeps a refused Copy, and the warning's error
     keeps its parts."""
@@ -426,6 +438,53 @@ def _builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
         )
 
 
+def _box_builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
+    """Yield each build of a Timer, Counter, Shift, ForLoop or Drum in the corpus."""
+    pool = ("T1", "T2", "TD1", "TD2", "CT1", "CTD1", "CTD2", "DS1", "DS[DD1]", "C1", "c2", "X1")
+    for a, b, c in itertools.product(pool, pool, ("5", "DS1", "C1", "x1", "")):
+        for kind in ("on_delay", "off_delay", "T1"):
+            for unit in ("Tms", "C1"):
+                yield (
+                    (lambda a=a, b=b, c=c, k=kind, u=unit: Timer(k, a, b, c, u)),
+                    (a, b, c, unit),
+                )
+        for kind in ("count_up", "count_down", "C1"):
+            yield (lambda a=a, b=b, c=c, k=kind: Counter(k, a, b, c)), (a, b, c)
+        yield (lambda a=a, b=b: Shift(a, b)), (a, b)
+    for count in (*pool, "", " ", "1 0", "-0", "99999999999", "1.5", "DS[DD1]"):
+        yield (lambda c=count: ForLoop(c)), (count,)
+    for kind in ("event_drum", "time_drum", "time_event_drum", "C1"):
+        for out in (("Y1", "Y2"), ("Y1", "y1"), ("C1", "C2"), ("DS1",), ("X1",), ()):
+            for flag in ("C1", "C3", "DS1", "x1"):
+                for ev, pre in ((("C5", "C6"), ("5", "DS1")), (("",), ("",)), ((), ())):
+                    for unit in ("", "Tms", "C1"):
+                        yield (
+                            (
+                                lambda k=kind, o=out, f=flag, e=ev, p=pre, u=unit: Drum(
+                                    k,
+                                    o,
+                                    p,
+                                    e,
+                                    ((0,) * len(o),) * 2,
+                                    "DS1",
+                                    f,
+                                    "TD1",
+                                    unit=u,
+                                    jump_enabled=True,
+                                    jump_step="C1",
+                                )
+                            ),
+                            (*out, flag, *ev, *pre, unit),
+                        )
+    for kind, rows in (("on_delay", (1, 2)), ("on_delay", (0,)), ("on_delay", (3, 2))):
+        yield (lambda k=kind, r=rows: Timer(k, "T1", "TD1", "5", "Tms", pin_rows=r)), ()
+    for pattern in (((0, 2),) * 2, ((0, 1),)):
+        yield (
+            (lambda p=pattern: Drum("event_drum", ("Y1", "Y2"), (), ("C5", "C6"), p, "DS1", "C1")),
+            (),
+        )
+
+
 def _addresses(fields: tuple[str, ...]) -> dict[str, str]:
     """Return each CLICK address in ``fields``, in display form, mapped to the text typed."""
     out: dict[str, str] = {}
@@ -456,7 +515,7 @@ def test_every_address_that_a_copy_family_refusal_quotes_takes_a_name() -> None:
     """
     plain: dict[str, str] = {}
     count = 0
-    for build, fields in _builds():
+    for build, fields in (*_builds(), *_box_builds()):
         try:
             build()
         except FieldError as exc:

@@ -24,6 +24,7 @@ from ..errors import CsvReadError
 from ..model import FieldError, Instruction, InstructionType, Reason, normalize_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
+from ..operands.message import Op, make_refusal, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -64,21 +65,25 @@ def _normalized_count(value: str) -> str:
     inside it."""
     text = value.strip()
     if not text:
-        raise FieldError(
-            "ForLoop.count: The count is blank. Enter a number of loops, or an address that "
-            "holds one.",
+        raise make_refusal(
+            FieldError,
+            "ForLoop.count",
+            says("The count is blank"),
             field="ForLoop.count",
             reason=Reason.MISSING,
             code=Code.BLANK_FIELD,
+            then="Enter a number of loops, or an address that holds one.",
         )
     if _FOR_SPACED_RE.fullmatch(text):
         # CLICK's dialog accepts ``1 0``.  It is not a number, so laddercodec refuses it.
-        raise FieldError(
-            f"ForLoop.count: {text!r} has a space in it. Write the count as digits only, such "
-            "as 10.",
+        raise make_refusal(
+            FieldError,
+            "ForLoop.count",
+            says("{text} has a space in it", text=Op(text)),
             field="ForLoop.count",
             reason=Reason.FORM,
             code=Code.INVALID_CONSTANT,
+            then="Write the count as digits only, such as 10.",
         )
     if len(text) > 1 and text[0] == "-" and not text[1:].strip("0"):
         return "0"

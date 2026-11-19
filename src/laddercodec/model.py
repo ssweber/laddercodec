@@ -40,6 +40,7 @@ from .operands.checks import check_flag as check_flag
 from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
 from .operands.errors import Reason as Reason
+from .operands.message import make_refusal, operand, says
 from .operands.unchecked import holds_refusals, rebuilt
 
 if TYPE_CHECKING:
@@ -136,23 +137,33 @@ class PinnedInstruction(Instruction):
         rows = self.pin_rows
         want = self.lead_rows + len(self.pin_names())
         if not isinstance(rows, tuple) or len(rows) != want:
-            raise FieldError(
-                f"{name}: {rows!r} must be a tuple with one row per input "
-                f"({want} for a {type(self).__name__})",
+            raise make_refusal(
+                FieldError,
+                name,
+                says(
+                    "{rows} must be a tuple with one row per input ({want} for a {cls})",
+                    rows=operand(rows),
+                    want=want,
+                    cls=type(self).__name__,
+                ),
                 field=name,
                 reason=Reason.FORM,
                 code=Code.INVALID_INPUT_ROWS,
             )
         if not all(type(row) is int and 1 <= row <= 255 for row in rows):
-            raise FieldError(
-                f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255",
+            raise make_refusal(
+                FieldError,
+                name,
+                says("{rows} holds a row outside the whole numbers 1 to 255", rows=operand(rows)),
                 field=name,
                 reason=Reason.RANGE,
                 code=Code.INVALID_INPUT_ROWS,
             )
         if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
-            raise FieldError(
-                f"{name}: {rows!r} must ascend; each input sits below the last",
+            raise make_refusal(
+                FieldError,
+                name,
+                says("{rows} must ascend", "each input sits below the last", rows=operand(rows)),
                 field=name,
                 reason=Reason.FORM,
                 code=Code.INVALID_INPUT_ROWS,

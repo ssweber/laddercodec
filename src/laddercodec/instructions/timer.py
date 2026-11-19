@@ -18,6 +18,7 @@ from ..errors import CsvReadError
 from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
+from ..operands.message import Op, operand, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ class Timer(PinnedInstruction):
             if self.kind not in _TIMER_KINDS:
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not on_delay or off_delay",
+                    says("{kind} is not on_delay or off_delay", kind=operand(self.kind)),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -98,7 +99,7 @@ class Timer(PinnedInstruction):
                 units = ", ".join(TIMER_UNIT_TO_INDEX)
                 check.refuse(
                     "unit",
-                    f"{self.unit!r} is not one of {units}",
+                    says("{unit} is not one of {units}", unit=operand(self.unit), units=units),
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -108,8 +109,12 @@ class Timer(PinnedInstruction):
             if done is not None and accumulator is not None and done.number != accumulator.number:
                 check.refuse(
                     ("accumulator", "done"),
-                    f"{self.accumulator!r} must be TD{done.number} to match Timer.done "
-                    f"{self.done!r}",
+                    says(
+                        "{accumulator} must be {td} to match Timer.done {done}",
+                        accumulator=Op(self.accumulator),
+                        td=Op(f"TD{done.number}", quoted=False),
+                        done=Op(self.done),
+                    ),
                     Reason.CONFLICT,
                     code=Code.TIMER_PAIR_MISMATCH,
                 )
@@ -118,10 +123,13 @@ class Timer(PinnedInstruction):
             if self.kind == "off_delay" and self.retained:
                 check.refuse(
                     ("retained", "kind"),
-                    "an off_delay timer can't be retentive. Use on_delay for a retentive "
-                    "timer. Otherwise remove the .reset() row, or set retained=False.",
+                    says("an off_delay timer can't be retentive"),
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
+                    then=(
+                        "Use on_delay for a retentive timer. Otherwise remove the .reset() row, "
+                        "or set retained=False."
+                    ),
                 )
             check.run(self._check_pin_rows)
 
