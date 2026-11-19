@@ -29,10 +29,12 @@ class LaddercodecError(ValueError):
     names for the addresses in it.  Only these refusals show names: the refusals of
     ``Copy``, ``BlockCopy``, ``Fill``, ``Pack``, ``Unpack``, ``Coil``, ``OutVariant``,
     ``Contact``, ``CompareContact``, ``Timer``, ``Counter``, ``Shift``, ``ForLoop``,
-    ``Drum``, ``Send``, ``Receive``, ``ModbusRtuTarget``, ``ModbusTcpTarget`` and
-    ``ModbusAddress``, and the refusals of the address, operand and flag checks that
-    other instructions share, such as the bank check on ``Coil.operand``.  Any other
-    error ignores the names.
+    ``Drum``, ``Send``, ``Receive``, ``ModbusRtuTarget``, ``ModbusTcpTarget``,
+    ``ModbusAddress`` and ``Search``, and the refusals of the address, operand and flag
+    checks that other instructions share, such as the bank check on ``Coil.operand``.
+    The refusals of ``Call``, ``Tee``, ``RawInstruction`` and ``Undecoded`` name no
+    address, but they still split into :meth:`short` and :meth:`detail`.  Any other error
+    ignores the names.
     """
 
     # The parts of the message (operands.message.Parts), for an error that keeps them.

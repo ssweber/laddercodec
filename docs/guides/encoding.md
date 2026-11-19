@@ -353,11 +353,13 @@ location at the end, and `short()` and `detail()` leave it out.
 Only some refusals show names: those of `Copy`, `BlockCopy`, `Fill`, `Pack`,
 `Unpack`, `Coil`, `OutVariant`, `Contact`, `CompareContact`, `Timer`, `Counter`,
 `Shift`, `ForLoop`, `Drum`, `Send`, `Receive`, `ModbusRtuTarget`,
-`ModbusTcpTarget` and `ModbusAddress`, and those of the address, operand and flag
-checks that other instructions share, such as the bank check on `Coil.operand`.
-For any other error, `message()`
-returns `str(exc)`. `short()` returns that text without its `Class.field:` prefix,
-and `detail()` returns an empty string.
+`ModbusTcpTarget`, `ModbusAddress` and `Search`, and those of the address, operand
+and flag checks that other instructions share, such as the bank check on
+`Coil.operand`. The refusals of `Call`, `Tee`, `RawInstruction` and `Undecoded` name
+no address, so names change nothing in them, and `short()` and `detail()` still
+split them. For an error that keeps no parts, `message()` returns `str(exc)`.
+`short()` returns that text without its `Class.field:` prefix, and `detail()`
+returns an empty string.
 
 ## Change An Instruction
 

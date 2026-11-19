@@ -45,6 +45,7 @@ from ..binary_helpers import (
 from ..codes import Code
 from ..model import FieldError, Instruction, Reason
 from ..operands.checks import Refusals
+from ..operands.message import Rule, make_refusal, says
 from .family import AfInstructionFamilySpec, cell_rows_spec
 
 if TYPE_CHECKING:
@@ -279,19 +280,26 @@ _FIELD_SPEC_RE = re.compile(
 )
 
 
-def _token_error(message: str) -> FieldError:
+def _token_error(
+    said: Rule,
+    *,
+    field: str | None = None,
+    reason: Reason = Reason.FORM,
+    code: Code = Code.INVALID_TOKEN,
+) -> FieldError:
     """Return the error for a raw token that does not follow the token syntax.
 
-    The ``FieldError`` names no field, and its reason is ``Reason.FORM``.
+    Unless the caller says otherwise, the ``FieldError`` names no field, and its reason is
+    ``Reason.FORM``.  The message has no label.
     """
-    return FieldError(message, field=None, reason=Reason.FORM, code=Code.INVALID_TOKEN)
+    return make_refusal(FieldError, None, said, field=field, reason=reason, code=code)
 
 
 def _fromhex(text: str) -> bytes:
     try:
         return bytes.fromhex(text)
     except ValueError:
-        raise _token_error(f"{text!r} is not hex bytes") from None
+        raise _token_error(says("{text!r} is not hex bytes", text=text)) from None
 
 
 def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
@@ -300,7 +308,7 @@ def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
     for spec in specs:
         m = _FIELD_SPEC_RE.fullmatch(spec)
         if not m:
-            raise _token_error(f"Invalid field spec: {spec!r}")
+            raise _token_error(says("Invalid field spec: {spec!r}", spec=spec))
         tag = int(m.group(1), 16)
         array_count = int(m.group(2)) if m.group(2) else None
         sentinel_hex = m.group(3)
@@ -420,14 +428,14 @@ class RawInstruction(Instruction):
             if not isinstance(self.class_name, str):
                 check.refuse(
                     "class_name",
-                    f"{self.class_name!r} is not text",
+                    says("{class_name!r} is not text", class_name=self.class_name),
                     Reason.FORM,
                     code=Code.INVALID_RAW,
                 )
             if not isinstance(self.blob, bytes):
                 check.refuse(
                     "blob",
-                    f"{type(self.blob).__name__} is not bytes",
+                    says("{kind} is not bytes", kind=type(self.blob).__name__),
                     Reason.FORM,
                     code=Code.INVALID_RAW,
                 )
@@ -435,14 +443,20 @@ class RawInstruction(Instruction):
             if type(part_count) is not int:
                 check.refuse(
                     "part_count",
-                    f"{part_count!r} is not a whole number from 0 to 65535",
+                    says(
+                        "{part_count!r} is not a whole number from 0 to 65535",
+                        part_count=part_count,
+                    ),
                     Reason.FORM,
                     code=Code.INVALID_RAW,
                 )
             elif not 0 <= part_count <= 0xFFFF:
                 check.refuse(
                     "part_count",
-                    f"{part_count!r} is not a whole number from 0 to 65535",
+                    says(
+                        "{part_count!r} is not a whole number from 0 to 65535",
+                        part_count=part_count,
+                    ),
                     Reason.RANGE,
                     code=Code.INVALID_RAW,
                 )
@@ -450,7 +464,7 @@ class RawInstruction(Instruction):
                 rows = getattr(self, name)
                 if rows is None:
                     continue
-                rule = f"{rows!r} is not a whole number from 1 to 255"
+                rule = says("{rows!r} is not a whole number from 1 to 255", rows=rows)
                 if type(rows) is not int:
                     check.refuse(name, rule, Reason.FORM, code=Code.INVALID_RAW)
                 elif not 1 <= rows <= 0xFF:
@@ -576,12 +590,12 @@ class RawInstruction(Instruction):
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise _token_error(f"Not a raw token: {token!r}")
+            raise _token_error(says("Not a raw token: {token!r}", token=token))
         inner = token[4:-1]
 
         # Split on first comma to get class name.
         if "," not in inner:
-            raise _token_error(f"raw({inner}): a raw token is raw(ClassName,...)")
+            raise _token_error(says("raw({inner}): a raw token is raw(ClassName,...)", inner=inner))
         first_comma = inner.index(",")
         class_name = inner[:first_comma].strip()
         rest = inner[first_comma + 1 :].strip()
@@ -594,20 +608,22 @@ class RawInstruction(Instruction):
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
         rows, sub, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
         if pins is not None:
-            raise FieldError(
-                f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
-                "holds the part bytes",
-                field=None,  # token syntax, not a field value
-                reason=Reason.FORM,
-                code=Code.INVALID_TOKEN,
+            raise _token_error(
+                says(
+                    "raw({class_name},hex,...): pins={pins} can't follow the hex",
+                    "the blob holds the part bytes",
+                    class_name=class_name,
+                    pins=pins,
+                )
             )
         if extra:
-            raise FieldError(
-                f"raw({class_name},hex,...): only rows= and sub= may follow the hex, "
-                f"not {extra[0]!r}",
-                field=None,  # token syntax, not a field value
-                reason=Reason.FORM,
-                code=Code.INVALID_TOKEN,
+            raise _token_error(
+                says(
+                    "raw({class_name},hex,...): only rows= and sub= may follow the hex, "
+                    "not {extra!r}",
+                    class_name=class_name,
+                    extra=extra[0],
+                )
             )
         blob = _fromhex(hex_blob)
         try:
@@ -626,26 +642,37 @@ class RawInstruction(Instruction):
             or not re.fullmatch(r"[0-9]+", parts[1])
         ):
             raise _token_error(
-                f"raw({class_name},...): type marker is 0xTTTT and part count is digits"
+                says(
+                    "raw({class_name},...): type marker is 0xTTTT and part count is digits",
+                    class_name=class_name,
+                )
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
         if part_count > 0xFFFF:
-            raise FieldError(
-                f"raw({class_name},...): part count {part_count} is not a whole number from 0 to 65535",
-                field=None,  # token syntax, not a field value
+            raise _token_error(
+                says(
+                    "raw({class_name},...): part count {part_count} is not a whole number "
+                    "from 0 to 65535",
+                    class_name=class_name,
+                    part_count=part_count,
+                ),
                 reason=Reason.RANGE,
-                code=Code.INVALID_TOKEN,
             )
         rows, sub, pins, field_specs = _take_box_rows(class_name, parts[2:], raw_token=True)
         extra_bytes = _pin_rows(class_name, part_count, pins)
         if extra_bytes and rows is not None and rows != extra_bytes[-1] + 1:
             stated = "pins=" + pins if pins is not None else "no pins= (rows 1, 2, ...)"
-            raise FieldError(
-                f"raw({class_name},...): rows={rows} does not fit {stated}; the box "
-                f"ends one row below its last pin (rows={extra_bytes[-1] + 1})",
+            raise _token_error(
+                says(
+                    "raw({class_name},...): rows={rows} does not fit {stated}",
+                    "the box ends one row below its last pin (rows={last})",
+                    class_name=class_name,
+                    rows=rows,
+                    stated=stated,
+                    last=extra_bytes[-1] + 1,
+                ),
                 field="RawInstruction.rows",
-                reason=Reason.FORM,
                 code=Code.INVALID_RAW,  # the token's rows= and pins= disagree
             )
 
@@ -662,11 +689,11 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
     """
     rows, sub, pins, rest = _take_box_rows(class_name, parts, raw_token=False)
     if pins is not None:
-        raise FieldError(
-            f"raw({class_name},...): pins= is only for a box of 2 or more parts",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says(
+                "raw({class_name},...): pins= is only for a box of 2 or more parts",
+                class_name=class_name,
+            )
         )
     return rows, sub, rest
 
@@ -694,9 +721,15 @@ def _take_box_rows(
             text = parts[i][len(key) + 1 :]
             digits = text.isascii() and text.isdigit()
             if not (digits and 1 <= int(text) <= limits[key]):
-                raise FieldError(
-                    f"raw({class_name},...): {key}={text!r} is not a whole number "
-                    f"from 1 to {limits[key]}",
+                raise _token_error(
+                    says(
+                        "raw({class_name},...): {key}={text!r} is not a whole number "
+                        "from 1 to {high}",
+                        class_name=class_name,
+                        key=key,
+                        text=text,
+                        high=limits[key],
+                    ),
                     field=(
                         ("RawInstruction.rows" if key == "rows" else "RawInstruction.sub")
                         if raw_token
@@ -715,12 +748,13 @@ def _take_box_rows(
         i += 1
     for part in parts[i:]:
         if part.startswith(("rows=", "sub=", "pins=")):
-            raise FieldError(
-                f"raw({class_name},...): {part!r} goes right after the part count, "
-                "rows= then sub= then pins=, once each",
-                field=None,  # token syntax, not a field value
-                reason=Reason.FORM,
-                code=Code.INVALID_TOKEN,
+            raise _token_error(
+                says(
+                    "raw({class_name},...): {part!r} goes right after the part count, "
+                    "rows= then sub= then pins=, once each",
+                    class_name=class_name,
+                    part=part,
+                )
             )
     return values["rows"], values["sub"], pins, parts[i:]
 
@@ -735,45 +769,49 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
     want = max(0, part_count - 1)
     if text is None:
         if want > 0xFF:  # a part byte is one byte
-            raise FieldError(
-                f"raw({class_name},...): {part_count} parts need pins=, each row 1 to 31",
-                field=None,  # token syntax, not a field value
+            raise _token_error(
+                says(
+                    "raw({class_name},...): {part_count} parts need pins=, each row 1 to 31",
+                    class_name=class_name,
+                    part_count=part_count,
+                ),
                 reason=Reason.RANGE,
-                code=Code.INVALID_TOKEN,
             )
         return bytes(range(1, want + 1))
     if want == 0:
-        raise FieldError(
-            f"raw({class_name},...): pins={text} is only for a box of 2 or more parts, "
-            f"not {part_count}",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says(
+                "raw({class_name},...): pins={text} is only for a box of 2 or more parts, "
+                "not {part_count}",
+                class_name=class_name,
+                text=text,
+                part_count=part_count,
+            )
         )
     values = text.split("/")
     if len(values) != want:
-        raise FieldError(
-            f"raw({class_name},...): pins={text} must hold {want} rows, one per part "
-            f"after the first, joined by /",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says(
+                "raw({class_name},...): pins={text} must hold {want} rows, one per part "
+                "after the first, joined by /",
+                class_name=class_name,
+                text=text,
+                want=want,
+            )
         )
     if not all(v.isascii() and v.isdigit() and 1 <= int(v) <= 31 for v in values):
-        raise FieldError(
-            f"raw({class_name},...): pins={text} holds a row that is not a whole number "
-            "from 1 to 31",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says(
+                "raw({class_name},...): pins={text} holds a row that is not a whole number "
+                "from 1 to 31",
+                class_name=class_name,
+                text=text,
+            )
         )
     rows = [int(v) for v in values]
     if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
-        raise FieldError(
-            f"raw({class_name},...): pins={text} must ascend",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says("raw({class_name},...): pins={text} must ascend", class_name=class_name, text=text)
         )
     return bytes(rows)
 
@@ -808,12 +846,16 @@ def _take_fixed_cell_rows(class_name: str, parts: list[str], params: dict[str, i
     got_sub = sub if sub is not None else (want[1] if rows is None else rows)
     got = (got_rows, got_sub)
     if got != want:
-        raise FieldError(
-            f"raw({class_name},...): rows={got[0]},sub={got[1]} is not the {class_name} "
-            f"box's height (rows={want[0]},sub={want[1]})",
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
+        raise _token_error(
+            says(
+                "raw({class_name},...): rows={rows},sub={sub} is not the {class_name} "
+                "box's height (rows={want_rows},sub={want_sub})",
+                class_name=class_name,
+                rows=got[0],
+                sub=got[1],
+                want_rows=want[0],
+                want_sub=want[1],
+            )
         )
     return rest
 

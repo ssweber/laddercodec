@@ -41,6 +41,7 @@ from ..operands.checks import (
     check_quoted_text,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
+from ..operands.message import Op, says
 from ..operands.unchecked import read_in_another_form
 from .comparison import GROUP_BANKS, CompareOp, bank_group
 from .copy import check_box_operand, check_range, check_range_ends
@@ -174,7 +175,12 @@ class Search(Instruction):
             if self.op not in _OP_TO_FUNC:
                 check.refuse(
                     "op",
-                    f"{self.op!r} is not allowed; it is one of {', '.join(_OP_TO_FUNC)}",
+                    says(
+                        "{op!r} is not allowed",
+                        "it is one of {ops}",
+                        op=self.op,
+                        ops=", ".join(_OP_TO_FUNC),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -215,8 +221,12 @@ class Search(Instruction):
             if self.op not in _TEXT_OPS:
                 check.refuse(
                     ("op", "value"),
-                    f"{self.op!r} is not offered for text "
-                    f"{self.value!r}; text searches with == or !=",
+                    says(
+                        "{op!r} is not offered for text {value}",
+                        "text searches with == or !=",
+                        op=self.op,
+                        value=Op(self.value),
+                    ),
                     Reason.CONFLICT,
                     code=Code.TEXT_ORDER_COMPARE,
                 )
@@ -227,8 +237,14 @@ class Search(Instruction):
             article = "an" if const.kind is Kind.INTEGER else "a"
             check.refuse(
                 ("value", "table_start"),
-                f"{self.value!r} is {article} {const.kind} value, which searches "
-                f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
+                says(
+                    "{value} is {article} {kind} value, which searches {banks}, not {bank}",
+                    value=Op(self.value),
+                    article=article,
+                    kind=const.kind,
+                    banks=", ".join(sorted(SEARCH_TABLE_BANKS[const.kind])),
+                    bank=table.bank,
+                ),
                 Reason.CONFLICT,
                 "OBJ-004",
                 code=Code.SEARCH_VALUE_BANK,
@@ -239,8 +255,13 @@ class Search(Instruction):
             banks = sorted(TABLE_BANKS.intersection(GROUP_BANKS[group]))
             check.refuse(
                 ("value", "table_start"),
-                f"{self.value!r} is a {group} address, which searches "
-                f"{', '.join(banks)}, not {table.bank}",
+                says(
+                    "{value} is a {group} address, which searches {banks}, not {bank}",
+                    value=Op(self.value),
+                    group=group,
+                    banks=", ".join(banks),
+                    bank=table.bank,
+                ),
                 Reason.CONFLICT,
                 "OBJ-004",
                 code=Code.SEARCH_VALUE_BANK,
