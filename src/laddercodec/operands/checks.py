@@ -960,7 +960,7 @@ class Refusals:
     def refuse(
         self,
         attrs: str | tuple[str, ...],
-        rule: str | Rule,
+        rule: Rule,
         reason: Reason,
         click_id: str | None = None,
         *,
@@ -975,33 +975,20 @@ class Refusals:
 
         Pass ``rule`` as a :class:`~laddercodec.operands.message.Rule` from
         :func:`~laddercodec.operands.message.says`, and the error keeps the parts of its
-        message.  A rule passed as finished text gives an error with no parts.
+        message.
         """
         fields = tuple(map(self.field, (attrs,) if isinstance(attrs, str) else attrs))
-        if isinstance(rule, Rule):
-            self.add(
-                make_refusal(
-                    FieldError,
-                    fields[0],
-                    rule,
-                    field=fields,
-                    reason=reason,
-                    code=code,
-                    click_id=click_id,
-                    then=then or "",
-                )  # fmt: skip
-            )
-            return
-        tail = f" ({click_id})" if click_id else ""
-        after = f". {then}" if then else ""
         self.add(
-            FieldError(
-                f"{fields[0]}: {rule}{tail}{after}",
+            make_refusal(
+                FieldError,
+                fields[0],
+                rule,
                 field=fields,
                 reason=reason,
                 code=code,
                 click_id=click_id,
-            )
+                then=then or "",
+            )  # fmt: skip
         )
 
     def flag(self, *attrs: str) -> None:
