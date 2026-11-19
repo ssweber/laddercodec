@@ -1758,9 +1758,9 @@ def test_a_text_constant_shows_in_its_own_quotes() -> None:
 
 
 def test_a_text_with_a_quote_inside_keeps_its_repr_quotes() -> None:
-    # A Copy takes a quote inside its text, and a Compare refuses it.
-    error = _refusal(lambda: CompareContact("==", "TXT1", '"a"b"'))
-    assert error.short().startswith('\'"a"b"\' holds a quote')
+    # A Copy and a Compare take a quote inside their text, and a Fill refuses it.
+    error = _refusal(lambda: Fill('"a"b"', "TXT1", "TXT10"))
+    assert error.short().startswith('\'"a"b"\' is refused')
 
 
 @pytest.mark.parametrize(

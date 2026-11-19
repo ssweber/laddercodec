@@ -360,6 +360,22 @@ def test_scr_compare_with_a_long_text_decodes_the_text():
     assert parse_condition_blob(parsed.build_blob()) == parsed
 
 
+@pytest.mark.parametrize(("left", "right"), [("TXT1", '"A""B"'), ('"A"B"', "TXT1")])
+def test_scr_compare_with_a_quote_inside_its_text_decodes_the_text(left: str, right: str):
+    from laddercodec.instructions import from_tags_condition
+    from laddercodec.instructions.comparison import CompareContact
+
+    body = (
+        _compact_scr_string_field(0x6066, left)
+        + _compact_scr_string_field(0x6067, right)
+        + bytes(3)
+    )
+    raw = _compact_scr_blob("Compare", 0x2714, 1, body)
+    parsed = from_tags_condition(*_parse_scr_tags(raw, 0, len(raw), 1))
+    assert parsed == CompareContact(op="==", left=left, right=right)
+    assert parse_condition_blob(parsed.build_blob()) == parsed
+
+
 def _scr_count(byte_count: int, *, long_form: bool) -> bytes:
     """Return a string's byte count in the one-byte form or in the ``ff`` + u16 form."""
     if long_form:

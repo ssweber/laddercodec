@@ -6,25 +6,58 @@ The bit instructions are Contact, CompareContact, Coil and OutVariant.
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, CsvReadError, FieldError, decode, read_csv
+from laddercodec import (
+    AddressError,
+    CsvReadError,
+    FieldError,
+    Rung,
+    Undecoded,
+    UndecodedRungWarning,
+    decode,
+    read_csv,
+    write_csv,
+)
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.encode import encode_rung
-from laddercodec.instructions import from_tags_af, from_tags_condition
+from laddercodec.instructions import from_tags_af, from_tags_condition, parse_condition_blob
 from laddercodec.instructions.coil import Coil
-from laddercodec.instructions.comparison import CompareContact
+from laddercodec.instructions.comparison import (
+    COMPARE_OP_TO_FUNC,
+    COMPARE_OP_TO_TYPE_IDX,
+    CompareContact,
+    CompareOp,
+)
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.operands.checks import WRITABLE_SC
+from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
+
+#: Compare texts with a quote between the outer quotes. The compare matches each character
+#: between the outer quotes as typed, and each quote is one character.
+_QUOTED = ['"A"B"', '"A""B"', '""""', '"""', '"A==B"', '"x<y"', '"A"=="B"', '"!="']
+
+#: CLICK's save of a rung with a contact in column A.
+_RUNG = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "v4_captures" / "copy_forms" / "case21.bin"
+)
+
+
+def _rung_with(contact: object) -> Rung:
+    """Return the rung in ``_RUNG`` with *contact* in column A."""
+    [rung] = decode(_RUNG.read_bytes())
+    first, *rest = rung.conditions
+    return replace(rung, conditions=((contact, *first[1:]), *rest))
 
 
 def timed(**kw) -> OutVariant:
@@ -241,18 +274,42 @@ class TestCompare:
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, cell)
 
-    # A quote inside a quoted text would end the text in the CSV token. Write the quote
-    # character as $22 instead.
+    # Either side takes a quote inside its text, and each quote between the outer quotes is
+    # one character that the compare matches. $22 is a lone quote character.
+    @pytest.mark.parametrize("text", _QUOTED)
+    @pytest.mark.parametrize("op", ["==", "!="])
+    @pytest.mark.parametrize("side", ["left", "right"])
+    def test_a_quote_inside_text_is_kept_as_typed(self, side: str, op: str, text: str) -> None:
+        left, right = (text, "TXT1") if side == "left" else ("TXT1", text)
+        compare = CompareContact(op, left, right)
+        assert (compare.left, compare.right) == (left, right)
+        assert not refusals(compare)
+        assert compare.to_csv() == f"{left}{op}{right}"
+        assert CompareContact.from_csv_token(compare.to_csv()) == compare
+        assert parse_condition_blob(compare.build_blob()) == compare
+
+    def test_22_is_a_lone_quote(self) -> None:
+        compare = CompareContact("==", "TXT1", "$22")
+        assert compare.to_csv() == "TXT1==$22"
+        assert parse_condition_blob(compare.build_blob()) == compare
+
     @pytest.mark.parametrize(
-        ("left", "right", "field"), [('"""', "TXT1", "left"), ("TXT1", '"""', "right")]
+        ("left", "right", "field", "says"),
+        [
+            ('"' + "x" * 128 + '""', "TXT1", "left", "1 to 128 characters in quotes"),
+            ("TXT1", '"' + "x" * 128 + '""', "right", "1 to 128 characters in quotes"),
+            ('"A"\t"', "TXT1", "left", "printable ASCII"),
+            ("TXT1", '"A"\x00"', "right", "no NUL"),
+        ],
     )
-    def test_quote_character_refused(self, left: str, right: str, field: str) -> None:
-        with pytest.raises(
-            FieldError,
-            match=rf"^CompareContact.{field}: .* no quote inside \(write the quote character as \$22\)",
-        ):
-            CompareContact(op="==", left=left, right=right)
-        assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
+    def test_a_text_with_a_quote_keeps_the_text_rules(
+        self, left: str, right: str, field: str, says: str
+    ) -> None:
+        """A text with a quote inside it still holds 1 to 128 characters. Data A holds
+        printable ASCII, and Data B the characters that CLICK keeps."""
+        with pytest.raises(FieldError, match=f"^CompareContact.{field}: ") as info:
+            CompareContact("==", left, right)
+        assert says in str(info.value)
 
     # In Data A, a character code is $ and two hex digits, $00 to $FF. Each case has another
     # form.
@@ -315,28 +372,91 @@ class TestCompare:
         compare = from_tags_condition("Compare", 0x2714, tags | {0x6067: "$G1"})
         assert kept(compare, "CompareContact.right").right == "$G1"
 
-    # No form of a text constant holds a quote together with other characters: $22 is a
-    # lone quote character. The message names no $22.
     @pytest.mark.parametrize(
-        ("left", "right", "field"),
-        [('"a"=="b"', '"c"', "left"), ("TXT1", '"A""B"', "right"), ("TXT1", '"a"b"', "right")],
+        ("cell", "left", "op", "right"),
+        [
+            ('TXT1=="""', "TXT1", "==", '"""'),
+            ('TXT1=="a"b"', "TXT1", "==", '"a"b"'),
+            ('"A==B"==TXT1', '"A==B"', "==", "TXT1"),
+            ('"A"!="B"!=TXT1', '"A"!="B"', "!=", "TXT1"),
+            ('TXT1!="x<y"', "TXT1", "!=", '"x<y"'),
+            ('TXT1=="A"=="B"', "TXT1", "==", '"A"=="B"'),
+            # A split that leaves "" on one side is not a second reading.
+            ('"A"=="B"==""', '"A"', "==", '"B"==""'),
+            ('""=="A"!="B"', '""=="A"', "!=", '"B"'),
+        ],
     )
-    def test_quote_inside_text_refused(self, left: str, right: str, field: str) -> None:
-        with pytest.raises(FieldError) as info:
-            CompareContact("==", left, right)
-        message = str(info.value)
-        assert message.startswith(f"CompareContact.{field}: ")
-        assert message.endswith(
-            "holds a quote with other characters, which a text constant can't hold; write "
-            'the text without it, such as "AB"'
-        )
-        assert info.value.code == Code.INVALID_TEXT_CONSTANT
+    def test_a_quote_inside_text_reads_through_read_csv(
+        self, tmp_path: Path, cell: str, left: str, op: str, right: str
+    ) -> None:
+        """The text runs from its first quote to its last, and the operator is outside it."""
+        assert _read_condition(tmp_path, cell) == CompareContact(op, left, right)
 
-    def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
-        with pytest.raises(FieldError, match="^CompareContact.right: .* no quote inside"):
-            _read_condition(tmp_path, 'TXT1=="""')
-        with pytest.raises(FieldError, match="^CompareContact"):
-            _read_condition(tmp_path, 'TXT1=="a"b"')
+    @pytest.mark.parametrize(
+        ("left", "op", "right"),
+        [
+            ("TXT1", "==", '"A""B"'),
+            ("TXT1", "==", '"A"B"'),
+            ("TXT1", "==", '""""'),
+            ("TXT1", "!=", '"""'),
+            ('"A""B"', "==", "TXT1"),
+            ('"A"B"', "!=", "TXT1"),
+            ('""""', "==", "TXT1"),
+            ('"""', "==", "TXT1"),
+        ],
+    )
+    def test_clicks_save_of_a_quote_inside_text_decodes_as_the_compare(
+        self, tmp_path: Path, left: str, op: CompareOp, right: str
+    ) -> None:
+        """CLICK saves Data A (0x6066) and Data B (0x6067) as typed. decode() reads the save
+        as the compare, and write_csv writes it."""
+        tags = {
+            0x3218: COMPARE_OP_TO_FUNC[op],
+            0x6066: left,
+            0x6067: right,
+            0x21F7: COMPARE_OP_TO_TYPE_IDX[op],
+        }
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert compare == CompareContact(op, left, right)
+        assert not refusals(compare)
+        assert parse_condition_blob(compare.build_blob()) == compare
+        rung = _rung_with(compare)
+        write_csv(tmp_path / "written.csv", [rung])
+        assert read_csv(tmp_path / "written.csv") == [rung]
+
+    @pytest.mark.parametrize(
+        "cell", ['"A"=="B"=="C"', '"a"=="b"!="c"', '"A" == "B" == "C"', '"x"!="y"!="z"']
+    )
+    def test_a_cell_of_two_texts_that_reads_two_ways_is_refused(
+        self, tmp_path: Path, cell: str
+    ) -> None:
+        """Two operators each have a quote on both sides, so the cell holds two compares."""
+        with pytest.raises(CsvReadError, match="reads as a compare two ways"):
+            CompareContact.from_csv_token(cell)
+        with pytest.raises(CsvReadError, match="Put a TXT register on one side"):
+            _read_condition(tmp_path, cell)
+
+    def test_clicks_save_of_a_compare_that_reads_two_ways_writes_a_marker(
+        self, tmp_path: Path
+    ) -> None:
+        """CLICK accepts Data A "A"=="B" with Data B "C". These are the tags of its save. The
+        compare decodes, and its cell reads two ways. So write_csv writes that rung as a
+        marker, and the rungs around it as they are."""
+        tags = {0x3218: "4103", 0x6066: '"A"=="B"', 0x6067: '"C"', 0x21F7: "0"}
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert compare == CompareContact("==", '"A"=="B"', '"C"')
+        assert not refusals(compare)
+        assert parse_condition_blob(compare.build_blob()) == compare
+        plain = _rung_with(CompareContact("==", '"A"', '"C"'))
+        path = tmp_path / "written.csv"
+        with pytest.warns(UndecodedRungWarning, match="no CSV cell reads back as this compare"):
+            write_csv(path, [plain, _rung_with(compare), plain])
+        first, marker, last = read_csv(path)
+        assert first == plain
+        assert last == plain
+        [undecoded] = [i for i in marker.instructions if isinstance(i, Undecoded)]
+        assert undecoded.error == "no CSV cell reads back as this compare"
+        assert (undecoded.rung, undecoded.row, undecoded.column) == (1, 0, 0)
 
     # In a Python regex, ``\d`` matches any Unicode digit, such as U+0663. CLICK reads only
     # 0 to 9 as digits, so these constants are refused.
@@ -904,7 +1024,6 @@ class TestDecodeRefusal:
             ("DS1", "3000000000", "0", "CompareContact.right"),  # outside int32
             ("DH1", "10000h", "0", "CompareContact.right"),  # above FFFFh
             ("TXT1", '"' + "A" * 129 + '"', "0", "CompareContact.right"),  # over 128 characters
-            ("TXT1", '"""', "0", "CompareContact.right"),  # the quote character
         ],
     )
     def test_refused_compare_blob_keeps_its_refusal(

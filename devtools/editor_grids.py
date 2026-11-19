@@ -2314,6 +2314,7 @@ RUNNER_GRIDS = (
     "drum_events_padded2",
     "coil_sc",
     "coil_sc_ranges",
+    "compare_const",
 )
 
 
@@ -2322,8 +2323,15 @@ def runner_grid(name: str) -> Grid:
     grid = Grid(check_case)
     path = OUT_DIR / f"{name}.json"
     for case in json.loads(path.read_text(encoding="utf-8"))["cases"]:
-        grid.labels[case["case"]] = case
-        grid.cases.append(case)
+        grid.add_case(
+            case["row"],
+            case["case"],
+            case["instruction"],
+            case.get("mode"),
+            case["fields"],
+            choices=case.get("choices"),
+            options=case.get("options"),
+        )
     return grid
 
 

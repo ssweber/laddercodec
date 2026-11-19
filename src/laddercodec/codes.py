@@ -274,6 +274,7 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.COUNT_OUT_OF_RANGE: ("OBJ-010", "OBJ-029"),
     Code.REMOTE_ADDRESS_OUT_OF_RANGE: ("OBJ-010",),
     Code.FOR_COUNT_BANK: ("OBJ-004",),
+    Code.COMPARE_MIXED_TYPES: ("OBJ-007",),
     Code.SEARCH_VALUE_BANK: ("OBJ-004",),
     Code.NOT_SERIES_PARALLEL: ("C0001",),
     Code.NO_RAIL: ("C0202",),

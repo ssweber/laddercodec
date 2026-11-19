@@ -232,7 +232,7 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
       the destination's bank first, with no id, and refuse the constant after it.
     - The single Copy reports its source value refusals as OBJ-005, as CLICK does. The shared constant check,
       which Math and Fill use too, gives no id to an empty text, a signed hex constant, or a hex constant of
-      more than 8 digits. A quote inside the text (`"a"b"`) is accepted in a Copy and in a Search.
+      more than 8 digits. A quote inside the text (`"a"b"`) is accepted in a Copy, a Search and a Compare.
     - Not answered, rules None. CLICK reports OBJ-005 for DS2 or 5 into `X[DS1]`, `Y[DS1]`, `T[DS1]`,
       `CT[DS1]` or `SC[DS1]`, and OBJ-004 into `XD[DS1]` or `SD[DS1]`. The rules refuse each as a pointer
       with no id. CLICK reports OBJ-005 for `-$41` into DS1. The rules refuse it as no address, with no id.
@@ -522,9 +522,6 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   save it? Data B and a Search value keep `$1` as typed. The code still refuses it in Data A.
 - **Text outside printable ASCII in Compare's Data A:** does the dialog accept `compare "é" == TXT1` and a tab,
   and are they saved as typed? Data B keeps them. The code still refuses them in Data A.
-- **A quote inside a Compare text:** CLICK accepts a quote inside the text of either side of a Compare
-  (`compare TXT1 == "A"B"`) and saves it as typed. Each quote is one character, as in a Search (Sam,
-  2026-11-19). Branch fix/quotes-in-compare takes it. Until it lands, the code refuses the quote.
 - **`DH` as a hex constant elsewhere:** CLICK saves Compare's Data B empty when you type `DH`, and the code
   refuses it there opposite a hex Data A. Does CLICK blank a `DH` constant in a Search value, Compare's Data A,
   a Copy, a Fill or a Math, or as the hex remote address of a Send or Receive? The code accepts it in each of

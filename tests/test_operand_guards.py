@@ -521,6 +521,10 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "CsvReadError(f('Could not read {token!r} as a compare contact. Write two operands joined by ==, !=, <, >, <= or >=, such as DS1==1.'))",
     ): 1,
     (
+        "comparison.py",
+        "CsvReadError(f('{token!r} reads as a compare two ways: {a} {a_op} {b}, and {c} {c_op} {d}. Put a TXT register on one side, such as TXT1{c_op}{d}.'))",
+    ): 1,
+    (
         "contact.py",
         "CsvReadError(f('{token!r} has a wire down, and a {class_name} holds no wire. Wrap the contact in a Tee, such as Tee({class_name}.from_csv_token({token[2:]!r})).'))",
     ): 1,

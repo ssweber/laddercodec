@@ -90,6 +90,7 @@ ANSWER_FILES = (
     "drum_events_padded",
     "coil_sc",
     "coil_sc_ranges",
+    "compare_const",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -119,10 +120,13 @@ CMP_SPACE = (
 )
 DH_NO_NUMBER = "kept: CLICK accepts DH1 == DH and saves B empty, so laddercodec refuses it"
 TEXT_QUOTE = (
-    "CLICK accepts a quote inside the text of a Fill value or of either side of a Compare. "
-    'A Fill reads """" as one quote, and laddercodec refuses a quote inside a Fill text '
-    "until it reads it that way. Each quote inside a Compare text is one character, as it "
-    "is in a Search, and laddercodec does not take it there yet"
+    'CLICK accepts a quote inside the text of a Fill value. A Fill reads """" as one '
+    "quote, and laddercodec refuses a quote inside a Fill text until it reads it that way"
+)
+TWO_WAY_COMPARE = (
+    'deliberate: CLICK accepts Data A "A"=="B" with Data B "C" and saves both as typed. '
+    'decode() reads the save as that compare. Its CSV cell "A"=="B"=="C" reads two ways. '
+    "So write_csv writes the rung as an undecoded marker"
 )
 SEARCH_TABLE_ID = (
     "CLICK refuses this Search table with OBJ-004. The rules refuse it with OBJ-008, or "
@@ -407,27 +411,12 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (CMP_SPACE, "search", "outcome", ("search DS1..DS10 == DS 1 -> DS30,C1",)),
     (
         TEXT_QUOTE,
-        "compare",
-        "outcome",
-        (
-            'compare TXT1 == "A""B"',
-            'compare TXT1 == "A"B"',
-            'compare TXT1 == """"',
-            'compare TXT1 == """',
-            'compare "A""B" == TXT1',
-            'compare "A"B" == TXT1',
-            'compare """" == TXT1',
-            'compare """ == TXT1',
-        ),
-    ),
-    (TEXT_QUOTE, "preflight_compare", "outcome", ('compare TXT1 == "A""B"',)),
-    (
-        TEXT_QUOTE,
         "copy_fill",
         "outcome",
         ('fill """" -> TXT1..TXT10', 'fill """ -> TXT1..TXT10'),
     ),
     (TEXT_QUOTE, "copy_fill", "stored", ('fill """ -> TXT1..TXT10',)),
+    (TWO_WAY_COMPARE, "compare_const", "stored", ('compare "A"=="B" == "C"',)),
     (
         SEARCH_TABLE_ID,
         "search",
@@ -756,7 +745,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4690
+CODES_COMPARED = 4846
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
@@ -1356,6 +1345,7 @@ RUNNER_ANSWERS = {
     "drum_events_padded": ("drum_events_padded", "drum_events_padded2"),
     "coil_sc": ("coil_sc",),
     "coil_sc_ranges": ("coil_sc_ranges",),
+    "compare_const": ("compare_const",),
 }
 
 

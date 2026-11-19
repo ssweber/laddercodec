@@ -38,10 +38,11 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `drum_events_padded.json`, `drum_events_padded2.json` | an event drum whose first event is `X001`, `C000001`, `X0000001`, `X00000100`, `SC0000000001` or `C0002001`; and again `X100`, `C000001` and `SC0000000001` |
 | `coil_sc.json` | Set and Reset of each SC address that Out writes, and of SC49 and SC163 |
 | `coil_sc_ranges.json` | Out, Set and Reset of the SC ranges SC50..SC60, SC50..SC53 and SC162..SC165, each of which holds a read-only SC between writable ends, and of SC50..SC51 and SC60..SC61 |
+| `compare_const.json` | Compare with constants: two texts, two numbers, a text against a number, `"A"=="B"` against `"C"`, and `"A"` against TXT1 |
 
 ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
 `drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
-`drum_events_padded2.json`, `coil_sc.json` and `coil_sc_ranges.json`.
+`drum_events_padded2.json`, `coil_sc.json`, `coil_sc_ranges.json` and `compare_const.json`.
 The files hold ClickNick's text as it wrote it. The generator does not write them. It reads
 them and writes their verdicts files. A Receive case types `slave_address`, `master_address`,
 `count`, `receiving`, `success`, `error` and `exception`, and picks an item in the `function`
@@ -234,6 +235,7 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `drum_events_padded.answers.json` | the answers to `drum_events_padded.json` and then to `drum_events_padded2.json` (6 and 3 cases, two runs) |
 | `coil_sc.answers.json` | the answers to `coil_sc.json` (54 cases) |
 | `coil_sc_ranges.answers.json` | the answers to `coil_sc_ranges.json` (15 cases) |
+| `compare_const.answers.json` | the answers to `compare_const.json` (7 cases) |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
 | `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused |
 | `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`) |
