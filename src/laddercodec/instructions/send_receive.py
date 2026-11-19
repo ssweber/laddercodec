@@ -37,6 +37,7 @@ from ..operands.address import address_shape, parse_address, xy_points, xy_room
 from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS
 from ..operands.checks import Constants, Refusals, check_constant, check_csv_flag
 from ..operands.constants import Kind, hex_display
+from ..operands.message import Op, Rule, make_refusal, operand, says
 from ..operands.unchecked import allowed, holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -83,7 +84,11 @@ class ModbusRtuTarget:
             if self.com_port not in _RTU_PORT_MODE:
                 check.refuse(
                     "com_port",
-                    f"must be one of {', '.join(_RTU_PORT_MODE)}, got {self.com_port!r}",
+                    says(
+                        "must be one of {ports}, got {com_port}",
+                        ports=", ".join(_RTU_PORT_MODE),
+                        com_port=operand(self.com_port),
+                    ),
                     _choice_reason(self.com_port),
                     code=Code.INVALID_CHOICE,
                 )
@@ -107,7 +112,11 @@ class ModbusTcpTarget:
             if self.com_port not in _TCP_PORT_MODE:
                 check.refuse(
                     "com_port",
-                    f"must be one of {', '.join(_TCP_PORT_MODE)}, got {self.com_port!r}",
+                    says(
+                        "must be one of {ports}, got {com_port}",
+                        ports=", ".join(_TCP_PORT_MODE),
+                        com_port=operand(self.com_port),
+                    ),
                     _choice_reason(self.com_port),
                     code=Code.INVALID_CHOICE,
                 )
@@ -116,15 +125,15 @@ class ModbusTcpTarget:
             if isinstance(self.port, bool) or not isinstance(self.port, int):
                 check.refuse(
                     "port",
-                    f"{self.port!r} is not an int. Pass the port as a whole number, such as "
-                    "port=502.",
+                    says("{port} is not an int", port=operand(self.port)),
                     Reason.FORM,
                     code=Code.INVALID_MODBUS_TARGET,
+                    then="Pass the port as a whole number, such as port=502.",
                 )
             elif not 1 <= self.port <= 65535:
                 check.refuse(
                     "port",
-                    f"must be 1-65535, got {self.port}",
+                    says("must be 1-65535, got {port}", port=self.port),
                     Reason.RANGE,
                     code=Code.INVALID_MODBUS_TARGET,
                 )
@@ -159,21 +168,25 @@ def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget,
         if not ds or len(shape[1]) > 4 or int(shape[1]) > 4500:
             check.refuse(
                 "device_id",
-                f"must be a number or a DS address (DS1..DS4500), got {typed!r}",
+                says(
+                    "must be a number or a DS address (DS1..DS4500), got {typed}", typed=Op(typed)
+                ),
                 _device_id_reason(typed, check.field("device_id")),
                 code=Code.INVALID_MODBUS_TARGET,
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
         check.refuse(
             "device_id",
-            f"must be a number or a DS address, got {device_id!r}",
+            says("must be a number or a DS address, got {device_id}", device_id=operand(device_id)),
             Reason.FORM,
             code=Code.INVALID_MODBUS_TARGET,
         )
     elif not 0 <= device_id <= high:
         check.refuse(
             "device_id",
-            f"must be 0-{high} or a DS address, got {device_id!r}",
+            says(
+                "must be 0-{high} or a DS address, got {device_id}", high=high, device_id=device_id
+            ),
             Reason.RANGE,
             code=Code.INVALID_MODBUS_TARGET,
         )
@@ -201,7 +214,7 @@ def _check_ip(check: Refusals, ip: str) -> None:
     0.0.0.0 is accepted.
     """
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
-    rule = f"must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
+    rule = says("must be four octets, each 0-255 (a.b.c.d), got {ip}", ip=operand(ip))
     if m is None:
         check.refuse("ip", rule, Reason.FORM, code=Code.INVALID_MODBUS_TARGET)
     elif any(int(octet) > 255 for octet in m.groups()):
@@ -226,7 +239,11 @@ class ModbusAddress:
             if self.register_type is not None and self.register_type not in REGISTER_TYPES:
                 check.refuse(
                     "register_type",
-                    f"must be one of {', '.join(REGISTER_TYPES)}, got {self.register_type!r}",
+                    says(
+                        "must be one of {types}, got {register_type}",
+                        types=", ".join(REGISTER_TYPES),
+                        register_type=operand(self.register_type),
+                    ),
                     _choice_reason(self.register_type),
                     code=Code.INVALID_CHOICE,
                 )
@@ -251,7 +268,10 @@ class ModbusAddress:
             ):
                 check.refuse(
                     "address",
-                    f"must be a MODBUS 984 number or hex (0h-FFFEh), got {self.address!r}",
+                    says(
+                        "must be a MODBUS 984 number or hex (0h-FFFEh), got {address}",
+                        address=Op(self.address),
+                    ),
                     Reason.KIND,
                     code=Code.NOT_AN_ADDRESS,
                 )
@@ -314,7 +334,11 @@ def _check_function_code(check: Refusals, function_code: object, allowed: tuple[
         reason = Reason.FORM if type(function_code) is not int else Reason.CHOICE
         check.refuse(
             "function_code",
-            f"{function_code!r} is not one of {listed}",
+            says(
+                "{function_code} is not one of {listed}",
+                function_code=operand(function_code),
+                listed=listed,
+            ),  # fmt: skip
             reason,
             code=Code.INVALID_CHOICE,
         )
@@ -389,9 +413,15 @@ def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -
         if quantity > room:
             check.refuse(
                 "quantity",
-                f"{quantity} from remote {remote_addr.display} is outside "
-                f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
-                f"{bank}036, then {bank}101-{bank}116 ...)",
+                says(
+                    "{quantity} from remote {remote} is outside 1-{room} (X/Y points count "
+                    "by slot: {bank}001-{bank}016 with {bank}021-{bank}036, then "
+                    "{bank}101-{bank}116 ...)",
+                    quantity=quantity,
+                    remote=Op(remote_addr.display, quoted=False),
+                    room=room,
+                    bank=bank,
+                ),
                 Reason.RANGE,
                 _RANGE_ID,
                 code=Code.COUNT_OUT_OF_RANGE,
@@ -402,8 +432,13 @@ def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -
     if quantity > left:
         check.refuse(
             "quantity",
-            f"{quantity} from remote {remote_addr.display} runs past "
-            f"{bank}{last_number} ({left} left)",
+            says(
+                "{quantity} from remote {remote} runs past {last} ({left} left)",
+                quantity=quantity,
+                remote=Op(remote_addr.display, quoted=False),
+                last=Op(f"{bank}{last_number}", quoted=False),
+                left=left,
+            ),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -424,13 +459,20 @@ def _xy_nth(prefix: str, number: int, steps: int, cls: str) -> int:
         if first + steps <= hi:
             return first + steps
         steps -= hi - first + 1
-    raise FieldError(
-        f"{cls}.quantity: {quantity} addresses from {Address(prefix, number).display} run "
-        f"past {Address(prefix, XY_SLOTS[-1][1]).display}, the last {prefix} address. Lower "
-        "the count, or start at a lower address.",
+    raise make_refusal(
+        FieldError,
+        f"{cls}.quantity",
+        says(
+            "{quantity} addresses from {start} run past {last}, the last {prefix} address",
+            quantity=quantity,
+            start=Op(Address(prefix, number).display, quoted=False),
+            last=Op(Address(prefix, XY_SLOTS[-1][1]).display, quoted=False),
+            prefix=prefix,
+        ),
         field=f"{cls}.quantity",
         reason=Reason.RANGE,
         code=Code.COUNT_OUT_OF_RANGE,
+        then="Lower the count, or start at a lower address.",
     )
 
 
@@ -531,7 +573,16 @@ _SEND_CAPS = (1968, 123, 61)
 _RECEIVE_CAPS = (2000, 125, 62)
 #: A Receive TXT count is in characters, two to a register.
 _TXT_RECEIVE_MAX = 250
-_TXT_COUNT_RULE = "{} TXT characters must be an even count of 2 to " + str(_TXT_RECEIVE_MAX)
+
+
+def _txt_count_rule(quantity: int) -> Rule:
+    """Return the rule that a Receive TXT count of *quantity* breaks."""
+    return says(
+        "{quantity} TXT characters must be an even count of 2 to {high}",
+        quantity=quantity,
+        high=_TXT_RECEIVE_MAX,
+    )
+
 
 #: MODBUS 984 start addresses by kind.
 _984_COIL = (1, 65535)
@@ -564,7 +615,11 @@ def _check_slave_id(
     if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
         check.refuse(
             "target",
-            f"its device_id {device_id} is outside {rtu_low}-247 for RTU",
+            says(
+                "its device_id {device_id} is outside {low}-247 for RTU",
+                device_id=device_id,
+                low=rtu_low,
+            ),
             Reason.RANGE,
             code=Code.INVALID_MODBUS_TARGET,
         )
@@ -602,7 +657,11 @@ def _check_status_bits(
         if key in seen:
             check.refuse(
                 (name, seen[key]),
-                f"{getattr(inst, name)} is already the {seen[key]} bit",
+                says(
+                    "{value} is already the {other} bit",
+                    value=Op(getattr(inst, name), quoted=False),
+                    other=seen[key],
+                ),
                 Reason.CONFLICT,
                 click_id,
                 code=Code.DUPLICATE_ADDRESS,
@@ -623,7 +682,11 @@ def _check_984(check: Refusals, address: str, kinds: dict[str, tuple[int, int]])
     ranges = ", ".join(f"{low}-{high}" for low, high in kinds.values())
     check.refuse(
         "remote_start",
-        f"{address!r} is outside the MODBUS 984 ranges {ranges}",
+        says(
+            "{address} is outside the MODBUS 984 ranges {ranges}",
+            address=Op(address),
+            ranges=ranges,
+        ),
         Reason.RANGE,
         code=Code.REMOTE_ADDRESS_OUT_OF_RANGE,
     )
@@ -634,7 +697,7 @@ def _check_int_quantity(check: Refusals, quantity: object) -> None:
     if isinstance(quantity, bool) or not isinstance(quantity, int):
         check.refuse(
             "quantity",
-            f"{quantity!r} is not an integer",
+            says("{quantity} is not an integer", quantity=operand(quantity)),
             Reason.FORM,
             code=Code.CONSTANT_KIND_NOT_ALLOWED,
         )
@@ -667,7 +730,7 @@ def _check_quantity(
     if not 1 <= quantity <= high:
         check.refuse(
             "quantity",
-            f"{quantity} is outside 1-{high} {kind}",
+            says("{quantity} is outside 1-{high} {kind}", quantity=quantity, high=high, kind=kind),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -678,9 +741,15 @@ def _check_quantity(
         if quantity > room:
             check.refuse(
                 "quantity",
-                f"{quantity} from {local.display} is outside "
-                f"1-{room} (X/Y points count by slot: {local.bank}001-{local.bank}016 with "
-                f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)",
+                says(
+                    "{quantity} from {local} is outside 1-{room} (X/Y points count by "
+                    "slot: {bank}001-{bank}016 with {bank}021-{bank}036, then "
+                    "{bank}101-{bank}116 ...)",
+                    quantity=quantity,
+                    local=Op(local.display, quoted=False),
+                    room=room,
+                    bank=local.bank,
+                ),
                 Reason.RANGE,
                 _RANGE_ID,
                 code=Code.COUNT_OUT_OF_RANGE,
@@ -693,7 +762,13 @@ def _check_quantity(
     if quantity > left:
         check.refuse(
             "quantity",
-            f"{quantity} from {local.display} runs past {local.bank}{last_number} ({left} left)",
+            says(
+                "{quantity} from {local} runs past {last} ({left} left)",
+                quantity=quantity,
+                local=Op(local.display, quoted=False),
+                last=Op(f"{local.bank}{last_number}", quoted=False),
+                left=left,
+            ),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -711,7 +786,7 @@ def _check_quantity_bounds(
     if not 1 <= quantity <= high:
         check.refuse(
             "quantity",
-            f"{quantity} is outside 1-{high}",
+            says("{quantity} is outside 1-{high}", quantity=quantity, high=high),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -756,7 +831,11 @@ def _check_send_pair(check: Refusals, remote_addr: Address, local: Address, fc: 
     example = _lowest(takes[0])
     check.refuse(
         ("remote_start", "source"),
-        f"{remote_addr.display!r} can't take a source in {local.bank}",
+        says(
+            "{remote} can't take a source in {bank}",
+            remote=Op(remote_addr.display),
+            bank=local.bank,
+        ),
         Reason.CONFLICT,
         _BANK_ID,
         code=Code.BANK_NOT_ALLOWED,
@@ -799,7 +878,12 @@ def _check_send_txt_count(
             then = f'Start at a lower TXT address, such as source="TXT{last - 1}".'
         check.refuse(
             "quantity",
-            f"{quantity} characters from {local.display} run past TXT{last}",
+            says(
+                "{quantity} characters from {local} run past {last}",
+                quantity=quantity,
+                local=Op(local.display, quoted=False),
+                last=Op(f"TXT{last}", quoted=False),
+            ),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -808,7 +892,7 @@ def _check_send_txt_count(
     elif not 2 <= quantity <= high:
         check.refuse(
             "quantity",
-            f"{quantity} is outside 2-{high} TXT characters",
+            says("{quantity} is outside 2-{high} TXT characters", quantity=quantity, high=high),
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -819,7 +903,7 @@ def _check_send_txt_count(
         even = quantity + 1 if quantity < min(left, high) else quantity - 1
         check.refuse(
             "quantity",
-            f"{quantity} is an odd count of TXT characters",
+            says("{quantity} is an odd count of TXT characters", quantity=quantity),
             Reason.RANGE,
             _ODD_ID,
             code=Code.COUNT_OUT_OF_RANGE,
@@ -840,7 +924,11 @@ def _check_send_hex_room(
     if local.bank in _SEND_HEX_FFFD and start > 0xFFFD:
         check.refuse(
             ("remote_start", "source"),
-            f"{remote.address!r} is outside 0h-FFFDh for a {local.bank} source",
+            says(
+                "{address} is outside 0h-FFFDh for a {bank} source",
+                address=Op(remote.address),
+                bank=local.bank,
+            ),
             Reason.CONFLICT,
             _RANGE_ID,
             code=Code.REMOTE_ADDRESS_OUT_OF_RANGE,
@@ -852,7 +940,12 @@ def _check_send_hex_room(
     cap = _SEND_CAPS[2] if local.bank in _WIDE_BANKS else _SEND_CAPS[1]
     check.refuse(
         "quantity",
-        f"{quantity} from hex {remote.address!r} is outside 1-{room}",
+        says(
+            "{quantity} from hex {address} is outside 1-{room}",
+            quantity=quantity,
+            address=Op(remote.address),
+            room=room,
+        ),
         Reason.RANGE,
         _RANGE_ID,
         code=Code.COUNT_OUT_OF_RANGE,
@@ -881,7 +974,7 @@ def _check_send_word_swap(
         return
     check.refuse(
         ("word_swap", partner),
-        f"Word Swap is not offered {why}",
+        says("Word Swap is not offered {why}", why=why),
         Reason.CONFLICT,
         code=Code.OPTION_NOT_OFFERED,
         then="Drop word_swap=1.",
@@ -948,7 +1041,10 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
                 banks = _slave_banks(source.bank if source is not None else "DS", None)
                 check.refuse(
                     "remote_start",
-                    f"{remote_addr.display!r} is in SD, which a Send can't write",
+                    says(
+                        "{remote} is in SD, which a Send can't write",
+                        remote=Op(remote_addr.display),
+                    ),  # fmt: skip
                     Reason.NOT_WRITABLE,
                     _BANK_ID,
                     code=Code.NOT_WRITABLE,
@@ -960,7 +1056,11 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         if register_type not in ("coil", "holding"):
             check.refuse(
                 "remote_start",
-                f"register_type {register_type!r} cannot be written; a Send takes coil or holding",
+                says(
+                    "register_type {register_type} cannot be written",
+                    "a Send takes coil or holding",
+                    register_type=Op(register_type),
+                ),
                 Reason.CHOICE,
                 code=Code.NOT_WRITABLE,
             )
@@ -992,14 +1092,14 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
             kind = "a coil" if bit else "a register"
             check.refuse(
                 ("function_code", "remote_start"),
-                f"FC{fc:02d} cannot write {kind}",
+                says("FC{fc:02d} cannot write {kind}", fc=fc, kind=kind),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
             )
         if fc in (5, 6) and counted and quantity != 1:
             check.refuse(
                 ("function_code", "quantity"),
-                f"FC{fc:02d} writes one element, not {quantity}",
+                says("FC{fc:02d} writes one element, not {quantity}", fc=fc, quantity=quantity),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
             )
@@ -1130,7 +1230,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 kind = "a bit" if bit else "a register"
                 check.refuse(
                     ("function_code", "remote_start"),
-                    f"FC{fc:02d} cannot read {kind}",
+                    says("FC{fc:02d} cannot read {kind}", fc=fc, kind=kind),
                     Reason.CONFLICT,
                     # When FC01 reads a register slave address, CLICK refuses it with
                     # OBJ-004, as an address that the instruction can't use.
@@ -1140,8 +1240,12 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         elif default_fc is not None and fc != default_fc and not isinstance(remote, str):
             check.refuse(
                 ("function_code", "remote_start"),
-                f"FC{fc:02d} does not match remote_start "
-                f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}",
+                says(
+                    "FC{fc:02d} does not match remote_start {remote}, which is FC{default:02d}",
+                    fc=fc,
+                    remote=_remote_start_to_csv(remote),
+                    default=default_fc,
+                ),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
             )
@@ -1177,7 +1281,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
             # gives the range as "(1 to 1)".
             check.refuse(
                 "quantity",
-                f"{quantity} is outside 1-1 for this dest and remote",
+                says("{quantity} is outside 1-1 for this dest and remote", quantity=quantity),
                 Reason.RANGE,
                 _RANGE_ID,
                 code=Code.COUNT_OUT_OF_RANGE,
@@ -1187,7 +1291,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
             # odd.
             check.refuse(
                 "quantity",
-                _TXT_COUNT_RULE.format(quantity),
+                _txt_count_rule(quantity),
                 Reason.RANGE,
                 _RANGE_ID,
                 code=Code.COUNT_OUT_OF_RANGE,
@@ -1195,7 +1299,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         elif local.bank == "TXT" and quantity % 2:
             check.refuse(
                 "quantity",
-                _TXT_COUNT_RULE.format(quantity),
+                _txt_count_rule(quantity),
                 Reason.RANGE,
                 _ODD_ID,
                 code=Code.COUNT_OUT_OF_RANGE,
@@ -1224,7 +1328,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         elif why:
             check.refuse(
                 ("word_swap", partner),
-                f"CLICK turns Word Swap off for {why}",
+                says("CLICK turns Word Swap off for {why}", why=why),
                 Reason.CONFLICT,
                 code=Code.OPTION_NOT_OFFERED,
             )
@@ -1832,13 +1936,15 @@ def _strip_quotes(s: str) -> str:
 def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     m = _CONSTRUCTOR_RE.fullmatch(raw.strip())
     if not m:
-        raise FieldError(
-            f"Could not read target={raw}. Write ModbusTcpTarget(...) or "
-            "ModbusRtuTarget(...), such as "
-            'ModbusTcpTarget(name="plc",ip="192.168.1.10",port=502,device_id=1).',
+        raise make_refusal(
+            FieldError,
+            None,
+            says("Could not read target={raw}", raw=Op(raw, quoted=False)),
             field=None,  # token syntax, not a field value
             reason=Reason.FORM,
             code=Code.INVALID_TOKEN,
+            then="Write ModbusTcpTarget(...) or ModbusRtuTarget(...), such as "
+            'ModbusTcpTarget(name="plc",ip="192.168.1.10",port=502,device_id=1).',
         )
     cls_name = m.group(1)
     kw = _parse_constructor_kwargs(m.group(2))
@@ -1857,21 +1963,26 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         ip = _strip_quotes(kw.get("ip", ""))
         raw_port = kw.get("port", "502")
         if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
-            raise FieldError(
-                f"ModbusTcpTarget.port: {raw_port!r} is not a port number. Enter a whole "
-                "number, such as 502.",
+            raise make_refusal(
+                FieldError,
+                "ModbusTcpTarget.port",
+                says("{port} is not a port number", port=Op(raw_port)),
                 field="ModbusTcpTarget.port",
                 reason=Reason.FORM,
                 code=Code.INVALID_MODBUS_TARGET,
+                then="Enter a whole number, such as 502.",
             )
         port = int(raw_port)
         com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
-    raise FieldError(
-        f"{cls_name!r} is not a target type. Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
+    raise make_refusal(
+        FieldError,
+        None,
+        says("{cls_name} is not a target type", cls_name=Op(cls_name)),
         field=None,  # token syntax, not a field value
         reason=Reason.FORM,
         code=Code.INVALID_TOKEN,
+        then="Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
     )
 
 
@@ -1904,16 +2015,25 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
         m_start = address_shape(start)
         m_end = address_shape(end)
         if not (m_start and m_end):
-            raise FieldError(
-                f"range {raw!r} must run between two addresses of one bank",
+            raise make_refusal(
+                FieldError,
+                None,
+                says("range {raw} must run between two addresses of one bank", raw=Op(raw)),
                 field=field,
                 reason=Reason.FORM,
                 code=Code.NOT_AN_ADDRESS,
             )
         prefix = m_start[0]
         if m_end[0] != prefix:
-            raise FieldError(
-                f"range {raw!r} mixes banks {prefix} and {m_end[0]}",
+            raise make_refusal(
+                FieldError,
+                None,
+                says(
+                    "range {raw} mixes banks {prefix} and {other}",
+                    raw=Op(raw),
+                    prefix=prefix,
+                    other=m_end[0],
+                ),
                 field=field,
                 reason=Reason.FORM,
                 code=Code.RANGE_MIXED_BANKS,
@@ -1921,8 +2041,10 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
         check_address(end, field, {prefix}, label=f"range end of {raw!r}")
         first, last = int(m_start[1]), int(m_end[1])
         if last < first:
-            raise FieldError(
-                f"range {raw!r} runs backwards",
+            raise make_refusal(
+                FieldError,
+                None,
+                says("range {raw} runs backwards", raw=Op(raw)),
                 field=field,
                 reason=Reason.FORM,
                 code=Code.RANGE_NOT_ASCENDING,
@@ -1937,8 +2059,10 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
     if raw is None:
         return None
     if not raw.isascii() or not raw.isdigit():
-        raise FieldError(
-            f"function_code must be a number, got {raw!r}",
+        raise make_refusal(
+            FieldError,
+            None,
+            says("function_code must be a number, got {raw}", raw=Op(raw)),
             field=f"{cls}.function_code",
             reason=Reason.FORM,
             code=Code.INVALID_CHOICE,
@@ -1999,8 +2123,10 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             function_code=cast("SendFunctionCode | None", function_code),
         )
 
-    raise FieldError(
-        f"Unsupported send_receive instruction: {call.name!r}",
+    raise make_refusal(
+        FieldError,
+        None,
+        says("Unsupported send_receive instruction: {name}", name=Op(call.name)),
         field=None,  # token syntax, not a field value
         reason=Reason.FORM,
         code=Code.INVALID_TOKEN,

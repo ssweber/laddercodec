@@ -17,9 +17,8 @@ also checks the shape of each refusal:
 A refusal that breaks a rule fails the test that built it with an ``AssertionError``.
 
 The fixture sees only the refusals that the suite builds, and only those that an instruction
-class's ``__post_init__`` raises.  It does not see the refusals of CSV token parsing or of the
-Modbus target classes.  ``tests/test_field_names.py`` checks every field name that is written
-out in the source.
+class's ``__post_init__`` raises.  It does not see the refusals of CSV token parsing.
+``tests/test_field_names.py`` checks every field name that is written out in the source.
 """
 
 from __future__ import annotations
@@ -66,7 +65,12 @@ REASONED = frozenset(
 )
 
 #: The instruction classes whose refusals keep the parts of their messages.
-NAMED = frozenset({"Copy", "BlockCopy", "Fill", "Pack", "Unpack"})
+NAMED = frozenset(
+    {
+        "Copy", "BlockCopy", "Fill", "Pack", "Unpack",
+        "Send", "Receive", "ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress",
+    }
+)  # fmt: skip
 
 
 def refusal_problems(error: FieldError) -> list[str]:

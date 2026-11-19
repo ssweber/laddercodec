@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import dataclasses
 import itertools
 import pickle
 import re
@@ -24,6 +25,13 @@ from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.errors import CsvReadError, LaddercodecError
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
+from laddercodec.instructions.send_receive import (
+    ModbusAddress,
+    ModbusRtuTarget,
+    ModbusTcpTarget,
+    Receive,
+    Send,
+)
 from laddercodec.operands.address import (
     check_address,
     display_form_only,
@@ -462,3 +470,173 @@ def test_every_address_that_a_copy_family_refusal_quotes_takes_a_name() -> None:
                         plain.setdefault(str(error), display)
     assert count > 1000
     assert not plain, plain
+
+
+# ---------------------------------------------------------------------------
+# Send, Receive and the Modbus targets
+# ---------------------------------------------------------------------------
+
+_TCP = ModbusTcpTarget("tcp", "192.168.1.10", 502, 1)
+_ADDRESSES = (
+    "DS1", "ds1", "DS5", "DS4500", "C1", "c2", "C2000", "X1", "x1", "X021", "X816", "Y1", "Y16",
+    "TXT1", "TXT999", "SD1", "SD29", "DD1", "DF1", "DH1", "XD0", "YD0", "TD1", "T1", "CT1",
+    "SC1", "DS[DD1]", "Q1", "",
+)  # fmt: skip
+_STATUS = ("", "C1", "c2", "DS1", "X1")
+
+
+def _send_receive_builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
+    """Yield each build of a Send or Receive in the corpus, with its text fields."""
+    for make, field in ((Send, "source"), (Receive, "dest")):
+        for remote, local in itertools.product(_ADDRESSES, _ADDRESSES):
+            for quantity in (1, 2, 17, 251, 2001):
+                for fc in (None, 5, 6, 1, 16):
+                    kw = {
+                        "remote_start": remote,
+                        field: local,
+                        "quantity": quantity,
+                        "function_code": fc,
+                    }
+                    yield (lambda make=make, kw=kw: _send_receive(make, **kw)), (remote, local)
+        for remote, local in itertools.product(_MODBUS, ("DS1", "C1", "DD1", "TXT999", "Y1")):
+            for quantity in (1, 3, 125, 250):
+                kw = {"remote_start": remote, field: local, "quantity": quantity}
+                yield (lambda make=make, kw=kw: _send_receive(make, **kw)), (local,)
+        names = (
+            "sending" if make is Send else "receiving",
+            "success",
+            "error",
+            "exception_response",
+        )
+        for statuses in itertools.product(_STATUS, repeat=4):
+            kw = dict(zip(names, statuses, strict=True))
+            yield (lambda make=make, kw=kw: _send_receive(make, **kw)), statuses
+
+
+_MODBUS = (
+    ModbusAddress("400001"),
+    ModbusAddress("500000"),
+    ModbusAddress("FFFEh"),
+    ModbusAddress("FFFCh"),
+    ModbusAddress("0h", "coil"),
+    ModbusAddress("10h", "input"),
+)
+
+
+def _send_receive(make: type, **kw: object) -> object:
+    base: dict[str, object] = {
+        "target": _TCP,
+        "remote_start": "DS1",
+        "quantity": 1,
+        "success": "",
+        "error": "",
+        "exception_response": "",
+    }
+    base["source" if make is Send else "dest"] = "DS1"
+    base["sending" if make is Send else "receiving"] = ""
+    base.update(kw)
+    return make(**base)
+
+
+def test_every_address_that_a_send_or_receive_refusal_names_takes_a_name() -> None:
+    """Name each address in the fields, and no address is left in quotes or bare.
+
+    An address in quotes outside parentheses is plain text in the parts, and so is a bare
+    address.  The sentence that says what to do and the example ranges of an X or Y count are
+    plain on purpose.
+    """
+    plain: dict[str, str] = {}
+    count = 0
+    for build, fields in _send_receive_builds():
+        try:
+            build()
+        except FieldError as exc:
+            addresses = _addresses(fields)
+            names = {display: f"<{display}>" for display in addresses}
+            for error in exc.errors:
+                count += 1
+                parts = parts_of(error)
+                assert parts is not None, str(error)
+                # The sentence that says what to do gives an example address, in plain text.
+                text = _outside_parentheses(dataclasses.replace(parts, then="").text(names))
+                for display, typed in addresses.items():
+                    bare = re.search(rf"(?<![\w<]){re.escape(display)}(?![\w>])", text)
+                    if f"'{display}'" in text or f"'{typed}'" in text or bare:
+                        plain.setdefault(str(error), display)
+    assert count > 1000
+    assert not plain, plain
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(lambda: ModbusRtuTarget("r", "bogus", 1), id="rtu-com-port"),
+        pytest.param(lambda: ModbusRtuTarget("r", "cpu2", 248), id="rtu-device-id"),
+        pytest.param(lambda: ModbusRtuTarget("r", "cpu2", "DD1"), id="rtu-device-id-bank"),
+        pytest.param(lambda: ModbusTcpTarget("t", "1.2.3", 502, 1), id="tcp-ip"),
+        pytest.param(lambda: ModbusTcpTarget("t", "1.2.3.4", 0, 1), id="tcp-port-range"),
+        pytest.param(lambda: ModbusTcpTarget("t", "1.2.3.4", "502", 1), id="tcp-port-form"),
+        pytest.param(lambda: ModbusAddress("xyz"), id="address-form"),
+        pytest.param(lambda: ModbusAddress("10h", "bogus"), id="address-register-type"),
+    ],
+)
+def test_a_modbus_target_refusal_keeps_its_parts(build: Callable[[], object]) -> None:
+    error = _refusal(build)
+    assert parts_of(error) is not None
+    assert error.message() == str(error)
+
+
+def test_a_slave_id_in_another_bank_shows_its_name() -> None:
+    error = _refusal(lambda: ModbusRtuTarget("r", "cpu2", "DD1"))
+    assert error.short({"DD1": "Id"}) == (
+        "must be a number or a DS address (DS1..DS4500), got Id (DD1)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("af", "short"),
+    [
+        pytest.param(
+            'send(target=ModbusFooTarget(name="t"),remote_start="DS1",source=DS1)',
+            "'ModbusFooTarget' is not a target type",
+            id="target-type",
+        ),
+        pytest.param(
+            'send(target=garbage,remote_start="DS1",source=DS1)',
+            "Could not read target=garbage",
+            id="target-syntax",
+        ),
+        pytest.param(
+            'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=abc,device_id=1),'
+            'remote_start="DS1",source=DS1)',
+            "'abc' is not a port number",
+            id="port",
+        ),
+        pytest.param(
+            'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=502,device_id=1),'
+            'remote_start="DS1",source=DS5..DS1)',
+            "range 'DS5..DS1' runs backwards",
+            id="range-backwards",
+        ),
+        pytest.param(
+            'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=502,device_id=1),'
+            'remote_start="DS1",source=DS1..C5)',
+            "range 'DS1..C5' mixes banks DS and C",
+            id="range-banks",
+        ),
+        pytest.param(
+            'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=502,device_id=1),'
+            'remote_start="DS1",source=DS1,function_code=x)',
+            "function_code must be a number, got 'x'",
+            id="function-code",
+        ),
+    ],
+)
+def test_a_send_csv_token_refusal_keeps_its_parts(tmp_path: Path, af: str, short: str) -> None:
+    """These refusals come from parsing the CSV token, which the guard in
+    ``tests/conftest.py`` does not see."""
+    with pytest.raises(FieldError) as raised:
+        _read_af(tmp_path, af)
+    error = raised.value
+    assert parts_of(error) is not None
+    assert error.short() == short

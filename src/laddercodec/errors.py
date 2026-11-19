@@ -27,7 +27,8 @@ class LaddercodecError(ValueError):
 
     :meth:`message`, :meth:`short` and :meth:`detail` return the error's text with your
     names for the addresses in it.  Only these refusals show names: the refusals of
-    ``Copy``, ``BlockCopy``, ``Fill``, ``Pack`` and ``Unpack``, and the refusals of the
+    ``Copy``, ``BlockCopy``, ``Fill``, ``Pack``, ``Unpack``, ``Send``, ``Receive``,
+    ``ModbusRtuTarget``, ``ModbusTcpTarget`` and ``ModbusAddress``, and the refusals of the
     address, operand and flag checks that other instructions share, such as the bank check
     on ``Coil.operand``.  Any other error ignores the names.
     """
