@@ -2250,6 +2250,21 @@ def counts() -> dict[str, int]:
     return {name: len(make().cases) for name, make in GRIDS.items()}
 
 
+def write_keeping_eol(path: Path, text: str) -> None:
+    """Write ``text`` (LF line ends) to ``path``. Leave the file alone when only its line ends differ.
+
+    A file that exists keeps its own line ending. A new file gets LF."""
+    data = text.encode("utf-8")
+    eol = b"\n"
+    if path.is_file():
+        old = path.read_bytes()
+        if old.replace(b"\r\n", b"\n") == data:
+            return
+        if b"\r\n" in old:
+            eol = b"\r\n"
+    path.write_bytes(data.replace(b"\n", eol))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true", help="compare, write nothing")
@@ -2268,8 +2283,7 @@ def main() -> int:
         return 0
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for name, text in files.items():
-        with (OUT_DIR / name).open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
+        write_keeping_eol(OUT_DIR / name, text)
     for name, n in counts().items():
         hours = n * SECONDS_PER_CASE / 3600
         flag = "  (over the split limit)" if n > SPLIT_AT else ""

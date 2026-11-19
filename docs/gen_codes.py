@@ -103,8 +103,23 @@ def render() -> str:
     return "\n".join(out)
 
 
+def write_keeping_eol(path: Path, text: str) -> None:
+    """Write ``text`` (LF line ends) to ``path``. Leave the file alone when only its line ends differ.
+
+    A file that exists keeps its own line ending. A new file gets LF."""
+    data = text.encode("utf-8")
+    eol = b"\n"
+    if path.is_file():
+        old = path.read_bytes()
+        if old.replace(b"\r\n", b"\n") == data:
+            return
+        if b"\r\n" in old:
+            eol = b"\r\n"
+    path.write_bytes(data.replace(b"\n", eol))
+
+
 def main() -> None:
-    PAGE.write_text(render(), encoding="utf-8", newline="\n")
+    write_keeping_eol(PAGE, render())
     print(f"wrote {PAGE.relative_to(ROOT).as_posix()}")
 
 
