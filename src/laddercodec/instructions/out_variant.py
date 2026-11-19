@@ -29,6 +29,7 @@ from ..errors import CsvReadError
 from ..model import Instruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand, check_out_target
 from ..operands.constants import INT16_MAX, Kind
+from ..operands.message import operand, says
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -157,7 +158,11 @@ class OutVariant(Instruction):
             if self.kind not in _KIND_INDEX:
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not one of {', '.join(_KIND_INDEX)}",
+                    says(
+                        "{kind} is not one of {kinds}",
+                        kind=operand(self.kind),
+                        kinds=", ".join(_KIND_INDEX),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
@@ -172,23 +177,28 @@ class OutVariant(Instruction):
             if name not in used and getattr(self, name):
                 check.refuse(
                     (name, "kind"),
-                    f"{getattr(self, name)!r} is not used by {self.kind}",
+                    says(
+                        "{value} is not used by {kind}",
+                        value=operand(getattr(self, name)),
+                        kind=self.kind,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
         if self.kind != "toggle" and self.immediate:
             check.refuse(
                 ("immediate", "kind"),
-                f"{self.kind} has no immediate form",
+                says("{kind} has no immediate form", kind=self.kind),
                 Reason.CONFLICT,
                 code=Code.IMMEDIATE_NOT_ALLOWED,
             )
         if self.kind != "timed" and self.maintained:
             check.refuse(
                 ("maintained", "kind"),
-                f"only a timed coil can be maintained. Set maintained to False for {self.kind}.",
+                says("only a timed coil can be maintained"),
                 Reason.CONFLICT,
                 code=Code.OPTION_NOT_OFFERED,
+                then=f"Set maintained to False for {self.kind}.",
             )
         if self.kind == "toggle":
             return
@@ -203,7 +213,11 @@ class OutVariant(Instruction):
         ):
             check.refuse(
                 ("unit", "kind"),
-                f"{self.kind} does not support unit={self.unit!r}",
+                says(
+                    "{kind} does not support unit={unit}",
+                    kind=self.kind,
+                    unit=operand(self.unit),
+                ),  # fmt: skip
                 Reason.CHOICE,
                 code=Code.COIL_TIME_UNIT,
             )
@@ -218,8 +232,10 @@ class OutVariant(Instruction):
             if not filled:
                 check.refuse(
                     "on_preset",
-                    "debounce needs an on phase or an off phase "
-                    "(on_acc and on_preset, or off_acc and off_preset)",
+                    says(
+                        "debounce needs an on phase or an off phase "
+                        "(on_acc and on_preset, or off_acc and off_preset)"
+                    ),
                     Reason.MISSING,
                     "OBJ-006",
                     code=Code.DEBOUNCE_NEEDS_PHASE,
@@ -235,8 +251,12 @@ class OutVariant(Instruction):
             if (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
                 check.refuse(
                     ("off_acc", "on_acc"),
-                    f"{self.off_acc!r} is the on accumulator too; "
-                    f"{self.kind} needs two different TD registers",
+                    says(
+                        "{acc} is the on accumulator too",
+                        "{kind} needs two different TD registers",
+                        acc=operand(self.off_acc),
+                        kind=self.kind,
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     "OBJ-012",
                     code=Code.DUPLICATE_ADDRESS,

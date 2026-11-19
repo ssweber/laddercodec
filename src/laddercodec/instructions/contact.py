@@ -22,6 +22,7 @@ from ..model import (
 )
 from ..operands.banks import BIT_BANKS
 from ..operands.checks import Refusals
+from ..operands.message import operand, says
 from .family import ConditionInstructionFamilySpec
 
 ContactKind = Literal["no", "nc", "rise", "fall"]
@@ -97,14 +98,18 @@ class Contact(Condition):
             if self.immediate is True and self.kind in _EDGE_KINDS:
                 check.refuse(
                     ("immediate", "kind"),
-                    "an edge contact has no immediate form",
+                    says("an edge contact has no immediate form"),
                     Reason.CONFLICT,
                     code=Code.IMMEDIATE_EDGE_CONTACT,
                 )
             if self.immediate is True and address is not None and address.bank != "X":
                 check.refuse(
                     ("immediate", "operand"),
-                    f"{self.operand!r} is not allowed; an immediate contact takes X only",
+                    says(
+                        "{operand} is not allowed",
+                        "an immediate contact takes X only",
+                        operand=operand(self.operand),
+                    ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.IMMEDIATE_CONTACT_NOT_X,
                 )
@@ -112,7 +117,10 @@ class Contact(Condition):
             if self.kind not in tuple(_KIND_TO_ITYPE):  # a dict would raise for an unhashable kind
                 check.refuse(
                     "kind",
-                    f"{self.kind!r} is not a contact kind (no, nc, rise or fall)",
+                    says(
+                        "{kind} is not a contact kind (no, nc, rise or fall)",
+                        kind=operand(self.kind),
+                    ),  # fmt: skip
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )

@@ -68,6 +68,7 @@ REASONED = frozenset(
 NAMED = frozenset(
     {
         "Copy", "BlockCopy", "Fill", "Pack", "Unpack",
+        "Coil", "OutVariant", "Contact", "CompareContact",
         "Timer", "Counter", "Shift", "ForLoop", "Drum",
         "Send", "Receive", "ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress",
     }
