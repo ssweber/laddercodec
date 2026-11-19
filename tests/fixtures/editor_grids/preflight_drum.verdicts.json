@@ -4,7 +4,7 @@
   "time_drum unit=ms presets[0]=0": {"verdict": "accepted"},
   "time_drum presets[0]=5": {"verdict": "accepted"},
   "time_drum presets[0]=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'X001' is not allowed; Drum.presets[0] takes DS (OBJ-004)"},
-  "time_drum presets[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'X[DS1]' is a pointer; Drum.presets[0] takes none"},
+  "time_drum presets[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'X[DS1]' is a pointer; Drum.presets[0] can't be a pointer, and only a single Copy takes one. Write an address, such as DS1."},
   "time_drum num_steps=0": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets", "message": "Drum.presets: 0 steps is outside 1-16"},
   "time_drum num_outputs=0": {"verdict": "refused", "error": "FieldError", "field": "Drum.outputs", "message": "Drum.outputs: 0 outputs is outside 1-16"},
   "time_drum outputs[1]=Y001": {"verdict": "refused", "error": "FieldError", "field": "Drum.outputs[1]", "message": "Drum.outputs[1]: 'Y001' is already output 0; each output is a different bit (OBJ-014)"},

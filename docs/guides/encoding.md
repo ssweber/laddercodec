@@ -333,6 +333,10 @@ follows in parentheses. `short(names)` returns only the refused value and its ru
 `detail(names)` returns only the explanation. It returns an empty string when the
 refusal has none.
 
+`short()` and `detail()` are for text that you show next to the field, so they do not
+name the field. Where `str(exc)` says `Fill.value takes one character`, `detail()`
+says `this field takes one character`.
+
 A range or a pointer is shown in the same way:
 
 | Value     | Names                              | Shown as                  |
@@ -341,14 +345,16 @@ A range or a pointer is shown in the same way:
 | `C1..C2`  | `{"C1": "Valve1"}`                 | `Valve1..C2 (C1..C2)`     |
 | `DS[DD1]` | `{"DD1": "Ptr"}`                   | `DS[Ptr] (DS[DD1])`       |
 | `x1`      | `{"X001": "Start"}`                | `Start (X001)`            |
+| `X001`    | `{"X001": "X1"}`                   | `X1`                      |
 
 When you pass names, a value that holds an address is shown without quotes. This
 holds even if none of your keys is a CLICK address. The parentheses are left out
-when the value as shown is CLICK's form. A constant, a bank list and a limit are
-never replaced. You can write a key in any form that CLICK reads, such as `ds1` or
-`DS001`. A key that is not a CLICK address is ignored. With no names, `message()`
-returns `str(exc)`. If `read_csv` raised the refusal, `message()` keeps the CSV
-location at the end, and `short()` and `detail()` leave it out.
+when the value as shown is CLICK's form. They are also left out when your name is
+another form of the same address, such as `X1` for `X001`. A constant, a bank list
+and a limit are never replaced. You can write a key in any form that CLICK reads,
+such as `ds1` or `DS001`. A key that is not a CLICK address is ignored. With no
+names, `message()` returns `str(exc)`. If `read_csv` raised the refusal, `message()`
+keeps the CSV location at the end, and `short()` and `detail()` leave it out.
 
 A `FieldError` from any instruction, Modbus target or `ModbusAddress` shows your
 name for each address it names. When a `Math` refusal quotes the whole formula, names do not

@@ -30,7 +30,7 @@ from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
 from ..errors import CsvReadError
 from ..model import Address, Instruction, Reason
-from ..operands.address import read_typed_address
+from ..operands.address import ADDRESS_BANKS, read_typed_address
 from ..operands.banks import REGISTER_BANKS
 from ..operands.checks import (
     ALL_KINDS,
@@ -50,6 +50,13 @@ from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: The words for each kind of constant in :meth:`Search._table_takes`.
+_KIND_NAMES = {
+    Kind.HEX: "a hex value",
+    Kind.TEXT: "quoted text",
+    Kind.CHAR: "a $hh character code",
+}
 
 #: Cell kwargs of a Search box.  The box spans two rows: cell header bytes +0x09 and +0x0A
 #: are both 2.
@@ -217,6 +224,24 @@ class Search(Instruction):
                 self._check_value(check, value, table)
             check.flag("continuous", "oneshot")
 
+    @staticmethod
+    def _table_takes(bank: str) -> str:
+        """Return the words that say what a table in ``bank`` takes as its value.
+
+        For a DS table they are ``a DS table takes a number or a DS, DD, DF, TD, CTD or SD
+        address``.
+        """
+        kinds = {k for k, banks in SEARCH_TABLE_BANKS.items() if bank in banks}
+        constants = [text for k, text in _KIND_NAMES.items() if k in kinds]
+        if kinds >= {Kind.INTEGER, Kind.FLOAT}:
+            constants = ["a number"]
+        group = GROUP_BANKS.get(bank_group(bank) or "", frozenset()) & REGISTER_BANKS
+        names = [b for b in ADDRESS_BANKS if b in group]
+        if not names:
+            return f"a {bank} table takes {', '.join(constants)}"
+        listed = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+        return f"a {bank} table takes {', '.join(constants)} or a {listed} address"
+
     def _check_value(self, check: Refusals, value: Operand, table: Address | None) -> None:
         """Refuse a search value that does not suit the operator or the table's bank."""
         const = value.constant
@@ -242,6 +267,8 @@ class Search(Instruction):
                 ("value", "table_start"),
                 says(
                     "{value} is {article} {kind} value, which searches {banks}, not {bank}",
+                    "{takes}",
+                    takes=self._table_takes(table.bank),
                     value=Op(self.value),
                     article=article,
                     kind=const.kind,
@@ -260,6 +287,8 @@ class Search(Instruction):
                 ("value", "table_start"),
                 says(
                     "{value} is a {group} address, which searches {banks}, not {bank}",
+                    "{takes}",
+                    takes=self._table_takes(table.bank),
                     value=Op(self.value),
                     group=group,
                     banks=", ".join(banks),

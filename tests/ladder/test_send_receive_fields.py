@@ -1376,7 +1376,7 @@ def test_send_word_swap_not_offered(kw, partner) -> None:
     error = caught.value
     assert error.fields == ("Send.word_swap", f"Send.{partner}")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
-    assert str(error).endswith(". Drop word_swap=1.")
+    assert str(error).endswith(". Drop word_swap=True.")
 
 
 def test_send_word_swap_not_offered_keeps_its_refusal() -> None:

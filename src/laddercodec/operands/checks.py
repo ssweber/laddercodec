@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from types import TracebackType
 from typing import Any, NamedTuple, TypedDict, TypeVar
 
@@ -172,11 +173,13 @@ class _At(NamedTuple):
         *,
         code: Code,
         also: str | None = None,
+        then: str = "",
     ) -> FieldError:
         """Build the error ``label: 'value' short; detail``, with CLICK's id at the end.
 
         ``said`` is the rule that follows the value, from :func:`~.message.says`.  ``also``
-        names the other field of a refused pair."""
+        names the other field of a refused pair.  ``then`` is the sentence that says what
+        to do."""
         return make_refusal(
             cls,
             self.label,
@@ -185,6 +188,7 @@ class _At(NamedTuple):
             reason=reason,
             code=code,
             click_id=click_id,
+            then=then,
         )
 
 
@@ -580,6 +584,87 @@ POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD",
 SOURCE_POINTER_BANKS = POINTER_BANKS | {"SD"}
 
 
+def _example_address(bank: str, banks: Collection[str] | None) -> str:
+    """Return an address that a field of ``banks`` takes, for a message that refuses a
+    pointer into ``bank``.
+
+    The address is the first of ``bank``, such as DS1 for ``DS[DS1]``, if the field takes
+    that bank.  Otherwise it is the first address of the field's first bank.
+    """
+    if bank not in ADDRESS_BANKS or (banks is not None and bank not in banks):
+        bank = next((b for b in ADDRESS_BANKS if banks is None or b in banks), "DS")
+    return Address(bank, 1, False).display
+
+
+#: Every constant that CLICK's shared input check reads, with any sign.
+_ANY_CONSTANT = Constants(ALL_KINDS, signs="+-", hex_sign=True)
+
+
+def _other_constant(value: str, constants: Constants) -> Kind | None:
+    """Return the kind of constant that ``value`` is spelled as, if a field of whole
+    numbers ``constants`` does not take it, such as ``3.5``, ``-5`` or ``FFh``.  Return
+    None for other text, and for any value in a field that is not one of whole numbers.
+
+    A field of whole numbers takes decimal integers only, with no minus sign.  The name of
+    a bank, such as ``DH``, is not a constant here.
+    """
+    if constants.kinds != {Kind.INTEGER} or "-" in constants.signs:
+        return None
+    if value.upper() in ADDRESS_BANKS:
+        return None
+    kind = constant_shape(value, _ANY_CONSTANT)
+    if kind is not Kind.HEX and value[:1].isalpha():
+        return None
+    return kind
+
+
+def _not_a_count(
+    value: str, kind: Kind, at: _At, constants: Constants, banks: Collection[str] | None
+) -> FieldError:
+    """Return the refusal of ``value``, a constant of ``kind`` that a field of whole numbers
+    does not take (see :func:`_other_constant`).
+
+    It is the refusal of text that is no CLICK address: an :class:`AddressError` with the
+    code ``not-an-address``.  Its rule names the kind, and its next sentence names the
+    field's whole numbers and banks.
+    """
+    if kind is Kind.HEX:
+        said = says("is a hex value")
+    elif kind is Kind.TEXT:
+        said = says("is quoted text")
+    elif kind is Kind.CHAR:
+        said = says("is text")
+    elif kind is Kind.INTEGER:
+        # An unsigned integer is a constant the field takes, so this one has a sign.
+        said = says("has a plus sign" if value[0] == "+" else "has a minus sign")
+    elif _is_fraction(value):
+        said = says("is not a whole number")
+    else:
+        said = says("is a real")
+    listed = [b for b in ADDRESS_BANKS if banks is None or b in banks]
+    if banks is None or not listed:
+        where, example = "an address", "DS1"
+    elif len(listed) == 1:
+        where, example = f"a {listed[0]} address", Address(listed[0], 1, False).display
+    else:
+        where = f"an address in {', '.join(listed[:-1])} or {listed[-1]}"
+        example = Address(listed[0], 1, False).display
+    low = max(constants.low, 0)
+    then = f"Write a whole number from {low} to {constants.high}, or {where}, such as {example}."
+    return at.error(
+        value, said, Reason.ADDRESS, cls=AddressError, code=Code.NOT_AN_ADDRESS, then=then
+    )
+
+
+def _is_fraction(value: str) -> bool:
+    """Return whether ``value``, a real such as ``3.5`` or ``1e3``, has a fractional part."""
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return False
+    return number.is_finite() and number != number.to_integral_value()
+
+
 def check_operand(
     value: str,
     field: str,
@@ -610,6 +695,10 @@ def check_operand(
       and any other text is an address (refused with :class:`AddressError`);
     - with ``letter_first``, text that starts with a letter is an address, and any other
       text is a constant (refused with :class:`FieldError`).
+
+    By default, a field that takes only decimal integers refuses another constant, such as
+    ``3.5``, ``-5`` or ``FFh``, as an address.  Its message names the constant's kind and
+    the field's range and banks.
     """
     at = _at(field, label)
     if value == "":
@@ -621,15 +710,21 @@ def check_operand(
             is_constant = constant_shape(value, constants) in constants.kinds
         if is_constant:
             return Operand(constant=check_constant(value, field, constants, label=label))
+        kind = None if letter_first else _other_constant(value, constants)
+        if kind is not None:
+            raise _not_a_count(value, kind, at, constants, banks)
     parts = split_pointer(value)
     if parts is not None:
         if not pointer:
             raise at.error(
                 value,
-                says("is a pointer", "{label} takes none"),
+                says(
+                    "is a pointer", "{label} can't be a pointer, and only a single Copy takes one"
+                ),
                 Reason.POINTER,
                 cls=AddressError,
                 code=Code.POINTER_OUTSIDE_COPY,
+                then=f"Write an address, such as {_example_address(parts[0], banks)}.",
             )
         bank, index_text = parts
         allowed = set(pointer_banks).intersection(ADDRESS_BANKS if banks is None else banks)
@@ -668,7 +763,12 @@ def bank_of(
     ``pointer``, also return the bank of a pointer that :func:`check_operand` accepts, such
     as DD for ``DD[DS1]``. A pointer that it refuses, such as ``X[DS1]``, returns None.
     ``pointer_banks`` are the banks that a pointer may address, as for :func:`check_operand`.
+
+    Without ``pointer``, a pointer returns None and builds no refusal.  The refusal of a
+    pointer outside a single Copy would contradict itself for a Copy field.
     """
+    if not pointer and split_pointer(value) is not None:
+        return None
     try:
         return check_operand(value, field, pointer=pointer, pointer_banks=pointer_banks).bank
     except AddressError:

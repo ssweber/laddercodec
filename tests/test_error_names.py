@@ -63,6 +63,7 @@ from laddercodec.operands.address import (
     normalize_address,
     parse_address,
 )
+from laddercodec.operands.checks import bank_of
 from laddercodec.operands.message import parts_of
 from laddercodec.operands.unchecked import refusals, unchecked
 
@@ -230,7 +231,7 @@ def test_short_and_detail_leave_the_id_and_label_out() -> None:
         str(error)
         == "Thing.field: 'DS5000' is outside the range of Thing.field (OBJ-010); it takes DS1-DS4500"
     )
-    assert error.short() == "'DS5000' is outside the range of Thing.field"
+    assert error.short() == "'DS5000' is outside the range of this field"
     assert error.detail() == "it takes DS1-DS4500"
 
 
@@ -317,6 +318,12 @@ def test_a_csv_refusal_keeps_its_location_on_message_only(tmp_path: Path) -> Non
             "to_text()",
             id="termination-code-beside-converter",
         ),
+        pytest.param(
+            "copy(DS1,TXT1,convert=to_text(suppress_zero=1),termination_code=$0D)",
+            "'$0D' stands alone only for TXT copied to TXT, with no converter, not beside "
+            "to_text(suppress_zero=True)",
+            id="termination-code-beside-a-flag",
+        ),
     ],
 )
 def test_a_copy_csv_token_refusal_keeps_its_parts(tmp_path: Path, af: str, short: str) -> None:
@@ -356,7 +363,7 @@ def test_a_refusal_that_read_csv_keeps_shows_names(tmp_path: Path) -> None:
             "OBJ-004",
             "Copy.dest: X[Count] (X[DS1]) is not allowed; a pointer in Copy.dest addresses C, "
             "DS, DD, DH, DF, YD, TD, CTD, TXT (OBJ-004)",
-            "a pointer in Copy.dest addresses C, DS, DD, DH, DF, YD, TD, CTD, TXT",
+            "a pointer in this field addresses C, DS, DD, DH, DF, YD, TD, CTD, TXT",
             id="OBJ-004",
         ),
         pytest.param(
@@ -832,21 +839,27 @@ _MISC_NAMES = {"DS1": "Count", "DS5": "Last", "TXT1": "Text", "DD1": "Ptr"}
         ),
         pytest.param(
             lambda: Search("DS1", "DS5", '"ab"', "DS10", "C10", ">"),
-            "'>' is not offered for text '\"ab\"'",
+            "'>' is not offered for text \"ab\"",
             "text searches with == or !=",
             id="search-text-order",
         ),
         pytest.param(
             lambda: Search("TXT1", "TXT5", "5", "DS10", "C10", "=="),
             "'5' is an integer value, which searches CTD, DD, DF, DS, TD, not TXT",
-            "",
+            "a TXT table takes quoted text, a $hh character code or a TXT address",
             id="search-constant-table",
         ),
         pytest.param(
             lambda: Search("DS1", "DS5", "DH1", "DS10", "C10", "=="),
             "'DH1' is a hex address, which searches DH, not DS",
-            "",
+            "a DS table takes a number or a DS, DD, DF, TD, CTD or SD address",
             id="search-group-table",
+        ),
+        pytest.param(
+            lambda: Search("DH1", "DH5", "5", "DS10", "C10", "=="),
+            "'5' is an integer value, which searches CTD, DD, DF, DS, TD, not DH",
+            "a DH table takes a hex value or a DH, XD or YD address",
+            id="search-hex-table",
         ),
         pytest.param(
             lambda: Call(""),
@@ -980,10 +993,11 @@ def test_a_search_refusal_names_the_table_and_the_value() -> None:
     assert error.short({"C1": "Valve"}) == "Valve..C5 (C1..C5) is not allowed"
     error = _refusal(lambda: Search("DS1", "DS5", "DH1", "DS10", "C10", "=="))
     assert error.message({"DH1": "Word"}) == (
-        "Search.value: Word (DH1) is a hex address, which searches DH, not DS (OBJ-004)"
+        "Search.value: Word (DH1) is a hex address, which searches DH, not DS; a DS table "
+        "takes a number or a DS, DD, DF, TD, CTD or SD address (OBJ-004)"
     )
     error = _refusal(lambda: Search("DS1", "DS5", '"ab"', "DS10", "C10", ">"))
-    assert error.short({"ab": "x"}) == "'>' is not offered for text '\"ab\"'"
+    assert error.short({"ab": "x"}) == "'>' is not offered for text \"ab\""
 
 
 def test_a_text_that_looks_like_an_address_is_never_renamed() -> None:
@@ -1676,3 +1690,123 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
                         plain.setdefault(str(error), display)
     assert count > 1000
     assert not plain, plain
+
+
+# ---------------------------------------------------------------------------
+# The wording that short() and detail() use beside the field
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("build", "text", "short", "detail"),
+    [
+        pytest.param(
+            lambda: Fill(value='"ab"', dest_start="TXT1", dest_end="TXT2"),
+            'Fill.value: "ab" is 2 characters; Fill.value takes one character',
+            '"ab" is 2 characters',
+            "this field takes one character",
+            id="field",
+        ),
+        pytest.param(
+            lambda: Copy(source="DS[DD1]", dest="DS2"),
+            "Copy.source pointer: 'DD1' is not allowed; Copy.source pointer takes DS",
+            "'DD1' is not allowed",
+            "the pointer takes DS",
+            id="pointer",
+        ),
+        pytest.param(
+            lambda: check_address("C1", "Send.source", {"DS"}, label="Send source (FC16)"),
+            "Send source (FC16): 'C1' is not allowed; Send source (FC16) takes DS",
+            "'C1' is not allowed",
+            "this field (FC16) takes DS",
+            id="note",
+        ),
+    ],
+)
+def test_short_and_detail_say_this_field_for_the_label(
+    build: Callable[[], object], text: str, short: str, detail: str
+) -> None:
+    """A caller shows short() and detail() next to the field, so they do not name it.
+
+    ``str(err)`` and ``message()`` keep the label."""
+    error = _refusal(build)
+    assert str(error) == text
+    assert error.message({"DS9": "Other"}).startswith(text.split(":")[0] + ": ")
+    assert error.short() == short
+    assert error.detail() == detail
+
+
+def test_a_label_that_names_no_field_stays_in_short_and_detail() -> None:
+    with pytest.raises(AddressError) as raised:
+        check_address("DS1", "Thing.field", {"C"}, label="range end of 'C1..DS1'")
+    assert raised.value.detail() == "range end of 'C1..DS1' takes C"
+
+
+def test_a_flag_in_a_converter_call_shows_as_python_writes_it() -> None:
+    error = _refusal(lambda: Copy("DS1", "TXT1", convert="to_text", exponential=True))
+    assert (
+        error.short() == "to_text(exponential=True) needs a DF source or a real constant, not 'DS1'"
+    )
+    error = _refusal(lambda: Copy("TXT1", "DS1", convert="to_value", suppress_zero=True))
+    assert error.short() == "suppress_zero=True is not an option for 'TXT1'"
+
+
+def test_a_text_constant_shows_in_its_own_quotes() -> None:
+    error = _refusal(lambda: Copy('"a,b"', "DS1"))
+    assert error.short() == "'DS1' can't take \"a,b\""
+    assert error.short({"DS1": "Count"}) == 'Count (DS1) can\'t take "a,b"'
+
+
+def test_a_text_with_a_quote_inside_keeps_its_repr_quotes() -> None:
+    error = _refusal(lambda: Copy('"a"b"', "TXT1"))
+    assert error.short().startswith('\'"a"b"\' holds a quote')
+
+
+@pytest.mark.parametrize(
+    ("names", "shown"),
+    [
+        pytest.param({"X001": "X1"}, "X1", id="own-address"),
+        pytest.param({"x1": "x001"}, "x001", id="own-address-any-case"),
+        pytest.param({"X001": "X2"}, "X2 (X001)", id="another-address"),
+        pytest.param({"X001": "Start"}, "Start (X001)", id="nickname"),
+    ],
+)
+def test_a_name_that_is_its_own_address_gets_no_brackets(names: dict[str, str], shown: str) -> None:
+    error = _refusal(lambda: Copy(source="DS1", dest="X1"))
+    assert error.short(names) == f"{shown} is not allowed"
+
+
+def test_a_range_with_one_own_address_name_keeps_the_brackets_for_the_other() -> None:
+    error = _refusal(lambda: Fill(value="1", dest_start="C1", dest_end="C5"))
+    assert error.short({"C1": "c1"}) == "c1..C5 is not allowed"
+    assert error.short({"C1": "c1", "C5": "Valve"}) == "c1..Valve (C1..C5) is not allowed"
+
+
+def test_a_pointer_outside_copy_says_what_to_write() -> None:
+    error = _refusal(lambda: ForLoop("DS[DS1]"))
+    assert error.code == Code.POINTER_OUTSIDE_COPY
+    assert str(error) == (
+        "ForLoop.count: 'DS[DS1]' is a pointer; ForLoop.count can't be a pointer, and only a "
+        "single Copy takes one. Write an address, such as DS1."
+    )
+    assert error.short() == "'DS[DS1]' is a pointer"
+    assert error.detail() == (
+        "this field can't be a pointer, and only a single Copy takes one. Write an address, "
+        "such as DS1."
+    )
+
+
+def test_bank_of_builds_no_pointer_refusal_for_a_copy_field() -> None:
+    """A pointer outside a single Copy is refused with a message that names Copy, so
+    ``bank_of`` builds no such refusal for a Copy field."""
+    built: list[str] = []
+    original = LaddercodecError.__init__
+
+    def record(self: LaddercodecError, *args: object, **kwargs: object) -> None:
+        original(self, *args, **kwargs)
+        built.append(str(self))
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(LaddercodecError, "__init__", record)
+        assert bank_of("X[DS1]", "Copy.dest") is None
+    assert built == []

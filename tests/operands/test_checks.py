@@ -178,7 +178,7 @@ REFUSED_EXACT: list[tuple[str, Constants, str]] = [
     ("+1", DIGITS, "X.f: '+1' is refused; a constant here takes no sign (OBJ-005)"),
     ("-1", Constants(frozenset({N}), signs="+"), "X.f: '-1' is refused; a constant here takes no minus sign (OBJ-005)"),
     # a Fill into TXT takes one character, a Compare text up to 128
-    ('"' + "A" * 129 + '"', ONE_CHAR, "X.f: '\"" + "A" * 129 + "\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"),
+    ('"' + "A" * 129 + '"', ONE_CHAR, "X.f: \"" + "A" * 129 + "\" is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"),
 ]  # fmt: skip
 
 
@@ -248,10 +248,19 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("2147483648", {"constants": ANY}, FieldError, "-2147483648 to 2147483647"),
     ("$1", {"constants": ANY}, FieldError, "two hex digits"),
     ('"a"b"', {"constants": ANY}, FieldError, "holds a quote with other characters"),
-    # ... and any other text an address.
-    ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
-    ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
-    ("$41", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
+    # ... and any other text an address. A field of whole numbers names the kind of another
+    # constant and says what to write.
+    ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'+1' has a plus sign. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
+    ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'1.5' is not a whole number. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
+    ("$41", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'$41' is text"),
+    ("FFh", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'FFh' is a hex value. Write a whole number"),
+    ("5.0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'5.0' is a real. Write a whole number"),
+    ("-0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'-0' has a minus sign. Write a whole number"),
+    ('"A"', {"banks": {"DS"}, "constants": DIGITS}, AddressError, '"A" is quoted text. Write a whole number'),
+    ("DH", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'DH' is not a CLICK address"),
+    ("-5", {"banks": {"TD", "DD"}, "constants": DIGITS}, AddressError, "or an address in DD or TD, such as DD1."),
+    ("-5", {"constants": DIGITS}, AddressError, "or an address, such as DS1."),
+    ("0x10", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'0x10' is not a CLICK address"),
     ("", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "is blank"),
     ("DD1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "takes DS"),
     ("1,5", {"constants": ANY}, AddressError, "not a CLICK address"),
@@ -269,7 +278,9 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     # Without constants, every text is an address.
     ("5", {"banks": {"DS"}}, AddressError, "not a CLICK address"),
     # Pointers
-    ("DS[DS1]", {"banks": {"DS"}}, AddressError, "is a pointer; X.f takes none"),
+    ("DS[DS1]", {"banks": {"DS"}}, AddressError, "is a pointer; X.f can't be a pointer, and only a single Copy takes one. Write an address, such as DS1."),
+    ("DS[DS1]", {"banks": {"TD", "DD"}}, AddressError, "Write an address, such as DD1."),
+    ("X[DS1]", {"banks": {"X", "C"}}, AddressError, "Write an address, such as X001."),
     ("Y[DS1]", {"pointer": True}, AddressError, "a pointer in X.f addresses C, DS"),
     ("DS[DS1]", {"banks": {"DD"}, "pointer": True}, AddressError, "addresses DD"),
 ]  # fmt: skip

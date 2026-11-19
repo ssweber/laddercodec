@@ -347,7 +347,7 @@
   "send fc06 984 400001 <- 5": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: '5' is not a CLICK address"},
   "send fc06 984 400001 <- 1.5": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: '1.5' is not a CLICK address"},
   "send fc06 984 400001 <- FFh": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: 'FFh' is not a CLICK address"},
-  "send fc06 984 400001 <- \"A\"": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: '\"A\"' is not a CLICK address"},
+  "send fc06 984 400001 <- \"A\"": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: \"A\" is not a CLICK address"},
   "send fc06 984 400001 <- $41": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: '$41' is not a CLICK address"},
   "send fc05 984 1 <- C1 x1": {"verdict": "accepted"},
   "send fc05 984 1 <- C1 x2": {"verdict": "refused", "error": "FieldError", "field": "Send.function_code", "message": "Send.function_code: FC05 writes one element, not 2"},
@@ -976,8 +976,8 @@
   "send fc16 984 400001 <- CTD1 x1 word_swap=ON": {"verdict": "accepted"},
   "send fc16 984 400001 <- DD1 x2 word_swap=ON": {"verdict": "accepted"},
   "send fc16 984 400001 <- DS1 x2 word_swap=ON": {"verdict": "accepted"},
-  "send fc06 984 400001 <- DS1 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered with FC06. Drop word_swap=1."},
-  "send fc16 984 400001 <- TXT1 x2 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered for a TXT source. Drop word_swap=1."},
-  "send fc15 984 1 <- C1 x2 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered with FC15. Drop word_swap=1."},
+  "send fc06 984 400001 <- DS1 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered with FC06. Drop word_swap=True."},
+  "send fc16 984 400001 <- TXT1 x2 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered for a TXT source. Drop word_swap=True."},
+  "send fc15 984 1 <- C1 x2 word_swap=ON": {"verdict": "refused", "error": "FieldError", "field": "Send.word_swap", "message": "Send.word_swap: Word Swap is not offered with FC15. Drop word_swap=True."},
   "send fc16 984 400001 <- DD1 x1 word_swap=OFF": {"verdict": "accepted"}
 }

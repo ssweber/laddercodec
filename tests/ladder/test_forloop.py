@@ -16,6 +16,7 @@ from laddercodec import (
     read_csv,
 )
 from laddercodec.binary_helpers import _build_blob
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import Break, Call, Continue, ForLoop, Next, parse_af_blob
@@ -207,6 +208,55 @@ class TestForCount:
     def test_sign_or_fraction_refused(self, limit: str) -> None:
         with pytest.raises(FieldError, match="^ForLoop.count"):
             ForLoop(count=limit)
+
+    @pytest.mark.parametrize(
+        ("count", "rule"),
+        [
+            ("3.5", "is not a whole number"),
+            ("0.4", "is not a whole number"),
+            ("2.6", "is not a whole number"),
+            ("-1.5", "is not a whole number"),
+            ("5.0", "is a real"),
+            ("1e3", "is a real"),
+            ("1E5", "is a real"),
+            ("7FFFh", "is a hex value"),
+            ("0h", "is a hex value"),
+            ("5h", "is a hex value"),
+            ("10000h", "is a hex value"),
+            ("FFh", "is a hex value"),
+            ("0FFh", "is a hex value"),
+            ("-5", "has a minus sign"),
+            ("-005", "has a minus sign"),
+            ("+5", "has a plus sign"),
+            ("$41", "is text"),
+            ("$G1", "is text"),
+            ("$", "is text"),
+        ],
+    )
+    def test_a_constant_the_count_does_not_take_says_its_kind(self, count: str, rule: str) -> None:
+        with pytest.raises(AddressError) as caught:
+            ForLoop(count=count)
+        exc = caught.value
+        assert (exc.code, exc.click_id) == (Code.NOT_AN_ADDRESS, None)
+        assert exc.short() == f"{count!r} {rule}"
+        assert exc.detail() == (
+            "Write a whole number from 0 to 2147483647, or an address in DS, DD, TD, CTD or "
+            "SD, such as DS1."
+        )
+
+    @pytest.mark.parametrize("count", ['"A"', '"$ 41"'])
+    def test_a_quoted_count_says_it_is_text(self, count: str) -> None:
+        with pytest.raises(AddressError) as caught:
+            ForLoop(count=count)
+        assert str(caught.value) == (
+            f"ForLoop.count: {count} is quoted text. Write a whole number from 0 to 2147483647, "
+            "or an address in DS, DD, TD, CTD or SD, such as DS1."
+        )
+
+    @pytest.mark.parametrize("count", ["0x10", "#5", "abc", "DH"])
+    def test_a_count_that_is_no_number_is_no_address(self, count: str) -> None:
+        with pytest.raises(AddressError, match="is not a CLICK address$"):
+            ForLoop(count=count)
 
     @pytest.mark.parametrize("count", ["-0", "-00", " -0 "])
     def test_minus_zero_is_zero(self, count: str) -> None:

@@ -1032,7 +1032,7 @@ def _check_send_word_swap(
         says("Word Swap is not offered {why}", why=why),
         Reason.CONFLICT,
         code=Code.OPTION_NOT_OFFERED,
-        then="Drop word_swap=1.",
+        then="Drop word_swap=True.",
     )
 
 

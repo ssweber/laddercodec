@@ -1648,8 +1648,9 @@ class Copy(Instruction):
                 check.refuse(
                     ("suppress_zero", "source"),
                     says(
-                        "suppress_zero=1 is not an option for {source}",
+                        "suppress_zero={flag} is not an option for {source}",
                         "suppress zero is for a number copied to text",
+                        flag=self.suppress_zero,
                         source=Op(self.source),
                     ),
                     Reason.CONFLICT,
@@ -1675,9 +1676,10 @@ class Copy(Instruction):
                     check.refuse(
                         ("exponential", "source"),
                         says(
-                            "to_text(exponential=1) needs a DF source or a real constant, not "
-                            "{source}",
+                            "to_text(exponential={flag}) needs a DF source or a real constant, "
+                            "not {source}",
                             "an integer source only has suppress_zero",
+                            flag=self.exponential,
                             source=Op(self.source),
                         ),
                         Reason.CONFLICT,
@@ -2879,6 +2881,26 @@ def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
         raise CsvReadError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
 
 
+def _convert_shown(convert: str | None, text_opts: Mapping[str, str], raw: str) -> str:
+    """Return the converter call ``raw`` as a message shows it.
+
+    A flag that is ``1`` or ``0`` is shown as ``True`` or ``False``, the value that the
+    Copy field holds, so ``to_text(suppress_zero=1)`` is shown as
+    ``to_text(suppress_zero=True)``.
+    """
+    if convert is None or not text_opts:
+        return raw
+    shown = [
+        f"{key}={value == '1'}" if key in _TEXT_FLAGS and value in ("0", "1") else f"{key}={value}"
+        for key, value in text_opts.items()
+    ]
+    return f"{convert}({','.join(shown)})"
+
+
+#: The options of ``to_text(...)`` that are flags.
+_TEXT_FLAGS = frozenset({"suppress_zero", "exponential"})
+
+
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
     """Build a Copy from the arguments of ``copy(source, dest, ...)``.
 
@@ -2905,7 +2927,7 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
                     "a number copied to TXT takes it inside the converter "
                     "(to_text(...,termination_code=$0D))",
                     code=Op(kwargs["termination_code"]),
-                    convert=Op(convert_raw, quoted=False),
+                    convert=Op(_convert_shown(convert, text_opts, convert_raw), quoted=False),
                 ),  # fmt: skip
                 field=("Copy.termination_code", "Copy.convert"),
                 reason=Reason.CONFLICT,
