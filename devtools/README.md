@@ -69,7 +69,7 @@ baseline in `PROBES` (or the tree) before comparing.
 What the tools leave out:
 
 - The CSV bundle path (`parse_bundle`, `parse_csv_file`) is not run.
-- The opaque tag fields of `Email` and the motion boxes (`Home`, `Velocity`, `Position`) are
+- The opaque tag fields of `Email` and the motion boxes (`Home`, `VelocityMove`, `PositionMove`) are
   probed over a short value list.
 - Probe baselines are built by the tree under test from literal arguments: a change to a
   default or a derived field shows as a difference in every case of that baseline.
@@ -80,7 +80,7 @@ Besides the public API, the tools import the family registry in `laddercodec.ins
 (with `UnknownCondition` and `UnknownInstruction`), `laddercodec.decode.Rung`,
 `laddercodec.csv.parser._parse_single_rung_rows`, `laddercodec.csv.converter.convert_rung`,
 `laddercodec.csv.writer.decoded_rung_to_rows`, `laddercodec.instructions.raw._decompose_blob`
-and `_compose_blob`, and from `laddercodec.model` `AfInstruction`, `ConditionInstruction`,
+and `_compose_blob`, and from `laddercodec.model` `Instruction`, `Condition`,
 `PinnedInstruction` and `InstructionType`. A step that renames one of them stops the tools on
 that tree. `convert_rung` returns a list of `Rung`, one per CLICK rung the CSV rung lays out
 to; on a tree before the CSV layout it returns a `(logical_rows, conditions, instructions,

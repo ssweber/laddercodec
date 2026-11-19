@@ -51,11 +51,11 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-class ConditionInstruction:
+class Condition:
     """Base class for condition-side instructions (Contact, CompareContact)."""
 
     # A plain class attribute and not a dataclass field, so that it takes no part in
-    # equality. AfInstruction._refusal says what it holds.
+    # equality. Instruction._refusal says what it holds.
     _refusal: FieldError | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -73,7 +73,7 @@ class ConditionInstruction:
         raise NotImplementedError
 
 
-class AfInstruction:
+class Instruction:
     """Base class for instructions in the AF (output) column, such as Coil, Timer and Copy."""
 
     # Keep this a plain class attribute. As a dataclass field in a subclass it would
@@ -103,7 +103,7 @@ class AfInstruction:
         raise NotImplementedError
 
 
-class PinnedInstruction(AfInstruction):
+class PinnedInstruction(Instruction):
     """An AF box with inputs ("slots") on several rows.
 
     The slots run from top to bottom. First come ``lead_rows`` slots above the main

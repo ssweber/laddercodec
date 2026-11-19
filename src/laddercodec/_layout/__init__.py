@@ -16,7 +16,7 @@ from typing import Any, cast
 
 from ..codes import Code
 from ..encode import MAX_ROWS
-from ..model import AfInstruction, PinnedInstruction
+from ..model import Instruction, PinnedInstruction
 from ..operands.unchecked import stored_cell_rows
 from .network import GridCell, Network, cell_of, network, without_rail_nops
 from .render import render
@@ -46,7 +46,7 @@ def rows_needed(rung: Any) -> int:
     """
     height = len(rung.conditions)
     for row, token in enumerate(rung.instructions):
-        if isinstance(token, AfInstruction):
+        if isinstance(token, Instruction):
             params = {**token.cell_params(), **stored_cell_rows(token)}
             height = max(height, row + int(params.get("visual_rows", 1)))
     return height

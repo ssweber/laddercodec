@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field, tag_value
-from ..errors import CsvError
-from ..model import AfInstruction
+from ..errors import CsvReadError
+from ..model import Instruction
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
     AfInstructionFamilySpec,
@@ -73,7 +73,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Email(AfInstruction):
+class Email(Instruction):
     """The Email instruction, with each field kept as a string under its CLICK tag id.
 
     laddercodec does not interpret these fields. Their names, such as ``tag_3218``, are
@@ -180,10 +180,10 @@ class Email(AfInstruction):
         from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise CsvError(f"Not a raw Email token: {token!r}")
+            raise CsvReadError(f"Not a raw Email token: {token!r}")
         parts = _split_raw_args(token[4:-1])
         if parts[0] != _CLASS_NAME:
-            raise CsvError(f"Not an Email token: {token!r}")
+            raise CsvReadError(f"Not an Email token: {token!r}")
 
         tags: dict[int, str] = {}
         for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):

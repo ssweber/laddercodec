@@ -20,14 +20,14 @@ from laddercodec import (
     Code,
     Coil,
     Contact,
-    CsvError,
     CsvLocation,
+    CsvReadError,
+    CsvWriteError,
     FieldError,
     Program,
     Project,
     RefusedFieldWarning,
     Rung,
-    WriterError,
     decode_program,
     read_bundle,
     read_csv,
@@ -81,7 +81,7 @@ def _write_file(path: Path, *afs: str) -> Path:
 
 
 def _unreadable(path: Path) -> Path:
-    """Write a file at *path* that is not UTF-8, so that reading it raises ``CsvError``."""
+    """Write a file at *path* that is not UTF-8, so that reading it raises ``CsvReadError``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"\xff")
     return path
@@ -282,7 +282,7 @@ class TestWriteRefusals:
 
     def test_names_equal_ignoring_the_case_of_a_z(self, bundle: Path) -> None:
         before = _snapshot(bundle)
-        with pytest.raises(WriterError) as info:
+        with pytest.raises(CsvWriteError) as info:
             write_bundle(bundle, _project("Zz", "zz"))
         assert str(info.value) == (
             "Subroutines 'Zz' and 'zz' have the same name when the case of A-Z is ignored "
@@ -299,7 +299,7 @@ class TestWriteRefusals:
         """CLICK holds the two as two names, and a file system that ignores case holds their
         files as one."""
         before = _snapshot(bundle)
-        with pytest.raises(WriterError) as info:
+        with pytest.raises(CsvWriteError) as info:
             write_bundle(bundle, _project(first, second))
         assert str(info.value) == (
             f"The files of subroutines {first!r} and {second!r} would be one file on a file "
@@ -314,7 +314,7 @@ class TestWriteRefusals:
         """A name that differs only in case and the same name twice are refused alike.  A copy
         of the error and an unpickled copy have the same code and id."""
         before = _snapshot(bundle)
-        with pytest.raises(WriterError) as info:
+        with pytest.raises(CsvWriteError) as info:
             write_bundle(bundle, _project("Pump", "Fan", second))
         error = info.value
         assert str(error) == (
@@ -344,7 +344,7 @@ class TestWriteRefusals:
     )
     def test_a_control_character(self, bundle: Path, name: str, code: str) -> None:
         before = _snapshot(bundle)
-        with pytest.raises(WriterError) as info:
+        with pytest.raises(CsvWriteError) as info:
             write_bundle(bundle, _project("Pump", name))
         assert str(info.value) == (
             f"Subroutine {name!r} holds the control character U+{code}. Remove the "
@@ -360,7 +360,7 @@ class TestWriteRefusals:
         project = _project("Pump", "Fan")
         project.subroutines[1].rungs.append(_unwritable_rung())
         before = _snapshot(bundle)
-        with pytest.raises(WriterError, match=r"^Subroutine 'Fan': .* is 3 rows tall") as info:
+        with pytest.raises(CsvWriteError, match=r"^Subroutine 'Fan': .* is 3 rows tall") as info:
             write_bundle(bundle, project)
         assert info.value.code is None
         assert info.value.click_id is None
@@ -383,7 +383,7 @@ class TestWriteRefusals:
                 path.unlink()
             path.mkdir()
         before = _snapshot(bundle)
-        with pytest.raises(WriterError) as info:
+        with pytest.raises(CsvWriteError) as info:
             write_bundle(bundle, _project("Pump", "Valve"))
         assert str(info.value) == (
             f"{path} exists and is not {kind}. Move it or remove it, then write the bundle again."
@@ -395,7 +395,7 @@ class TestWriteRefusals:
     def test_a_directory_that_is_a_file(self, tmp_path: Path) -> None:
         path = tmp_path / "bundle"
         path.write_text("kept", encoding="utf-8")
-        with pytest.raises(WriterError, match="exists and is not a directory"):
+        with pytest.raises(CsvWriteError, match="exists and is not a directory"):
             write_bundle(path, _project("Pump"))
         assert path.read_text(encoding="utf-8") == "kept"
 
@@ -403,7 +403,7 @@ class TestWriteRefusals:
         """The error names the main program, and the missing directory is not created."""
         project = _project("Pump")
         project.main.rungs.append(_unwritable_rung())
-        with pytest.raises(WriterError, match=r"^Main program: .* is 3 rows tall"):
+        with pytest.raises(CsvWriteError, match=r"^Main program: .* is 3 rows tall"):
             write_bundle(tmp_path / "bundle", project)
         assert not (tmp_path / "bundle").exists()
 
@@ -434,7 +434,7 @@ class TestOtherFiles:
 class TestReadErrors:
     def test_missing_main(self, tmp_path: Path) -> None:
         _write_file(tmp_path / "subroutines" / "Pump.csv", "return()")
-        with pytest.raises(CsvError, match="missing required main.csv") as info:
+        with pytest.raises(CsvReadError, match="missing required main.csv") as info:
             read_bundle(tmp_path)
         assert CsvLocation.of(info.value) == CsvLocation(file=tmp_path / "main.csv")
 
@@ -452,7 +452,7 @@ class TestReadErrors:
     def test_a_row_that_cannot_be_read_names_its_file(self, tmp_path: Path) -> None:
         _write_file(tmp_path / "main.csv", "out(Y001)")
         sub = _write_file(tmp_path / "subroutines" / "Beta.csv", "out(Y002)", "nonsense(")
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_bundle(tmp_path)
         location = CsvLocation.of(info.value)
         assert location is not None
@@ -463,10 +463,10 @@ class TestReadErrors:
         different error."""
         _unreadable(tmp_path / "main.csv")
         bad = _unreadable(tmp_path / "subroutines" / f"{'x' * 25}.csv")
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_bundle(tmp_path)
         exc = info.value
-        assert type(exc) is CsvError
+        assert type(exc) is CsvReadError
         assert str(exc) == (
             f"The file name {bad.name!r} is not a subroutine name that CLICK accepts. "
             f"Program.name: {'x' * 25!r} is 25 characters; a subroutine name is at most 24. "
@@ -480,7 +480,7 @@ class TestReadErrors:
         """``.csv`` holds a blank name, which CLICK refuses.  No file can be read."""
         _unreadable(tmp_path / "main.csv")
         bad = _unreadable(tmp_path / "subroutines" / ".csv")
-        with pytest.raises(CsvError, match="is blank") as info:
+        with pytest.raises(CsvReadError, match="is blank") as info:
             read_bundle(tmp_path)
         assert info.value.code == Code.BLANK_FIELD
         assert CsvLocation.of(info.value) == CsvLocation(file=bad)
@@ -493,7 +493,7 @@ class TestReadErrors:
         _unreadable(tmp_path / "main.csv")
         _unreadable(tmp_path / "subroutines" / "Fan.csv")
         bad = _unreadable(tmp_path / "subroutines" / file_name)
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_bundle(tmp_path)
         assert str(info.value) == (
             f"The subroutine name in {file_name!r} starts or ends with whitespace. Remove the "
@@ -505,7 +505,7 @@ class TestReadErrors:
         """The paths are in memory, so the check reads no file."""
         sub = Path("subroutines")
         paths = [sub / "Fan.csv", sub / "Pump.csv", sub / "pump.CSV"]
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             _subroutine_names(paths)
         assert str(info.value) == (
             "Subroutine files 'Pump.csv' and 'pump.CSV' have the same name when the case of "
@@ -522,7 +522,7 @@ class TestReadErrors:
 
     def test_names_equal_ignoring_the_case_of_a_z(self) -> None:
         sub = Path("subroutines")
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             _subroutine_names([sub / "Zz.csv", sub / "zz.csv"])
         _assert_duplicate_name(info.value)
 
@@ -535,7 +535,7 @@ class TestReadErrors:
         sub = tmp_path / "subroutines"
         paths = (tmp_path / "main.csv", [sub / "Pump.csv", sub / "pump.csv"])
         monkeypatch.setattr(laddercodec.csv.bundle, "_bundle_paths", lambda _: paths)
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_bundle(tmp_path)
         _assert_duplicate_name(info.value)
         assert CsvLocation.of(info.value) == CsvLocation(file=sub / "pump.csv")
@@ -549,12 +549,12 @@ class TestReadErrors:
             path.write_bytes(b"\xff")
         if len(list((tmp_path / "subroutines").iterdir())) != 2:
             pytest.skip("this file system ignores case in file names")
-        with pytest.raises(CsvError, match="have the same name when the case of A-Z") as info:
+        with pytest.raises(CsvReadError, match="have the same name when the case of A-Z") as info:
             read_bundle(tmp_path)
         _assert_duplicate_name(info.value)
 
 
-def _assert_duplicate_name(error: CsvError) -> None:
+def _assert_duplicate_name(error: CsvReadError) -> None:
     """Assert that *error* is the refusal of two subroutine files whose names are equal when
     the case of A-Z is ignored."""
     assert error.code is Code.DUPLICATE_SUBROUTINE_NAME
@@ -576,7 +576,7 @@ class TestReadOptions:
     def test_strict(self, tmp_path: Path) -> None:
         _write_file(tmp_path / "main.csv", "out(Y001)")
         sub = _write_file(tmp_path / "subroutines" / "Pump.csv", "drum(DS1,DS2)")
-        with pytest.raises(CsvError, match="Could not read 'drum") as info:
+        with pytest.raises(CsvReadError, match="Could not read 'drum") as info:
             read_bundle(tmp_path)
         assert CsvLocation.of(info.value).file == sub  # type: ignore[union-attr]
 

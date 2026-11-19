@@ -35,10 +35,10 @@ from laddercodec import (
     read_csv,
     write_csv,
 )
-from laddercodec.csv.writer import WriterError
+from laddercodec.csv.writer import CsvWriteError
 from laddercodec.decode import DecodeError, decode_rung, decode_rungs, inspect_cells
 from laddercodec.instructions import Shift, UnknownCondition, UnknownInstruction
-from laddercodec.model import ConditionInstruction
+from laddercodec.model import Condition
 from laddercodec.undecoded import marker_rung
 from tests.ladder.test_decode_program import _synthetic_scr
 from tests.undecoded_captures import WINDY_ROAD
@@ -144,7 +144,7 @@ def _instruction_cell(rung: Rung) -> tuple[int, int]:
         (row, column)
         for row, tokens in enumerate(rung.conditions)
         for column, token in enumerate(tokens[:-1])
-        if isinstance(token, ConditionInstruction)
+        if isinstance(token, Condition)
     )
 
 
@@ -220,7 +220,7 @@ def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
     assert len(want) == 4
     (cell,) = inspect_cells(data, [(1, 0, "B")])
     assert data[cell.offset + 0x05] == 0x26
-    assert isinstance(want[1].conditions[0][0], ConditionInstruction)
+    assert isinstance(want[1].conditions[0][0], Condition)
     damaged = bytearray(data)
     damaged[cell.offset + 0x01] = 0x7F
     rungs, markers = _rungs_and_markers(bytes(damaged))
@@ -619,7 +619,7 @@ def test_write_csv_writes_a_marker_for_an_unwritable_rung(
 
 def test_write_csv_refuses_an_unknown_stop_before_writing(tmp_path: Path) -> None:
     """``stop`` is checked even when no rung needs a marker, and no file is made."""
-    with pytest.raises(WriterError, match=r"write_csv: stop='halt' must be 'end' or 'return'"):
+    with pytest.raises(CsvWriteError, match=r"write_csv: stop='halt' must be 'end' or 'return'"):
         write_csv(tmp_path / "m.csv", RUNGS, stop="halt")  # type: ignore[arg-type]
     assert not (tmp_path / "m.csv").exists()
 
@@ -638,7 +638,8 @@ def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> N
     with warnings.catch_warnings():
         warnings.simplefilter("error", UndecodedRungWarning)
         with pytest.raises(
-            WriterError, match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows"
+            CsvWriteError,
+            match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows",
         ):
             write_csv(tmp_path / "m.csv", [RUNGS[0], rung])
 
@@ -647,10 +648,10 @@ def test_write_csv_still_raises_when_the_round_trip_check_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     def fail(rung, rows, *, exact=False):
-        raise WriterError("round-trip validation failed")
+        raise CsvWriteError("round-trip validation failed")
 
     monkeypatch.setattr(writer_module, "_validate_roundtrip", fail)
-    with pytest.raises(WriterError, match="round-trip validation failed"):
+    with pytest.raises(CsvWriteError, match="round-trip validation failed"):
         write_csv(tmp_path / "m.csv", [RUNGS[1]])
 
 

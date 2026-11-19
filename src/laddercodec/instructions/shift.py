@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
@@ -94,14 +94,14 @@ class Shift(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"shift\((.+)\)", token)
         if not m:
-            raise CsvError(_SHIFT_FORM.format(token=token))
+            raise CsvReadError(_SHIFT_FORM.format(token=token))
 
         inner = m.group(1).strip()
         if ".." not in inner:
-            raise CsvError(f"shift expects a range arg (start..end): {token!r}")
+            raise CsvReadError(f"shift expects a range arg (start..end): {token!r}")
         parts = [p.strip() for p in inner.split("..")]
         if len(parts) != 2 or not all(parts):
-            raise CsvError(_SHIFT_FORM.format(token=token))
+            raise CsvReadError(_SHIFT_FORM.format(token=token))
 
         return cls(
             start_bit=parts[0],

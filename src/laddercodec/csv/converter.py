@@ -62,12 +62,13 @@ from typing import Any, cast
 
 from .._layout import LayoutError, drawn
 from ..decode import Rung
-from ..encode import AfToken, ConditionToken
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..instructions import (
     KNOWN_PIN_NAMES,
     CompareContact,
+    ConditionToken,
     Contact,
+    InstructionToken,
     Receive,
     Send,
     Tee,
@@ -75,12 +76,10 @@ from ..instructions import (
     parse_af_call,
     parse_condition_blob,
 )
-from ..instructions import AfToken as RungAfToken
-from ..instructions import ConditionToken as RungConditionToken
 from ..model import (
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
     FieldError,
+    Instruction,
     PinnedInstruction,
     check_address,
 )
@@ -116,7 +115,7 @@ class _ParsedRow:
 
     conditions: list[ConditionToken]
     kind: str
-    token: AfToken = ""
+    token: InstructionToken = ""
     pin_name: str | None = None
     pin_args: tuple[str, ...] = ()
     #: The CSV line and rung row of the row, for an error's location.
@@ -127,7 +126,7 @@ class _ParsedRow:
 class _ActiveBlock:
     """A multi-row AF block that is still gathering continuation rows."""
 
-    token: AfInstruction
+    token: Instruction
     main_conditions: list[ConditionToken]
     #: Rows of a pinned box's lead slots (above its main input), top first.
     lead_conditions: list[list[ConditionToken]] = field(default_factory=list)
@@ -168,9 +167,9 @@ def pinned_gap_height(gap: Sequence[Sequence[object]], unused: int) -> int:
     return len(gap) + unused - _unused_pin_blank_rows(gap, unused)
 
 
-def _af_visual_rows(token: AfToken) -> int:
+def _af_visual_rows(token: InstructionToken) -> int:
     """Return the AF token's visual row count."""
-    if isinstance(token, AfInstruction):
+    if isinstance(token, Instruction):
         return max(1, int(token.cell_params().get("visual_rows", 1)))
     return 1
 
@@ -223,7 +222,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
         pin_name = af_node.name
         if pin_name not in KNOWN_PIN_NAMES:
             raise at(
-                CsvError(
+                CsvReadError(
                     f"{pin_name}() is not a pin token. Write one of "
                     f"{', '.join(_pin_form(p) for p in sorted(KNOWN_PIN_NAMES))}."
                 ),
@@ -255,7 +254,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
 def _flush_plain_rows(
     plain_rows: list[_ParsedRow],
     condition_rows: list[list[ConditionToken]],
-    af_tokens: list[AfToken],
+    af_tokens: list[InstructionToken],
 ) -> None:
     """Move the buffered rows that belong to no block to *condition_rows* and *af_tokens*."""
     for row in plain_rows:
@@ -270,7 +269,7 @@ def _start_active_block(
     lead_conditions: list[list[ConditionToken]] | None = None,
 ) -> _ActiveBlock:
     """Create a new active multi-row AF block from its main AF row."""
-    if not isinstance(row.token, AfInstruction):
+    if not isinstance(row.token, Instruction):
         raise AssertionError("block_main row must carry an AF instruction token")
     return _ActiveBlock(
         token=row.token,
@@ -285,7 +284,7 @@ def _max_continuations(block: _ActiveBlock) -> int:
     return max(0, _af_visual_rows(block.token) - 1)
 
 
-def _call_name(token: AfInstruction) -> str:
+def _call_name(token: Instruction) -> str:
     return f"{token.to_csv().split('(', 1)[0]}()"
 
 
@@ -311,13 +310,13 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
     if row.kind == "nop" and token.lead_rows:
         name = _call_name(token)
         if block.lead_conditions:
-            raise CsvError(
+            raise CsvReadError(
                 f"{name}: with NOP on the row under it, the {name} row is the box's unused "
                 "Up row. The box has only one Up row, so the blank-AF row directly above it "
                 f"can't be another. Leave no blank-AF row directly above {name}."
             )
         if block.continuations:
-            raise CsvError(
+            raise CsvReadError(
                 f"{name}: the row with NOP in column AF is the box's Down input. Put that "
                 f"row directly under the {name} row."
             )
@@ -339,10 +338,10 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
             if len(order) == 1
             else f"Its pins are {', '.join(_pin_form(p) for p in order)}, in that order."
         )
-        raise CsvError(f"{_call_name(token)} has no {pin_name}() pin. {pins}")
+        raise CsvReadError(f"{_call_name(token)} has no {pin_name}() pin. {pins}")
     remaining = order[order.index(seen[-1]) + 1 :] if seen else order
     if pin_name not in remaining:
-        raise CsvError(
+        raise CsvReadError(
             f"Pin token {pin_name!r} is out of order or repeated for "
             f"{_call_name(token)}: pins go {', '.join(f'{p}()' for p in order)}"
         )
@@ -364,7 +363,7 @@ def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
 
 def _finalize_pinned_block(
     block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
+) -> tuple[list[list[ConditionToken]], list[InstructionToken], list[_ParsedRow]]:
     """Lay out a pinned block, with each slot on its own row.
 
     Return the condition rows, the AF tokens and the tail.  The tail is the rows that the
@@ -440,7 +439,7 @@ def _finalize_pinned_block(
     # would otherwise raise.  Locate each one where it would have been raised.
     _locate_at_pins(token, pins, slots, refusals(boxed), pin_places)
     locate_held([boxed], **block.place, column=AF_COLUMN)
-    af_tokens: list[AfToken] = [boxed, *([""] * (len(rows) - 1))]
+    af_tokens: list[InstructionToken] = [boxed, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
@@ -452,9 +451,9 @@ def _pin_error(
     slot_rows: tuple[int, ...],
     exc: ValueError,
     pin_places: dict[str, dict[str, int | None]],
-) -> CsvError:
-    """Return the ``CsvError`` to raise when *token* refuses *pins* with *exc*."""
-    error = CsvError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
+) -> CsvReadError:
+    """Return the ``CsvReadError`` to raise when *token* refuses *pins* with *exc*."""
+    error = CsvReadError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
     if isinstance(exc, FieldError):
         # The box refuses a value that a pin row sets.  Locate the error at that row.
         culprit = _refused_pin(token, pins, slot_rows)
@@ -525,11 +524,11 @@ def _refused_pin(
 
 def _finalize_generic_tall_block(
     block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken]]:
+) -> tuple[list[list[ConditionToken]], list[InstructionToken]]:
     """Expand a non-pinned tall AF block to its full visual row span."""
     visual_rows = _af_visual_rows(block.token)
     condition_rows = [block.main_conditions]
-    af_tokens: list[AfToken] = [block.token]
+    af_tokens: list[InstructionToken] = [block.token]
 
     for offset in range(visual_rows - 1):
         if offset < len(block.continuations):
@@ -543,7 +542,7 @@ def _finalize_generic_tall_block(
 
 def _finalize_active_block(
     block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
+) -> tuple[list[list[ConditionToken]], list[InstructionToken], list[_ParsedRow]]:
     """Return the condition rows and AF tokens of *block*, and the rows that fall below it.
 
     Only a pinned block can have rows that fall below it.  An error is located at the cell
@@ -575,7 +574,7 @@ def condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
             check_address(node.raw, "Contact.operand")  # an address with digits not in 0-9
-        raise CsvError(
+        raise CsvReadError(
             f"Could not read {node.raw!r} as a condition cell. Write a contact such as X001, "
             "~X001 or rise(X001), a compare such as DS1==1, or a wire: -, | or T."
         )
@@ -584,7 +583,7 @@ def condition_node_to_token(node: object) -> ConditionToken:
 
 def _contact_of(
     node: ContactCondition | EdgeCondition | ComparisonCondition,
-) -> ConditionInstruction:
+) -> Condition:
     """Return the contact that a parsed contact, edge or compare node names, without its wire."""
     if isinstance(node, ContactCondition):
         return Contact(node.operand, kind="nc" if node.negated else "no", immediate=node.immediate)
@@ -594,7 +593,7 @@ def _contact_of(
     return CompareContact(op=node.op, left=node.left, right=node.right)
 
 
-def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
+def _af_call_to_token(call: AfCall, *, strict: bool = True) -> InstructionToken:
     """Convert a parsed AF call node to an encode-ready token.
 
     If the parser for the instruction accepts the token, the function returns what the
@@ -614,7 +613,7 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     if refused is None:
         if token is None:
             if strict:
-                raise CsvError(
+                raise CsvReadError(
                     f"Could not read {call.to_token()!r} as an instruction. Check its name "
                     "and its parentheses."
                 )
@@ -626,10 +625,10 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
         return blanked
     if refused is not None:
         raise refused
-    return cast(AfInstruction, token)
+    return cast(Instruction, token)
 
 
-def _with_blank_fields(call: AfCall) -> AfInstruction | None:
+def _with_blank_fields(call: AfCall) -> Instruction | None:
     """Return the instruction that *call* reads to with each blank argument's field blank.
 
     The function writes a marker into each blank argument and parses the token.  It tries
@@ -660,7 +659,7 @@ def _with_blank_fields(call: AfCall) -> AfInstruction | None:
         if probe is None:
             return None
         if all(_holds_text(probe, m) for m in marks):
-            return cast(AfInstruction, _built_with_blanks(probe, marks))
+            return cast(Instruction, _built_with_blanks(probe, marks))
     return None
 
 
@@ -717,7 +716,7 @@ def _built_with_blanks(value: object, marks: set[str]) -> object:
     return value
 
 
-def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
+def af_node_to_token(node: AfNode, *, strict: bool = True) -> InstructionToken:
     """Convert a parsed AF AST node to an encode-ready token."""
     if isinstance(node, AfBlank):
         return ""
@@ -738,11 +737,11 @@ def reads_back(token: object) -> bool:
     """
     try:
         with unchecked():
-            if isinstance(token, Tee) and isinstance(token.contact, ConditionInstruction):
+            if isinstance(token, Tee) and isinstance(token.contact, Condition):
                 again: object = condition_node_to_token(parse_condition_token(token.to_csv()))
-            elif isinstance(token, ConditionInstruction):
+            elif isinstance(token, Condition):
                 again = condition_node_to_token(parse_condition_token(token.to_csv()))
-            elif isinstance(token, AfInstruction):
+            elif isinstance(token, Instruction):
                 again = af_node_to_token(parse_af_token(token.to_csv()))
                 if isinstance(token, PinnedInstruction) and isinstance(again, PinnedInstruction):
                     calls = [
@@ -759,7 +758,7 @@ def reads_back(token: object) -> bool:
     return again == token
 
 
-def writes_back(inst: ConditionInstruction | AfInstruction) -> bool:
+def writes_back(inst: Condition | Instruction) -> bool:
     """Return True if the blob that *inst* builds parses back to an instruction equal to
     *inst*.
 
@@ -770,7 +769,7 @@ def writes_back(inst: ConditionInstruction | AfInstruction) -> bool:
     The blob does not store the name of a Send or Receive target, so the function gives the
     parsed instruction the name of *inst*'s target before it compares the two.
     """
-    parse = parse_condition_blob if isinstance(inst, ConditionInstruction) else parse_af_blob
+    parse = parse_condition_blob if isinstance(inst, Condition) else parse_af_blob
     try:
         blob = inst.build_blob()
         with warnings.catch_warnings():
@@ -807,7 +806,7 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
 
     Raises
     ------
-    CsvError
+    CsvReadError
         If the rung contains unsupported constructs.  It is also raised, with the code
         ``layout-too-tall``, if a rung that would come back needs more than 32 rows.  The
         ``LayoutError`` is its ``__cause__``.
@@ -818,7 +817,7 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
         try:
             rungs, _ = drawn(literal)
         except LayoutError as exc:
-            raise CsvError(str(exc), code=exc.code) from exc
+            raise CsvReadError(str(exc), code=exc.code) from exc
     for laid_out in rungs:
         locate_held(rung_tokens(laid_out), rung_line=rung_line)
     return rungs
@@ -839,11 +838,11 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
 
     Raises
     ------
-    CsvError
+    CsvReadError
         If the rung contains unsupported constructs.
     """
     if not rung.rows:
-        raise CsvError("Rung has no rows")
+        raise CsvReadError("Rung has no rows")
 
     # --- Extract comment ---
     comment: str | None = None
@@ -852,7 +851,7 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
         comment = "\n".join(lines)
 
     condition_rows: list[list[ConditionToken]] = []
-    af_tokens: list[AfToken] = []
+    af_tokens: list[InstructionToken] = []
     plain_rows: list[_ParsedRow] = []
     active_block: _ActiveBlock | None = None
 
@@ -911,7 +910,7 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
     # --- Auto-pad for tall instructions (any row, not just row 0) ---
     for i in range(len(af_tokens)):
         af_i = af_tokens[i]
-        if isinstance(af_i, AfInstruction):
+        if isinstance(af_i, Instruction):
             needed = i + _af_visual_rows(af_i)
             while len(condition_rows) < needed:
                 condition_rows.append(_blank_condition_row())
@@ -920,8 +919,4 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
     # --- Hydrate wire continuations ---
     _hydrate_wire_continuations(condition_rows)
 
-    return Rung(
-        cast(list[list[RungConditionToken]], condition_rows),
-        cast(list[RungAfToken], af_tokens),
-        comment,
-    )
+    return Rung(condition_rows, af_tokens, comment)

@@ -27,7 +27,7 @@ from laddercodec.csv.ast import (
 )
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import (
-    CsvError,
+    CsvReadError,
     _hydrate_wire_continuations,
     af_node_to_token,
     condition_node_to_token,
@@ -430,7 +430,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match=r"bogus\(\) is not a pin token"):
+        with pytest.raises(CsvReadError, match=r"bogus\(\) is not a pin token"):
             _literal(rung)
 
 
@@ -748,7 +748,7 @@ class TestCounterRows:
         _write_csv(csv_path, [("R", _wire_row("rise(C80)"), "count_up(CT4,CTD4,preset=10)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match="requires a .reset\\(\\) pin row"):
+        with pytest.raises(CsvReadError, match="requires a .reset\\(\\) pin row"):
             _literal(rung)
 
 
@@ -803,7 +803,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match=r"shift\(\) has no \.down\(\) pin"):
+        with pytest.raises(CsvReadError, match=r"shift\(\) has no \.down\(\) pin"):
             _literal(rung)
 
     def test_shift_names_a_foreign_pin_as_written(self, tmp_path: Path) -> None:
@@ -817,7 +817,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match=r"shift\(\) has no \.jump\(\) pin\. Its pins are"):
+        with pytest.raises(CsvReadError, match=r"shift\(\) has no \.jump\(\) pin\. Its pins are"):
             _literal(rung)
 
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
@@ -854,7 +854,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match="out of order"):
+        with pytest.raises(CsvReadError, match="out of order"):
             _literal(rung)
 
 

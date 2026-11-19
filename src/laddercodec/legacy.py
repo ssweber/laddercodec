@@ -12,7 +12,7 @@ import warnings
 from collections.abc import Iterable
 from typing import NamedTuple
 
-from .instructions import AfInstruction
+from .instructions import Instruction
 
 
 class LegacyFinding(NamedTuple):
@@ -74,7 +74,7 @@ def warn_legacy(rungs: Iterable[object], *, program: str | None = None) -> None:
     """Emit one :class:`LegacyEncodingWarning` per finding in ``rungs``."""
     for index, rung in enumerate(rungs):
         for af in getattr(rung, "instructions", ()):
-            if not isinstance(af, AfInstruction):
+            if not isinstance(af, Instruction):
                 continue
             for finding in getattr(af, "_legacy_findings", ()):
                 warnings.warn(

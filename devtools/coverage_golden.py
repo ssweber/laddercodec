@@ -14,12 +14,13 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
 
-from laddercodec.csv.converter import CsvError, convert_rung
+from laddercodec import ConditionToken, InstructionToken
+from laddercodec.csv.converter import CsvReadError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.encode import AfToken, ConditionToken, encode_rung
+from laddercodec.encode import encode_rung
 from laddercodec.encode_multi import encode_rungs
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,20 +33,16 @@ def _encode_csv(csv_path: Path) -> bytes:
     if not program.rungs:
         raise ValueError(f"No rungs found in {csv_path.name}")
 
-    converted: list[tuple[int, list[list[ConditionToken]], list[AfToken], str | None]] = []
+    converted: list[
+        tuple[int, Sequence[Sequence[ConditionToken]], Sequence[InstructionToken], str | None]
+    ] = []
     for idx, rung in enumerate(program.rungs):
         try:
             laid_out = convert_rung(rung)
-        except (CsvError, NotImplementedError, ValueError) as exc:
+        except (CsvReadError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"Cannot encode {csv_path.name} rung {idx}: {exc}") from exc
         converted.extend(
-            (
-                r.logical_rows,
-                cast(list[list[ConditionToken]], r.conditions),
-                cast(list[AfToken], r.instructions),
-                r.comment,
-            )
-            for r in laid_out
+            (r.logical_rows, r.conditions, r.instructions, r.comment) for r in laid_out
         )
 
     if len(converted) == 1:

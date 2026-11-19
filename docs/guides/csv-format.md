@@ -21,7 +21,7 @@ the format below.
 - Deterministic output
 - Fully expanded rows (no shorthand expansion required)
 - `write_csv` builds every row before it opens the file. If it raises
-  `WriterError`, the file is unchanged.
+  `CsvWriteError`, the file is unchanged.
 
 ## Bundle layout
 
@@ -53,16 +53,16 @@ project = read_bundle("my_program")
   a file of the same name. It does not delete or change any other file. A
   subroutine file left from an earlier write stays, and `read_bundle` reads it;
 - raises `FieldError` for a subroutine name that CLICK refuses. It raises
-  `WriterError` for two names that are equal when the case of A-Z is ignored
-  (`Pump` and `pump`, but not `é1` and `É1`). It raises `WriterError` with no
+  `CsvWriteError` for two names that are equal when the case of A-Z is ignored
+  (`Pump` and `pump`, but not `é1` and `É1`). It raises `CsvWriteError` with no
   `code` for two names whose files would be one file on a file system that
   ignores case, such as NTFS (`é1` and `É1`, but not `Straße` and `STRASSE`). It
-  raises `WriterError` for a name that holds a control character (U+0000 to
+  raises `CsvWriteError` for a name that holds a control character (U+0000 to
   U+001F, or U+007F) anywhere, including at either end. It also raises
-  `WriterError` when a path that it would write exists and is of the wrong
+  `CsvWriteError` when a path that it would write exists and is of the wrong
   kind, such as a directory named `main.csv`;
 - checks every name and path and builds every file's rows before it writes any
-  file. A `FieldError` or `WriterError` leaves the directory as it was. An
+  file. A `FieldError` or `CsvWriteError` leaves the directory as it was. An
   `OSError` while it writes, such as a full disk, can leave some files written
   and others not;
 - with `index=True`, numbers the rungs of each file from `R1`.
@@ -73,7 +73,7 @@ project = read_bundle("my_program")
   and `allow`. An error from a file has the location of that file;
 - returns the main program as `"Main Program"`, `prog_idx` 1, and then the
   subroutines in the order described next, with `prog_idx` 2, 3, 4 and so on;
-- raises `CsvError` for a missing `main.csv`. It also raises `CsvError` for a
+- raises `CsvReadError` for a missing `main.csv`. It also raises `CsvReadError` for a
   subroutine name that CLICK refuses, for a name that starts or ends with
   whitespace, and for two subroutine names that are equal when case is
   ignored. It checks the names before it reads any file.
@@ -246,8 +246,8 @@ The logic never changes. If the circuits of several outputs meet only at the rai
 `read_csv` makes one rung of each, in order, with the comment on the first. CLICK
 splits them the same way. So `read_csv` can return more rungs than the CSV holds.
 
-If a rung needs more than 32 rows, `read_csv` raises `CsvError` with the code
-`layout-too-tall`, and `write_csv` raises `WriterError` with the same code. Both accept
+If a rung needs more than 32 rows, `read_csv` raises `CsvReadError` with the code
+`layout-too-tall`, and `write_csv` raises `CsvWriteError` with the same code. Both accept
 the rung if each rung of its layout has 32 rows or fewer. That happens when CLICK splits
 the rung, or when the layout drops its blank rows.
 
@@ -712,7 +712,7 @@ Producer may emit:
     form `rows` must be the last pin + 1. The reader pads the rung to that height,
     as it does for other tall boxes. The hex form does not check this, and the
     writer uses it for a box stored at any other span.
-  - `write_csv` writes an `Email`, `Home`, `Position` or `Velocity` as a
+  - `write_csv` writes an `Email`, `Home`, `PositionMove` or `VelocityMove` as a
     `raw(...)` token. Its box spans 3 rows, as CLICK draws it. The reader pads
     the rung with blank rows, as it does for other tall boxes. CLICK stores some
     boxes at 1 row: one pasted from an earlier version and not yet saved by its
@@ -1030,7 +1030,7 @@ currently emit:
     from U+0001 to U+FFFF except a surrogate (`copy("é",TXT1)`, `"€"`, a tab, a
     line break). CLICK keeps these as typed. They refuse NUL and a character
     above U+FFFF. `write_csv` writes them inside the quotes, and `read_csv` reads
-    them back. A line break elsewhere in a token raises `CsvError`.
+    them back. A line break elsewhere in a token raises `CsvReadError`.
   - A search matches the window the text fills.
   - A quoted `"$41"` is three characters of text, not the code `$41`. Use `$00`
     for the blank (NUL) character.
@@ -1086,7 +1086,7 @@ currently emit:
   - `fill`, `pack_bits`, `pack_words`, `unpack_to_bits` and `unpack_to_words` take
     `oneshot`.
   - `pack_text` takes `oneshot` and `allow_whitespace`.
-  - Any other keyword (`terminaton_code=`) raises `CsvError`.
+  - Any other keyword (`terminaton_code=`) raises `CsvReadError`.
   - A flag is `1` or `0`. Any other value (`oneshot=yes`) raises `FieldError` with
     reason `flag`, and a blank `oneshot=` raises it with reason `missing`.
   - `allow_whitespace` is a `pack_text` option. A `Pack` of bits or words built with
@@ -1164,7 +1164,7 @@ If you change a field with `replace`, the copy is checked again. A refused value
 that the copy still holds then raises, even if you listed its code.
 
 If you list a name that is not a code, or pass both `allow=` and `unchecked=True`,
-`read_csv` raises `CsvError` before it reads the file.
+`read_csv` raises `CsvReadError` before it reads the file.
 
 ## Where a read error is
 
@@ -1178,7 +1178,7 @@ except LaddercodecError as exc:
     print(where.line, where.column_name)  # 5 D
 ```
 
-`read_csv` raises `CsvError` for a file that isn't UTF-8 text, and for a row, token
+`read_csv` raises `CsvReadError` for a file that isn't UTF-8 text, and for a row, token
 or rung that it can't read. It raises `FieldError` (`AddressError` for an address)
 for a value that CLICK's dialog refuses. Each is a `LaddercodecError`
 ([Errors](#errors)). Each carries a `CsvLocation` as its `location` attribute.
@@ -1209,14 +1209,14 @@ Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, 
 
 Three cases differ:
 
-- If a refusal comes while a box takes its pin rows, `read_csv` raises a `CsvError`,
-  not a `FieldError`. The `CsvError` carries the refusal's `field`, `fields`,
+- If a refusal comes while a box takes its pin rows, `read_csv` raises a `CsvReadError`,
+  not a `FieldError`. The `CsvReadError` carries the refusal's `field`, `fields`,
   `code`, `reason`, `click_id` and `errors`, as `FieldError` has them (`Drum.jump_step`).
 - Every refusal in a `FieldError`'s `errors` has its own `location`, not only the one
   raised. A refusal that a pin row's value causes is at that pin's row. The rest
   take the cell that raised them. Only the raised error's message ends with the
   location.
-- A file that isn't UTF-8 raises a `CsvError` with the `UnicodeDecodeError`'s
+- A file that isn't UTF-8 raises a `CsvReadError` with the `UnicodeDecodeError`'s
   message and the `UnicodeDecodeError` as its `__cause__`. Its location holds
   `file` only. A `csv.Error` (such as a cell longer than `csv.field_size_limit()`)
   arrives the same way, at the line its row starts on.
@@ -1230,13 +1230,13 @@ or `main.csv` when it is missing.
 raise a `LaddercodecError` for input they can't read or write, and every
 `LaddercodecError` is a `ValueError`:
 
-| Class          | Raised by                                                                    |
-|----------------|------------------------------------------------------------------------------|
-| `DecodeError`  | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
-| `EncodeError`  | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
-| `CsvError`     | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when the case of A-Z is ignored |
-| `WriterError`  | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when the case of A-Z is ignored or whose files would be one file on a file system that ignores case, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
-| `FieldError`   | building an instruction, `read_csv`, `read_bundle` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address. `write_bundle` for a subroutine name that CLICK refuses |
+| Class           | Raised by                                                                    |
+|-----------------|------------------------------------------------------------------------------|
+| `DecodeError`   | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
+| `EncodeError`   | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
+| `CsvReadError`  | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when the case of A-Z is ignored |
+| `CsvWriteError` | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when the case of A-Z is ignored or whose files would be one file on a file system that ignores case, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
+| `FieldError`    | building an instruction, `read_csv`, `read_bundle` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address. `write_bundle` for a subroutine name that CLICK refuses |
 
 ## Consumer recommendations
 

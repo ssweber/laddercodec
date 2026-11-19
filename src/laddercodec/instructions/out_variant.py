@@ -25,8 +25,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
 from ..codes import Code
-from ..errors import CsvError
-from ..model import AfInstruction, Reason, check_address
+from ..errors import CsvReadError
+from ..model import Instruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand, check_out_target
 from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
@@ -134,7 +134,7 @@ _OUT_VARIANT_TAGS = (
 
 
 @dataclass(frozen=True)
-class OutVariant(AfInstruction):
+class OutVariant(Instruction):
     """A CLICK v4 Out coil variant: toggle, debounce, flasher or timed."""
 
     kind: OutVariantKind
@@ -254,7 +254,7 @@ class OutVariant(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"(toggle|debounce|flasher|timed)\((.+)\)", token)
         if not m:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a toggle, debounce, flasher or timed coil. "
                 "Write the coil's address first, such as toggle(C1) or "
                 "timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)."
@@ -262,18 +262,18 @@ class OutVariant(AfInstruction):
         kind = cast(OutVariantKind, m.group(1))
         parts = [seg.strip() for seg in m.group(2).split(",") if seg.strip()]
         if not parts or "=" in parts[0]:
-            raise CsvError(f"{kind} needs a target operand: {token!r}")
+            raise CsvReadError(f"{kind} needs a target operand: {token!r}")
 
         arg = parts[0]
         if kind == "toggle" and len(parts) > 1:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r}. toggle takes only the coil's address, such as "
                 "toggle(C1) or toggle(immediate(Y001))."
             )
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise CsvError(
+                raise CsvReadError(
                     f"Could not read {token!r}. After the coil's address, {kind} takes only "
                     "keyword arguments, such as on_acc=TD1."
                 )
@@ -298,10 +298,10 @@ class OutVariant(AfInstruction):
             required = {"unit"}
         missing = required - set(kwargs)
         if missing:
-            raise CsvError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
+            raise CsvReadError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
         unknown = set(kwargs) - allowed
         if unknown:
-            raise CsvError(f"{kind} does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvReadError(f"{kind} does not support keyword argument(s): {sorted(unknown)}")
         maintained = check_csv_flag(kwargs, "maintained", "OutVariant.maintained")
 
         return cls(

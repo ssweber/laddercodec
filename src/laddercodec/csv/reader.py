@@ -8,9 +8,9 @@ from pathlib import Path
 
 from ..codes import Code
 from ..decode import Rung
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..instructions import Tee
-from ..model import AfInstruction, ConditionInstruction
+from ..model import Condition, Instruction
 from ..operands.unchecked import allowed, refusals
 from ..operands.unchecked import unchecked as _unchecked
 from .converter import convert_rung, rung_tokens, writes_back
@@ -22,7 +22,7 @@ def allowed_codes(allow: Iterable[str] | None, *, unchecked: bool, caller: str) 
     """Return the codes that *allow* names, for the ``allow=`` of ``read_csv`` or
     ``read_bundle``.  Read None as no codes.
 
-    Raise ``CsvError`` if *allow* is a string, bytes or not iterable, if an item names no
+    Raise ``CsvReadError`` if *allow* is a string, bytes or not iterable, if an item names no
     ``Code``, or if *allow* names a code and *unchecked* is True.  *caller* starts the
     message.
     """
@@ -30,7 +30,7 @@ def allowed_codes(allow: Iterable[str] | None, *, unchecked: bool, caller: str) 
         allow = ()
     if isinstance(allow, str):
         text = str(allow)
-        raise CsvError(
+        raise CsvReadError(
             f"{caller}: allow={text!r} is one code name. Pass a list of code names, such as "
             f"allow=[{text!r}]."
         )
@@ -41,7 +41,7 @@ def allowed_codes(allow: Iterable[str] | None, *, unchecked: bool, caller: str) 
         except TypeError:
             names = None  # not iterable
     if names is None:
-        raise CsvError(
+        raise CsvReadError(
             f"{caller}: allow={allow!r} is not a list of code names. Pass a list, such as "
             "allow=['bank-not-allowed']."
         )
@@ -50,12 +50,12 @@ def allowed_codes(allow: Iterable[str] | None, *, unchecked: bool, caller: str) 
         try:
             codes.add(Code(name))
         except ValueError:
-            raise CsvError(
+            raise CsvReadError(
                 f"{caller}: allow= holds {name!r}, which is not a code. Use the name of a "
                 "Code, such as 'bank-not-allowed'."
             ) from None
     if codes and unchecked:
-        raise CsvError(
+        raise CsvReadError(
             f"{caller}: you passed both unchecked=True and allow=. Pass one of them, such as "
             "allow=['bank-not-allowed'] alone."
         )
@@ -102,7 +102,7 @@ def _raise_unwritable(rung: Rung) -> None:
     """
     for token in rung_tokens(rung):
         inst = token.contact if isinstance(token, Tee) else token
-        if not isinstance(inst, (ConditionInstruction, AfInstruction)):
+        if not isinstance(inst, (Condition, Instruction)):
             continue
         if allowed(inst) and not writes_back(inst):
             first = refusals(inst)[0]

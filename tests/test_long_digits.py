@@ -86,16 +86,16 @@ UNCHECKED = {
 
 #: Classes whose fields are text keyed by tag. laddercodec keeps that text as written and
 #: does not interpret it.
-OPAQUE = {"Email", "Home", "Position", "Velocity"}
+OPAQUE = {"Email", "Home", "PositionMove", "VelocityMove"}
 
 #: Instruction classes with no text field to sweep.
 NO_TEXT_FIELDS = {"End", "Return", "Next", "Break", "Continue"}
 
 
 def _roots() -> list[Any]:
-    from laddercodec.instructions import Email, Home, Position, Velocity
+    from laddercodec.instructions import Email, Home, PositionMove, VelocityMove
 
-    return [*SWEEP.golden_instructions().values(), Email(), Home(), Position(), Velocity()]
+    return [*SWEEP.golden_instructions().values(), Email(), Home(), PositionMove(), VelocityMove()]
 
 
 Path_ = tuple[tuple[str, int | None], ...]

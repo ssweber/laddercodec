@@ -946,8 +946,8 @@ def test_dialog_saved_box_reencodes_at_3_rows() -> None:
     assert [type(r.instructions[0]).__name__ for r in rungs] == [
         "Email",
         "Home",
-        "Position",
-        "Velocity",
+        "PositionMove",
+        "VelocityMove",
     ]
     again = encode(rungs)
     for i, rung in enumerate(rungs):

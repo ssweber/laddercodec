@@ -17,16 +17,16 @@ from .encode import (
     MAX_ROWS,
     MIN_ROWS,
     SUPPORTED_CONDITION_TOKENS,
-    AfToken,
-    ConditionToken,
     _af_segment,
     _compute_seg_boundaries,
     _normalize_af,
 )
 from .errors import EncodeError
 from .instructions import (
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
+    ConditionToken,
+    Instruction,
+    InstructionToken,
     Tee,
     Undecoded,
     UnknownCondition,
@@ -40,7 +40,7 @@ from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 # ---------------------------------------------------------------------------
 
 
-def _check_instruction(token: ConditionInstruction | AfInstruction) -> None:
+def _check_instruction(token: Condition | Instruction) -> None:
     """Refuse a value in *token* that CLICK's dialog refuses.
 
     A decoded instruction that holds the blob it was read from is not checked.
@@ -61,15 +61,15 @@ def _check_instruction(token: ConditionInstruction | AfInstruction) -> None:
         raise found[0].with_traceback(None)
 
 
-def _cell_contact(token: ConditionToken) -> str | ConditionInstruction:
+def _cell_contact(token: ConditionToken) -> str | Condition:
     """Return the contact inside a ``Tee``, or *token* itself if it is not a ``Tee``.
 
     ``_validate_rung`` refuses an ``UnknownCondition``, inside a ``Tee`` or not, before
     the grid is built.
     """
     if not isinstance(token, Tee):
-        return token
-    return cast("ConditionInstruction", token.contact)
+        return cast("str | Condition", token)
+    return cast("Condition", token.contact)
 
 
 def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: str) -> None:
@@ -78,11 +78,7 @@ def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: 
     A ``Tee`` has a wire down, so the same rules hold for it as for ``"T"`` and ``"|"``.
     """
     contact = tee.contact
-    text = (
-        tee.to_csv()
-        if isinstance(contact, ConditionInstruction)
-        else f"Tee({type(contact).__name__})"
-    )
+    text = tee.to_csv() if isinstance(contact, Condition) else f"Tee({type(contact).__name__})"
     where = f"{prefix}Row {row_idx}, column {_COLUMN_NAMES[col_idx]}: {text} has a wire down"
     if col_idx == 0:
         raise EncodeError(
@@ -98,7 +94,7 @@ def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: 
 def _validate_rung(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
-    af_tokens: Sequence[AfToken],
+    af_tokens: Sequence[InstructionToken],
     label: str = "",
 ) -> None:
     """Validate rung dimensions, tokens, and NOP count.
@@ -148,7 +144,7 @@ def _validate_rung(
                     "laddercodec can't write an instruction it couldn't read. Replace the "
                     "cell, or remove it."
                 )
-            if isinstance(token, ConditionInstruction):
+            if isinstance(token, Condition):
                 _check_instruction(token)
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
@@ -176,7 +172,7 @@ def _validate_rung(
             )
         if isinstance(af, Undecoded):
             raise EncodeError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
-        if isinstance(af, AfInstruction):
+        if isinstance(af, Instruction):
             _check_instruction(af)
 
     nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
@@ -203,19 +199,16 @@ class RungMetadata:
 def _compute_rung_metadata(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
-    af_tokens: Sequence[AfToken],
+    af_tokens: Sequence[InstructionToken],
 ) -> RungMetadata:
     """Compute instruction indices and segment boundaries."""
     rung_has_instructions = any(
-        isinstance(_cell_contact(t), ConditionInstruction) for row in condition_rows for t in row
-    ) or any(isinstance(af, AfInstruction) for af in af_tokens)
+        isinstance(_cell_contact(t), Condition) for row in condition_rows for t in row
+    ) or any(isinstance(af, Instruction) for af in af_tokens)
 
     total_instr_count = sum(
-        1
-        for row in condition_rows
-        for t in row
-        if isinstance(_cell_contact(t), ConditionInstruction)
-    ) + sum(1 for af in af_tokens if isinstance(af, AfInstruction))
+        1 for row in condition_rows for t in row if isinstance(_cell_contact(t), Condition)
+    ) + sum(1 for af in af_tokens if isinstance(af, Instruction))
 
     # Number the condition instructions first, row by row, then the AF instructions.
     cond_instr_indices: dict[tuple[int, int], int] = {}
@@ -223,12 +216,12 @@ def _compute_rung_metadata(
     idx = 0
     for row_idx in range(logical_rows):
         for col_idx, tok in enumerate(condition_rows[row_idx]):
-            if isinstance(_cell_contact(tok), ConditionInstruction):
+            if isinstance(_cell_contact(tok), Condition):
                 cond_instr_indices[(row_idx, col_idx)] = idx
                 idx += 1
     for row_idx in range(logical_rows):
         af = af_tokens[row_idx]
-        if isinstance(af, AfInstruction):
+        if isinstance(af, Instruction):
             af_instr_indices[row_idx] = idx
             idx += 1
 
@@ -251,7 +244,7 @@ def _compute_rung_metadata(
 def _build_rung_grid(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
-    af_tokens: Sequence[AfToken],
+    af_tokens: Sequence[InstructionToken],
     meta: RungMetadata,
     global_row_start: int,
     rung_idx: int,
@@ -284,7 +277,7 @@ def _build_rung_grid(
                 # An instruction's segment flag is 1 on row 0.  On a later row it is 0 left
                 # of the row's segment boundary, and 1 at or right of the boundary.
                 seg = 1 if col_idx >= seg_bound else (0 if local_row > 0 and seg_bound > 0 else 1)
-                if isinstance(token, ConditionInstruction):
+                if isinstance(token, Condition):
                     blob = token.build_blob()
                     params = token.cell_params()
                     cells.append(
@@ -334,7 +327,7 @@ def _build_rung_grid(
                         ).to_bytes()
                     )
             else:  # AF column (col 31)
-                if isinstance(af, AfInstruction):
+                if isinstance(af, Instruction):
                     from .instructions.math import Math
 
                     blob = (

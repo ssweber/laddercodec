@@ -4,7 +4,7 @@ import pytest
 
 from laddercodec import Rung
 from laddercodec.csv.writer import _validate_roundtrip, decoded_rung_to_rows
-from laddercodec.instructions import Email, Home, Position, Velocity
+from laddercodec.instructions import Email, Home, PositionMove, VelocityMove
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ from laddercodec.instructions import Email, Home, Position, Velocity
             id="home",
         ),
         pytest.param(
-            Position(
+            PositionMove(
                 tag_6098="1",
                 tag_609b="1",
                 tag_609c="1",
@@ -45,7 +45,7 @@ from laddercodec.instructions import Email, Home, Position, Velocity
             id="position",
         ),
         pytest.param(
-            Velocity(
+            VelocityMove(
                 tag_609b="1",
                 tag_609c="1",
                 tag_609d="1",
@@ -55,7 +55,7 @@ from laddercodec.instructions import Email, Home, Position, Velocity
     ],
 )
 def test_validate_roundtrip_accepts_equivalent_raw_instruction(
-    instruction: Email | Home | Position | Velocity,
+    instruction: Email | Home | PositionMove | VelocityMove,
 ) -> None:
     # The CSV writes each of these as a raw(...) token, which reads back as a RawInstruction
     # 3 rows tall. The rung is 3 rows tall to match.

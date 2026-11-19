@@ -52,7 +52,7 @@ These rules are the same in every instruction. `field` names the field.
 
 ## Shared rules
 
-These rules apply to several instructions. `invalid-subroutine-name` and `duplicate-subroutine-name` apply to subroutine names in `write_bundle` and `read_bundle`. For `duplicate-subroutine-name`, `write_bundle` raises a `WriterError` and `read_bundle` raises a `CsvError`, and `field` is `None`.
+These rules apply to several instructions. `invalid-subroutine-name` and `duplicate-subroutine-name` apply to subroutine names in `write_bundle` and `read_bundle`. For `duplicate-subroutine-name`, `write_bundle` raises a `CsvWriteError` and `read_bundle` raises a `CsvReadError`, and `field` is `None`.
 
 | Code | Meaning | CLICK id |
 |---|---|---|
@@ -159,7 +159,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 
 ## Layout
 
-These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `WriterError` can be a `LayoutError` with one of these codes. For a rung that needs more than 32 rows, `read_csv` raises a `CsvError` and `write_csv` raises a `WriterError`, and the code of each is `layout-too-tall`.
+These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `CsvWriteError` can be a `LayoutError` with one of these codes. For a rung that needs more than 32 rows, `read_csv` raises a `CsvReadError` and `write_csv` raises a `CsvWriteError`, and the code of each is `layout-too-tall`.
 
 | Code | Meaning | CLICK id |
 |---|---|---|

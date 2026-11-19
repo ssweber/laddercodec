@@ -21,20 +21,20 @@ from laddercodec._layout import canonical
 from laddercodec.csv.converter import convert_rung
 from laddercodec.csv.parser import _parse_single_rung_rows
 from laddercodec.csv.writer import (
-    WriterError,
+    CsvWriteError,
     _validate_roundtrip,
     decoded_rung_to_rows,
     write_csv,
 )
 from laddercodec.instructions import (
-    AfInstruction,
     Coil,
     Email,
     Home,
+    Instruction,
     PinnedInstruction,
-    Position,
+    PositionMove,
     RawInstruction,
-    Velocity,
+    VelocityMove,
 )
 from laddercodec.instructions.raw import find_blob_boundary
 from laddercodec.model import FieldError
@@ -99,7 +99,7 @@ def _all_raw(rungs: list[Rung]) -> bool:
         isinstance(af, RawInstruction)
         for rung in rungs
         for af in rung.instructions
-        if isinstance(af, AfInstruction)
+        if isinstance(af, Instruction)
     )
 
 
@@ -109,7 +109,7 @@ def _csv_rung(token: str) -> Rung:
     return rung
 
 
-def _raw_token_of(af: AfInstruction) -> RawInstruction:
+def _raw_token_of(af: Instruction) -> RawInstruction:
     """Return the raw box that a CSV file reads back for *af*'s blob."""
     blob = af.build_blob()
     class_name, _, part_count = find_blob_boundary(blob + bytes(16))
@@ -223,22 +223,22 @@ def test_sub_rows_default_to_the_given_span() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _typed_boxes() -> list[AfInstruction]:
+def _typed_boxes() -> list[Instruction]:
     boxes = []
     for path in CAPTURES:
         for rung in decode(_load(path)):
             boxes += [
                 af
                 for af in rung.instructions
-                if isinstance(af, AfInstruction) and not isinstance(af, RawInstruction)
+                if isinstance(af, Instruction) and not isinstance(af, RawInstruction)
             ]
     return boxes
 
 
-def _typed(path: Path, class_name: str) -> AfInstruction:
+def _typed(path: Path, class_name: str) -> Instruction:
     for rung in decode(_load(path)):
         for af in rung.instructions:
-            if isinstance(af, AfInstruction) and not isinstance(af, RawInstruction):
+            if isinstance(af, Instruction) and not isinstance(af, RawInstruction):
                 if find_blob_boundary(af.build_blob() + bytes(16))[0] == class_name:
                     return af
     raise AssertionError(f"no {class_name} in {path.name}")
@@ -272,8 +272,8 @@ def test_csv_raw_takes_typed_height() -> None:
         "OutVariant:timed",
         "Email:",
         "Home:",
-        "Position:",
-        "Velocity:",
+        "PositionMove:",
+        "VelocityMove:",
     }
 
 
@@ -324,7 +324,7 @@ def test_csv_raw_pads_rung_as_typed(class_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _rung_of(af: AfInstruction, rows: int) -> Rung:
+def _rung_of(af: Instruction, rows: int) -> Rung:
     return Rung(
         conditions=[["-"] * 31, *[[""] * 31 for _ in range(rows - 1)]],
         instructions=[af, *[""] * (rows - 1)],
@@ -382,7 +382,7 @@ def test_writer_sees_a_raw_height_loss() -> None:
     token = rows[0][-1]
     assert ",rows=2,sub=3," in token
     stripped = [*rows[0][:-1], token.replace(",rows=2,sub=3,", ",")]
-    with pytest.raises(WriterError, match="AF mismatch"):
+    with pytest.raises(CsvWriteError, match="AF mismatch"):
         _validate_roundtrip(_rung_of(native, 2), [stripped])
 
 
@@ -422,14 +422,19 @@ def test_raw_token_rows_fields_refused(fields: str, match: str) -> None:
         RawInstruction.from_csv_token(f"raw(Zzz,0x1234,1,{fields}0001=a,0000=)")
 
 
-@pytest.mark.parametrize("cls", [Email, Home, Position, Velocity])
-def test_typed_token_refuses_another_height(cls: type[AfInstruction]) -> None:
+@pytest.mark.parametrize(
+    ("cls", "class_name"),
+    [(Email, "Email"), (Home, "Home"), (PositionMove, "Position"), (VelocityMove, "Velocity")],
+)
+def test_typed_token_refuses_another_height(cls: type[Instruction], class_name: str) -> None:
+    # The message names the binary class name that the token holds.
     token = cls().to_csv()
+    assert token.startswith(f"raw({class_name},")
     assert ",1,rows=3,sub=3," in token
     for same in ("rows=3,sub=3,", "rows=3,", ""):
         cls.from_csv_token(token.replace("rows=3,sub=3,", same))
     for other in ("rows=1,sub=1,", "rows=1,", "sub=2,", "rows=3,sub=1,"):
-        with pytest.raises(FieldError, match=rf"is not the {cls.__name__} box's height"):
+        with pytest.raises(FieldError, match=rf"is not the {class_name} box's height"):
             cls.from_csv_token(token.replace("rows=3,sub=3,", other))
 
 

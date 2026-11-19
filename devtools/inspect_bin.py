@@ -20,8 +20,8 @@ from laddercodec import decode
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose, _read_utf16le
 from laddercodec.decode import Rung
 from laddercodec.instructions import (
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
+    Instruction,
     RawInstruction,
     Tee,
     UnknownCondition,
@@ -115,7 +115,7 @@ def _print_rung(rung: Rung, rung_idx: int) -> None:
                 # A Tee holds a contact with a wire down from the cell's left edge.
                 print(f"    [{row_idx}][{col}] wire down from the cell's left edge")
                 tok = tok.contact
-            if isinstance(tok, ConditionInstruction):
+            if isinstance(tok, Condition):
                 print(f"    [{row_idx}][{col}] {tok!r}")
                 print(f"      csv: {tok.to_csv()}")
             elif isinstance(tok, UnknownCondition):
@@ -124,7 +124,7 @@ def _print_rung(rung: Rung, rung_idx: int) -> None:
             else:
                 print(f"    [{row_idx}][{col}] {tok!r}")
 
-        if isinstance(af, AfInstruction) and not isinstance(af, RawInstruction):
+        if isinstance(af, Instruction) and not isinstance(af, RawInstruction):
             print(f"    [{row_idx}][AF] {af!r}")
             print(f"      csv: {af.to_csv()}")
         elif isinstance(af, RawInstruction):

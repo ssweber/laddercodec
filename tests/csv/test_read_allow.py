@@ -11,7 +11,7 @@ that CLICK's dialog refuses. The tests show that:
 - ``encode()``, ``write_csv`` and ``write_bundle`` write the instruction from its fields;
 - ``decode()`` of that blob returns the instruction, holding the refusal and the blob;
 - ``replace`` checks a changed copy again, and ``allowed()`` returns False for it;
-- a bad ``allow`` raises ``CsvError`` before any file is read.
+- a bad ``allow`` raises ``CsvReadError`` before any file is read.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import pytest
 import laddercodec
 from laddercodec import (
     Code,
-    CsvError,
+    CsvReadError,
     FieldError,
     RefusedFieldWarning,
     Rung,
@@ -245,13 +245,13 @@ def test_an_instruction_laddercodec_cant_write_raises_as_the_default_read(tmp_pa
     """The instruction keeps its refusal with every code allowed. Its blob does not read back
     to it, so ``read_csv`` raises the first refusal as the default read raises it."""
     path = _rung(tmp_path / "r.csv", *afs)
-    # A box that refuses a value that a pin row sets raises CsvError.
-    with pytest.raises((FieldError, CsvError)) as default:
+    # A box that refuses a value that a pin row sets raises CsvReadError.
+    with pytest.raises((FieldError, CsvReadError)) as default:
         read_csv(path)
     # Read with unchecked=True, the instruction keeps the refusal. A box whose own cell
     # and pins both refuse keeps the refusals of both.
     assert {e.code for e in default.value.errors} <= _codes(path)
-    with pytest.raises((FieldError, CsvError)) as raised:
+    with pytest.raises((FieldError, CsvReadError)) as raised:
         read_csv(path, allow=list(Code))
     assert type(raised.value) is type(default.value)
     assert str(raised.value) == str(default.value)
@@ -581,7 +581,7 @@ def test_a_bad_allow_raises_before_any_file_is_read(
     tmp_path, reader, allow, unchecked_, message
 ) -> None:
     missing = tmp_path / "missing"
-    with pytest.raises(CsvError, match=message) as raised:
+    with pytest.raises(CsvReadError, match=message) as raised:
         reader(missing, allow=allow, unchecked=unchecked_)
     assert str(raised.value).startswith(f"{reader.__name__}: ")
     assert CsvLocation.of(raised.value) is None

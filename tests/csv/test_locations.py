@@ -10,8 +10,8 @@ import pytest
 
 from laddercodec import (
     AddressError,
-    CsvError,
     CsvLocation,
+    CsvReadError,
     FieldError,
     RefusedFieldWarning,
     Tee,
@@ -93,79 +93,79 @@ class TestCsvLocation:
 class TestParser:
     def test_bad_header(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [["marker", "A"], list(_cells(*GOOD))], header=False)
-        _raises(path, CsvError, "Invalid CSV header", line=1)
+        _raises(path, CsvReadError, "Invalid CSV header", line=1)
 
     def test_header_after_blank_lines(self, tmp_path: Path) -> None:
         path = tmp_path / "main.csv"
         path.write_text("\n\nmarker,A\n", encoding="utf-8")
-        _raises(path, CsvError, "Invalid CSV header", line=3)
+        _raises(path, CsvReadError, "Invalid CSV header", line=3)
 
     def test_empty_file(self, tmp_path: Path) -> None:
         """The message names the file once, in its location."""
         path = tmp_path / "main.csv"
         path.write_text("", encoding="utf-8")
-        exc = _raises(path, CsvError, "^CSV file is empty; expected header row \\(at ")
+        exc = _raises(path, CsvReadError, "^CSV file is empty; expected header row \\(at ")
         assert str(exc).count(str(path)) == 1
 
     def test_invalid_marker_in_a_rung(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("Q", {}, "")])
-        _raises(path, CsvError, "Invalid marker 'Q'", line=3, rung_line=2, row=1)
+        _raises(path, CsvReadError, "Invalid marker 'Q'", line=3, rung_line=2, row=1)
 
     def test_invalid_marker_before_any_rung(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("Q", {}, ""), GOOD])
-        _raises(path, CsvError, "Invalid marker 'Q'", line=2)
+        _raises(path, CsvReadError, "Invalid marker 'Q'", line=2)
 
     def test_invalid_marker_after_a_comment(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("#", {0: "note"}, ""), ("Q", {}, "")])
-        _raises(path, CsvError, "Invalid marker 'Q'", line=4)
+        _raises(path, CsvReadError, "Invalid marker 'Q'", line=4)
 
     def test_comment_row_with_its_af_cell(self, tmp_path: Path) -> None:
         """A comment row that is longer than the header and has text in its AF cell is
         refused at column AF."""
         bad = ["#", "note", *[""] * 30, "stray", ""]
         path = _write(tmp_path / "main.csv", [bad, GOOD])
-        _raises(path, CsvError, "Comment rows may only", line=2, column=AF)
+        _raises(path, CsvReadError, "Comment rows may only", line=2, column=AF)
 
     def test_every_shape_before_any_token(self, tmp_path: Path) -> None:
         """The reader checks every row's shape before it reads any token.  A shape error on
         a later row is raised, not a token error on an earlier row."""
         rows: list[Row | list[str]] = [("R", _wired("X1"), "frob(1)"), GOOD, ["", "X2"]]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "Expected 33 columns", line=4, rung_line=3, row=1)
+        _raises(path, CsvReadError, "Expected 33 columns", line=4, rung_line=3, row=1)
 
     def test_wrong_column_count(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ["", "X002", "-", "out(Y002)"]])
-        _raises(path, CsvError, "Expected 33 columns; got 4", line=3, rung_line=2, row=1)
+        _raises(path, CsvReadError, "Expected 33 columns; got 4", line=3, rung_line=2, row=1)
 
     def test_comment_row_with_a_second_cell(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("#", {0: "note", 2: "stray"}, ""), GOOD])
-        _raises(path, CsvError, "Comment rows may only", line=2, column=2)
+        _raises(path, CsvReadError, "Comment rows may only", line=2, column=2)
 
     def test_continuation_before_first_rung(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("", _wired("X001"), "out(Y001)")])
-        _raises(path, CsvError, "Continuation row encountered", line=2)
+        _raises(path, CsvReadError, "Continuation row encountered", line=2)
 
     def test_continuation_after_comment(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [GOOD, ("#", {0: "note"}, ""), ("", _wired("X2"), "")]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "Continuation row encountered", line=4)
+        _raises(path, CsvReadError, "Continuation row encountered", line=4)
 
     def test_comment_without_rung(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [GOOD, ("#", {0: "one"}, ""), ("#", {0: "two"}, "")]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "Comment row encountered without", line=3)
+        _raises(path, CsvReadError, "Comment row encountered without", line=3)
 
     def test_multiline_cell_counts_physical_lines(self, tmp_path: Path) -> None:
         """A quoted cell that spans two lines adds one to the line number of every later row."""
         rows: list[Row | list[str]] = [("#", {0: "two\nlines"}, ""), GOOD, ("Q", {}, "")]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "Invalid marker", line=5, rung_line=4, row=1)
+        _raises(path, CsvReadError, "Invalid marker", line=5, rung_line=4, row=1)
 
     def test_csv_error(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("R", {0: "X" * 200}, "out(Y001)")])
         limit = csv.field_size_limit(100)
         try:
-            exc = _raises(path, CsvError, "field larger than field limit", line=3)
+            exc = _raises(path, CsvReadError, "field larger than field limit", line=3)
             assert isinstance(exc.__cause__, csv.Error)
         finally:
             csv.field_size_limit(limit)
@@ -175,7 +175,7 @@ class TestParser:
         path = _write(tmp_path / "main.csv", [GOOD, ("R", {0: "a\nb\n" + "X" * 200}, "out(Y1)")])
         limit = csv.field_size_limit(100)
         try:
-            exc = _raises(path, CsvError, "field larger than field limit", line=3)
+            exc = _raises(path, CsvReadError, "field larger than field limit", line=3)
             assert isinstance(exc.__cause__, csv.Error)
         finally:
             csv.field_size_limit(limit)
@@ -192,19 +192,19 @@ class TestParser:
         """After a shape error the file is closed, so a caller can delete it while it still
         holds the error."""
         path = _write(tmp_path / "main.csv", [GOOD, bad, GOOD, GOOD])
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             if reader == "read_csv":
                 read_csv(path)
             else:
                 parse_bundle(tmp_path)
-        assert type(info.value) is CsvError
+        assert type(info.value) is CsvReadError
         path.unlink()  # raises PermissionError on Windows if the file is still open
         assert not path.exists()
 
     def test_undecodable_file_names_only_the_file(self, tmp_path: Path) -> None:
         path = tmp_path / "main.csv"
         path.write_bytes(b"marker,A\n\xff\xfe\n")
-        exc = _raises(path, CsvError, "'utf-8' codec can't decode byte 0xff")
+        exc = _raises(path, CsvReadError, "'utf-8' codec can't decode byte 0xff")
         assert isinstance(exc.__cause__, UnicodeDecodeError)
 
 
@@ -224,16 +224,16 @@ class TestTokenParser:
         af = f"receive({','.join(f'{k}={v}' for k, v in kwargs.items())})"
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
         match = f"receive needs a {keyword}= keyword"
-        _raises(path, CsvError, match, line=2, rung_line=2, row=0, column=AF)
+        _raises(path, CsvReadError, match, line=2, rung_line=2, row=0, column=AF)
 
     def test_unmatched_quote(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("R", _wired("X2"), 'copy("ab,DS1)')])
-        _raises(path, CsvError, "unmatched quote", line=3, rung_line=3, row=0, column=AF)
+        _raises(path, CsvReadError, "unmatched quote", line=3, rung_line=3, row=0, column=AF)
 
     def test_positional_after_keyword(self, tmp_path: Path) -> None:
         af = "on_delay(T1,preset=5,TD1)"
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
-        _raises(path, CsvError, "Positional arg after", line=2, rung_line=2, row=0, column=AF)
+        _raises(path, CsvReadError, "Positional arg after", line=2, rung_line=2, row=0, column=AF)
 
     @pytest.mark.parametrize(
         "value",
@@ -243,7 +243,7 @@ class TestTokenParser:
     def test_malformed_quoted_kwarg(self, tmp_path: Path, value: str) -> None:
         af = f"send(target=x,remote_start={value})"
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
-        _raises(path, CsvError, "Malformed AF quoted", line=2, rung_line=2, row=0, column=AF)
+        _raises(path, CsvReadError, "Malformed AF quoted", line=2, rung_line=2, row=0, column=AF)
 
 
 class TestInstructions:
@@ -272,7 +272,7 @@ class TestInstructions:
         path = _write(tmp_path / "main.csv", [("R", _wired("+"), "out(Y001)")])
         _raises(
             path,
-            CsvError,
+            CsvReadError,
             r"Could not read '\+' as a condition cell",
             line=2,
             rung_line=2,
@@ -292,7 +292,7 @@ class TestInstructions:
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), "frob(1)")])
         _raises(
             path,
-            CsvError,
+            CsvReadError,
             r"Could not read 'frob\(1\)' as an instruction",
             line=2,
             rung_line=2,
@@ -319,7 +319,13 @@ class TestConverterPins:
         ]
         path = _write(tmp_path / "main.csv", rows)
         _raises(
-            path, CsvError, r"bogus\(\) is not a pin token", line=3, rung_line=2, row=1, column=AF
+            path,
+            CsvReadError,
+            r"bogus\(\) is not a pin token",
+            line=3,
+            rung_line=2,
+            row=1,
+            column=AF,
         )
 
     def test_pin_not_for_instruction(self, tmp_path: Path) -> None:
@@ -330,7 +336,7 @@ class TestConverterPins:
         path = _write(tmp_path / "main.csv", rows)
         _raises(
             path,
-            CsvError,
+            CsvReadError,
             r"shift\(\) has no \.down\(\) pin",
             line=3,
             rung_line=2,
@@ -346,7 +352,7 @@ class TestConverterPins:
             ("", _wired("C2"), ".reset()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "out of order", line=5, rung_line=3, row=2, column=AF)
+        _raises(path, CsvReadError, "out of order", line=5, rung_line=3, row=2, column=AF)
 
     def test_nop_bridge_not_under_counter(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [
@@ -355,17 +361,21 @@ class TestConverterPins:
             ("", _wired("C78"), "NOP"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "is the box.s Down input", line=4, rung_line=2, row=2, column=AF)
+        _raises(
+            path, CsvReadError, "is the box.s Down input", line=4, rung_line=2, row=2, column=AF
+        )
 
     def test_missing_reset_is_at_the_box(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [GOOD, ("R", _wired("C80"), "count_up(CT4,CTD4,preset=10)")]
         path = _write(tmp_path / "main.csv", rows)
-        exc = _raises(path, CsvError, "requires a .reset", line=3, rung_line=3, row=0, column=AF)
-        assert isinstance(exc, CsvError)
+        exc = _raises(
+            path, CsvReadError, "requires a .reset", line=3, rung_line=3, row=0, column=AF
+        )
+        assert isinstance(exc, CsvReadError)
         assert exc.field is None
 
     def test_refused_pin_keeps_its_field(self, tmp_path: Path) -> None:
-        """When the instruction refuses a field that a pin sets, the error is a CsvError that
+        """When the instruction refuses a field that a pin sets, the error is a CsvReadError that
         names the field.
 
         The ``.reset()`` row causes the fault, so the error is located at that row, not at
@@ -376,8 +386,10 @@ class TestConverterPins:
             ("", _wired("X2"), ".reset()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        exc = _raises(path, CsvError, "can't be retentive", line=3, rung_line=2, row=1, column=AF)
-        assert isinstance(exc, CsvError)
+        exc = _raises(
+            path, CsvReadError, "can't be retentive", line=3, rung_line=2, row=1, column=AF
+        )
+        assert isinstance(exc, CsvReadError)
         assert exc.field == "Timer.retained"
         assert isinstance(exc.__cause__, FieldError)
 
@@ -390,8 +402,8 @@ class TestConverterPins:
             ("", _wired("C5"), ".jump(C5)"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        exc = _raises(path, CsvError, "jump_step", line=4, rung_line=2, row=2, column=AF)
-        assert isinstance(exc, CsvError)
+        exc = _raises(path, CsvReadError, "jump_step", line=4, rung_line=2, row=2, column=AF)
+        assert isinstance(exc, CsvReadError)
         assert exc.field == "Drum.jump_step"
         assert isinstance(exc.__cause__, AddressError)
 
@@ -406,7 +418,7 @@ class TestConverterPins:
             ("", _wired("C3"), ".jog()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "jump_step", line=5, rung_line=2, row=3, column=AF)
+        _raises(path, CsvReadError, "jump_step", line=5, rung_line=2, row=3, column=AF)
 
     def test_box_open_at_the_rungs_end(self, tmp_path: Path) -> None:
         """If the rung ends before a box gets its required pin row, the error is located at
@@ -417,7 +429,7 @@ class TestConverterPins:
             ("", {}, ""),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "requires a .reset", line=3, rung_line=2, row=1, column=AF)
+        _raises(path, CsvReadError, "requires a .reset", line=3, rung_line=2, row=1, column=AF)
 
     def test_box_closed_by_a_later_row(self, tmp_path: Path) -> None:
         """If a later output row ends a box before it gets its required pin row, the error is
@@ -431,18 +443,18 @@ class TestConverterPins:
             ("", {0: "C81", 1: "-", **{c: "-" for c in range(2, 31)}}, "out(Y002)"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "requires a .reset", line=2, rung_line=2, row=0, column=AF)
+        _raises(path, CsvReadError, "requires a .reset", line=2, rung_line=2, row=0, column=AF)
 
 
 class TestBundle:
     def test_missing_main(self, tmp_path: Path) -> None:
-        with pytest.raises(CsvError, match="missing required main.csv") as info:
+        with pytest.raises(CsvReadError, match="missing required main.csv") as info:
             parse_bundle(tmp_path)
         assert CsvLocation.of(info.value) == CsvLocation(file=tmp_path / "main.csv")
 
     def test_bad_main(self, tmp_path: Path) -> None:
         _write(tmp_path / "main.csv", [GOOD, ("Q", {}, "")])
-        with pytest.raises(CsvError, match="Invalid marker") as info:
+        with pytest.raises(CsvReadError, match="Invalid marker") as info:
             parse_bundle(tmp_path)
         assert CsvLocation.of(info.value) == CsvLocation(
             file=tmp_path / "main.csv", line=3, rung_line=2, row=1
@@ -452,7 +464,7 @@ class TestBundle:
         _write(tmp_path / "main.csv", [GOOD])
         _write(tmp_path / "subroutines" / "alpha.csv", [("R", _wired("X1"), "return()")])
         sub = _write(tmp_path / "subroutines" / "beta.csv", [GOOD, ["R", "X1"]])
-        with pytest.raises(CsvError, match="Expected 33 columns") as info:
+        with pytest.raises(CsvReadError, match="Expected 33 columns") as info:
             parse_bundle(tmp_path)
         assert CsvLocation.of(info.value) == CsvLocation(file=sub, line=3, rung_line=3, row=0)
         assert str(info.value).endswith(f"(at {sub}, line 3, rung at line 3, row 0 from 0)")
@@ -462,7 +474,7 @@ BAD_TIMER = "on_delay(T1,TD2,preset=40000,unit=Tms)"
 
 
 def _assert_every_refusal_located(exc: BaseException, path: Path) -> None:
-    assert isinstance(exc, (FieldError, CsvError))
+    assert isinstance(exc, (FieldError, CsvReadError))
     assert len(exc.errors) >= 2
     for refusal in exc.errors:
         assert isinstance(refusal, FieldError)
@@ -491,7 +503,7 @@ class TestEveryRefusal:
             ("", _wired("X2"), ".reset()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_csv(path)
         exc = info.value
         assert exc.field == "Timer.retained"
@@ -506,7 +518,7 @@ class TestEveryRefusal:
 
     def test_other_convert_errors_hold_themselves(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), ".bogus()")])
-        with pytest.raises(CsvError) as info:
+        with pytest.raises(CsvReadError) as info:
             read_csv(path)
         assert info.value.errors == (info.value,)
         assert info.value.reason is None

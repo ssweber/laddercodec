@@ -13,7 +13,7 @@ import pytest
 
 from laddercodec import (
     AddressError,
-    CsvError,
+    CsvReadError,
     FieldError,
     RefusedFieldWarning,
     decode,
@@ -605,7 +605,7 @@ class TestDrumNames:
 
 
 class TestDrumCsvChecks:
-    """A drum token that lacks a required keyword raises CsvError. A value in the token that
+    """A drum token that lacks a required keyword raises CsvReadError. A value in the token that
     the Drum refuses raises the Drum's FieldError."""
 
     TIME = (
@@ -625,9 +625,9 @@ class TestDrumCsvChecks:
 
     @pytest.mark.parametrize("unit", ["", "unit=,"])
     def test_a_time_drum_without_a_unit_is_a_csv_error(self, tmp_path: Path, unit: str) -> None:
-        with pytest.raises(CsvError, match="time_drum needs unit="):
+        with pytest.raises(CsvReadError, match="time_drum needs unit="):
             _read_af(tmp_path, self._time(unit))
-        with pytest.raises(CsvError, match="time_event_drum needs unit="):
+        with pytest.raises(CsvReadError, match="time_event_drum needs unit="):
             _read_af(tmp_path, self._time_event(unit))
 
     def test_a_bad_unit_is_a_field_error(self, tmp_path: Path) -> None:
@@ -637,7 +637,7 @@ class TestDrumCsvChecks:
             assert error.value.reason is Reason.CHOICE
 
     def test_a_time_event_drum_without_an_accumulator_is_a_csv_error(self, tmp_path: Path) -> None:
-        with pytest.raises(CsvError, match="time_event_drum needs accumulator="):
+        with pytest.raises(CsvReadError, match="time_event_drum needs accumulator="):
             _read_af(tmp_path, self._time_event(accumulator=""))
 
     def test_a_blank_time_event_accumulator_is_a_field_error(self, tmp_path: Path) -> None:
@@ -659,7 +659,7 @@ class TestDrumCsvChecks:
         assert error.value.reason is Reason.CHOICE
 
     def test_a_pattern_that_is_no_list_is_a_csv_error(self, tmp_path: Path) -> None:
-        with pytest.raises(CsvError, match="is not a pattern. Write one bracketed row"):
+        with pytest.raises(CsvReadError, match="is not a pattern. Write one bracketed row"):
             _read_af(tmp_path, self._time(pattern="1"))
 
 

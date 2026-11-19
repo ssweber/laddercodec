@@ -9,8 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..errors import CsvError
-from ..model import AfInstruction
+from ..errors import CsvReadError
+from ..model import Instruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -21,14 +21,16 @@ _END_TAGS = (0x0000,)
 
 
 @dataclass(frozen=True)
-class End(AfInstruction):
+class End(Instruction):
     """Program terminator instruction."""
 
     @classmethod
     def from_csv_token(cls, token: str) -> End:
         token = token.strip()
         if not re.fullmatch(r"end\(\s*\)", token):
-            raise CsvError(f"Could not read {token!r} as an End instruction. Write it as end().")
+            raise CsvReadError(
+                f"Could not read {token!r} as an End instruction. Write it as end()."
+            )
         return cls()
 
     def to_csv(self) -> str:

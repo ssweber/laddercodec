@@ -49,10 +49,10 @@ from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
 from .errors import DecodeError, EncodeError
 from .instructions import (
-    AfInstruction,
-    AfToken,
-    ConditionInstruction,
+    Condition,
     ConditionToken,
+    Instruction,
+    InstructionToken,
     RawInstruction,
     Tee,
     UnknownCondition,
@@ -146,14 +146,14 @@ class Rung:
     """
 
     conditions: tuple[tuple[ConditionToken, ...], ...]
-    instructions: tuple[AfToken, ...]
+    instructions: tuple[InstructionToken, ...]
     comment: str | None
     comment_rtf: bytes | None = field(default=None, compare=False)
 
     def __init__(
         self,
         conditions: Sequence[Sequence[ConditionToken]],
-        instructions: Sequence[AfToken],
+        instructions: Sequence[InstructionToken],
         comment: str | None,
         comment_rtf: bytes | None = None,
     ) -> None:
@@ -208,7 +208,7 @@ class CellDump:
     size: int
     raw: bytes
     flags: tuple[int, int, int]
-    token: ConditionToken | AfToken | None
+    token: ConditionToken | InstructionToken | None
 
     def hex(self, cols: int = 16) -> str:
         """Return a formatted hex dump with offset labels."""
@@ -656,7 +656,7 @@ AF_DOWN_WIRE = (
 
 def _decode_data_row(
     data: bytes, cursor: int, *, refuse_af_down: bool = False
-) -> tuple[list[ConditionToken], AfToken]:
+) -> tuple[list[ConditionToken], InstructionToken]:
     """Decode one grid data row by walking cells sequentially.
 
     Pass ``refuse_af_down=True`` when the row becomes part of a decoded rung.  A down wire
@@ -671,7 +671,7 @@ def _decode_data_row(
     """
     cell_bounds = _walk_row_cells(data, cursor)
     conditions: list[ConditionToken] = []
-    af_token: AfToken = ""
+    af_token: InstructionToken = ""
 
     for col, (pos, next_pos, has_instr) in enumerate(cell_bounds):
         try:
@@ -694,7 +694,7 @@ def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool
     if has_instr:
         instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
         parsed = parse_condition_blob(instr_raw)
-        cell: ConditionInstruction | UnknownCondition = (
+        cell: Condition | UnknownCondition = (
             UnknownCondition(raw=instr_raw) if parsed is None else parsed
         )
         # The down flag (+0x21) of an instruction cell is a wire down from the cell.
@@ -709,7 +709,7 @@ def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool
     return token
 
 
-def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> AfToken:
+def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> InstructionToken:
     """Return the token of the AF cell (column 31)."""
     if not has_instr:
         return "NOP" if data[pos + 0x1D] == 1 else ""
@@ -1027,7 +1027,7 @@ def _decode_multi(
     return rungs
 
 
-def _fits_stored_span(af: AfInstruction, span: int) -> bool:
+def _fits_stored_span(af: Instruction, span: int) -> bool:
     """Return True when the row span that the cell stores at +0x09 is the height of *af*.
 
     A box with pins, such as a Counter or a Drum, ends one row below its last pin row.
@@ -1039,7 +1039,7 @@ def _fits_stored_span(af: AfInstruction, span: int) -> bool:
     return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 
 
-def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
+def _drop_tall_span_nops(instructions: list[InstructionToken]) -> None:
     """Clear each NOP that sits on a row covered by a tall AF instruction.
 
     An AF instruction covers ``visual_rows`` grid rows.  A NOP on one of the
@@ -1050,7 +1050,7 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
     NOP on its main-input row.  That NOP is part of the box, so it stays.
     """
     for i, af in enumerate(instructions):
-        if not isinstance(af, AfInstruction):
+        if not isinstance(af, Instruction):
             continue
         bridge = i + af.lead_rows if isinstance(af, PinnedInstruction) and af.lead_rows else -1
         span = int(af.cell_params().get("visual_rows", 1))
@@ -1081,7 +1081,7 @@ def _build_rung(
         return marker_rung(Undecoded(to_the_end("the rung has no data rows", rung), rung), comment)
 
     conditions: list[list[ConditionToken]] = []
-    instructions: list[AfToken] = []
+    instructions: list[InstructionToken] = []
     for row, (tag, cursor, error) in enumerate(rows):
         if tag != _DATA:
             return marker_rung(Undecoded(to_the_end(str(error), rung), rung, row), comment)
@@ -1184,7 +1184,7 @@ def inspect_cells(
         wr = data[pos + 0x1D]
         wd = data[pos + 0x21]
 
-        token: ConditionToken | AfToken | None
+        token: ConditionToken | InstructionToken | None
         if col_idx < CONDITION_COLUMNS:
             token = conditions[col_idx]
         else:

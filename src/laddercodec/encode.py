@@ -108,12 +108,12 @@ not assume that any cell sits at a fixed offset in the grid.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from ._comment import rtf_body as _build_rtf_body
 from .empty_multirow import synthesize_empty_multirow
 from .errors import EncodeError
-from .instructions import AfInstruction, ConditionInstruction, Tee
+from .instructions import Condition, ConditionToken, Instruction, InstructionToken, Tee
 from .topology import (
     GRID_FIRST_ROW_START,
     PREAMBLE_COMMENT_BODY,
@@ -146,12 +146,6 @@ _TOKEN_FLAGS: dict[str, tuple[int, int, int]] = {
 
 SUPPORTED_CONDITION_TOKENS = frozenset(_TOKEN_FLAGS)
 
-#: A condition-column token: a wire string, a ConditionInstruction, or a Tee around one.
-ConditionToken = str | ConditionInstruction | Tee
-
-#: An AF-column token: ``""`` / ``"NOP"`` string or AfInstruction.
-AfToken = str | AfInstruction
-
 # RTF comment envelope.
 # Prefix (105 bytes) + cp1252 body + suffix (11 bytes).
 _PREFIX = (
@@ -171,11 +165,11 @@ def _pad_to_page(data: bytearray) -> bytes:
     return bytes(data)
 
 
-def _normalize_af(token: AfToken) -> str:
+def _normalize_af(token: InstructionToken) -> str:
     """Normalize an AF token to ``'NOP'``, ``''``, or ``'INSTR'``."""
-    if isinstance(token, AfInstruction):
+    if isinstance(token, Instruction):
         return "INSTR"
-    stripped = token.strip().upper()
+    stripped = token.strip().upper() if isinstance(token, str) else None
     if stripped == "NOP":
         return "NOP"
     if stripped == "":
@@ -217,7 +211,7 @@ def _compute_seg_boundaries(
         ct_max = 0
         for prev_r in range(r):
             for c_idx, tok in enumerate(condition_rows[prev_r]):
-                if isinstance(tok, (ConditionInstruction, Tee)):
+                if isinstance(tok, (Condition, Tee)):
                     ct_max = max(ct_max, c_idx + 2)
         boundaries[r] = max(tj_max, ct_max)
     return boundaries
@@ -248,7 +242,7 @@ def _af_segment(row_idx: int, is_multi_row: bool, single_rung: bool) -> int:
 def encode_rung(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
-    af_tokens: Sequence[AfToken],
+    af_tokens: Sequence[InstructionToken],
     comment: str | None = None,
     *,
     show_nicknames: bool = False,
@@ -263,11 +257,11 @@ def encode_rung(
         The token grid, one list per row. Each row has 31 condition-column
         entries. Each entry is ``""`` blank, ``"-"`` horizontal wire,
         ``"|"`` vertical pass-through, ``"T"`` junction-down,
-        a condition instruction such as a ``Contact``, or a ``Tee`` around one.
+        a ``Condition`` such as a ``Contact``, or a ``Tee`` around one.
     af_tokens:
         One per row. ``"NOP"`` encodes the NOP instruction on the AF
-        column, and ``""`` leaves it blank. An AF instruction object,
-        such as a ``Coil``, encodes that instruction.
+        column, and ``""`` leaves it blank. An ``Instruction``, such as a
+        ``Coil``, encodes that instruction.
     comment:
         Optional comment text, at most 1400 bytes after RTF encoding. The
         encoder inserts it as RTF at 0x0298 and moves the cell grid forward
@@ -373,31 +367,17 @@ def encode(rungs: Rung | Iterable[Rung], *, show_nicknames: bool = False) -> byt
     rung_list = [rungs] if isinstance(rungs, Rung) else list(rungs)
     if len(rung_list) == 1:
         r = rung_list[0]
-        conditions, instructions = _cells(r)
         return encode_rung(
             r.logical_rows,
-            conditions,
-            instructions,
+            r.conditions,
+            r.instructions,
             r.comment,
             show_nicknames=show_nicknames,
         )
     from .encode_multi import encode_rungs
 
     return encode_rungs(
-        [(r.logical_rows, *_cells(r)) for r in rung_list],
+        [(r.logical_rows, r.conditions, r.instructions) for r in rung_list],
         comments=[r.comment for r in rung_list],
         show_nicknames=show_nicknames,
-    )
-
-
-def _cells(rung: Rung) -> tuple[Sequence[Sequence[ConditionToken]], Sequence[AfToken]]:
-    """Return the condition rows and AF tokens of *rung*, typed as the encoder's tokens.
-
-    The cast changes only the static type. A decoded rung's cells can also hold an
-    ``UnknownCondition`` or ``UnknownInstruction``, and the encoder's token types do
-    not include them.
-    """
-    return (
-        cast("Sequence[Sequence[ConditionToken]]", rung.conditions),
-        cast("Sequence[AfToken]", rung.instructions),
     )

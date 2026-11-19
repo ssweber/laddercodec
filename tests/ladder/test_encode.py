@@ -520,6 +520,12 @@ def test_encode_refuses_an_unknown_instruction() -> None:
         encode([Rung([["-"] * 31], [""], None), rung])
 
 
+def test_encode_refuses_an_output_cell_that_is_not_a_string_or_instruction() -> None:
+    instructions: list = [None]
+    with pytest.raises(EncodeError, match=r"^Unsupported AF token: None\. "):
+        encode(Rung([["-"] * 31], instructions, None))
+
+
 def test_encode_refuses_a_comment_too_long() -> None:
     with pytest.raises(EncodeError, match="Comment body exceeds 1400 bytes"):
         encode(Rung([_empty()], [""], "x" * 1500))

@@ -37,8 +37,8 @@ from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
-from ..errors import CsvError
-from ..model import AfInstruction, FieldError, Reason, check_address
+from ..errors import CsvReadError
+from ..model import FieldError, Instruction, Reason, check_address
 from ..operands.address import read_as_typed
 from ..operands.checks import HEX_MATH_RESULT, Refusals, check_csv_flag, check_writable_sd
 from ..operands.constants import INT16_MAX, INT16_MIN
@@ -182,7 +182,7 @@ def _holds_nickname(expression: str) -> bool:
 
 
 @dataclass(frozen=True)
-class Math(AfInstruction):
+class Math(Instruction):
     """A math instruction.
 
     Attributes
@@ -410,7 +410,9 @@ def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
 def parse_af_call(call: AfCall) -> Math:
     """Parse an AF AST call into a Math instruction."""
     if len(call.args) != 2:
-        raise CsvError(f"math expects 2 positional args (expression, dest), got {len(call.args)}")
+        raise CsvReadError(
+            f"math expects 2 positional args (expression, dest), got {len(call.args)}"
+        )
 
     expression, dest = call.args
     mode_arg = call.kwargs.get("mode", "decimal")
@@ -419,7 +421,7 @@ def parse_af_call(call: AfCall) -> Math:
     elif mode_arg == "hex":
         mode = "hex"
     else:
-        raise CsvError(f"math mode must be 'decimal' or 'hex', got {mode_arg!r}")
+        raise CsvReadError(f"math mode must be 'decimal' or 'hex', got {mode_arg!r}")
 
     return Math(
         expression=expression,

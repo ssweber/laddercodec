@@ -45,8 +45,8 @@ PAGES: tuple[ReferencePage, ...] = (
             "LaddercodecError",
             "DecodeError",
             "EncodeError",
-            "WriterError",
-            "CsvError",
+            "CsvWriteError",
+            "CsvReadError",
             "LayoutError",
             "LegacyEncodingWarning",
             "RefusedFieldWarning",
@@ -74,23 +74,23 @@ PAGES: tuple[ReferencePage, ...] = (
         title="Layout API",
         tier="Stable Core",
         summary="Build a rung from its circuit, and lay it out as CLICK's syntax check draws it.",
-        symbols=("lay_out", "Circuit", "Branch", "Box", "Series", "Parallel"),
+        symbols=("lay_out", "Circuit", "Branch", "Box", "Series", "Parallel", "Term"),
     ),
     ReferencePage(
         slug="instructions",
         title="Instructions API",
         tier="Stable Core",
         summary=(
-            "Domain objects for ladder logic instructions. `Email`, `Home`, `Position` and"
-            " `Velocity` are provisional: their fields are named after CLICK's tag ids and"
+            "Domain objects for ladder logic instructions. `Email`, `Home`, `PositionMove`"
+            " and `VelocityMove` are provisional: their fields are named after CLICK's tag ids and"
             " will change. Each `Literal` alias, such as `ContactKind`, lists the values"
             " that a field accepts. `typing.get_args(ContactKind)` returns them."
         ),
         symbols=(
-            "ConditionInstruction",
-            "AfInstruction",
+            "Condition",
+            "Instruction",
             "ConditionToken",
-            "AfToken",
+            "InstructionToken",
             "Contact",
             "ContactKind",
             "CompareContact",
@@ -145,8 +145,8 @@ PAGES: tuple[ReferencePage, ...] = (
             "UnknownInstruction",
             "Email",
             "Home",
-            "Position",
-            "Velocity",
+            "PositionMove",
+            "VelocityMove",
             "constant_text",
             "replace",
         ),

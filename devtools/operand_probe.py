@@ -971,11 +971,11 @@ PROBES: dict[str, Probe] = {
         "tag_222f tag_11f5 tag_2230 tag_60a1 tag_60a3 tag_60a4 tag_607b tag_607d tag_6083 "
         "tag_2232 tag_2233 tag_3218"
     ),
-    "Velocity": _opaque_probe(
+    "VelocityMove": _opaque_probe(
         "tag_222d tag_609b tag_609c tag_609d tag_222f tag_11f5 tag_2231 tag_60a2 tag_60a3 "
         "tag_60a4 tag_607b tag_607d tag_6083 tag_3218"
     ),
-    "Position": _opaque_probe(
+    "PositionMove": _opaque_probe(
         "tag_222d tag_6098 tag_6099 tag_609a tag_2206 tag_609b tag_609c tag_609d tag_222f "
         "tag_11f5 tag_2231 tag_60a2 tag_60a3 tag_60a4 tag_607b tag_607d tag_6083 tag_3218"
     ),
@@ -1026,8 +1026,8 @@ class Namespace:
         from laddercodec.decode import Rung
         from laddercodec.instructions.raw import _compose_blob, _decompose_blob
         from laddercodec.model import (
-            AfInstruction,
-            ConditionInstruction,
+            Condition,
+            Instruction,
             InstructionType,
             PinnedInstruction,
         )
@@ -1037,8 +1037,8 @@ class Namespace:
             raise SystemExit(f"laddercodec loaded from {loaded}, not {src}")
         self.instructions: Any = instructions
         self.IT: Any = InstructionType
-        self.AfInstruction: Any = AfInstruction
-        self.ConditionInstruction: Any = ConditionInstruction
+        self.Instruction: Any = Instruction
+        self.Condition: Any = Condition
         self.PinnedInstruction: Any = PinnedInstruction
         self.Rung: Any = Rung
         self.parse_rows: Any = _parse_single_rung_rows
@@ -1211,7 +1211,7 @@ class Runner:
         pin labels.
         """
         ns = self.ns
-        if isinstance(token, (ns.AfInstruction, ns.ConditionInstruction)):
+        if isinstance(token, (ns.Instruction, ns.Condition)):
             try:
                 text = token.to_csv()
             except Exception as exc:
@@ -1231,7 +1231,7 @@ class Runner:
         rows as it needs. Raise :class:`ProbeSkip` if it needs more than :data:`MAX_ROWS`.
         """
         ns = self.ns
-        if isinstance(inst, ns.ConditionInstruction):
+        if isinstance(inst, ns.Condition):
             return make_rung(ns, [[inst] + ["-"] * 30], [""], None)
         rows, nop_row = 1, None
         if isinstance(inst, ns.PinnedInstruction):
@@ -1335,7 +1335,7 @@ class Runner:
             if inst is not None:
                 record["repr"] = repr(inst)
             return record
-        condition = issubclass(cls, ns.ConditionInstruction)
+        condition = issubclass(cls, ns.Condition)
         if inst is not None:
             record["csv"] = self.describe(inst)
             try:

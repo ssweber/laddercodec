@@ -20,14 +20,14 @@ from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import (
     ADDRESS_BANKS,
     XY_SLOTS,
     Address,
     AddressError,
-    AfInstruction,
     FieldError,
+    Instruction,
     Reason,
     check_address,
     normalize_address,
@@ -1406,7 +1406,7 @@ def _target_fields(
 
 
 @dataclass(frozen=True)
-class Receive(AfInstruction):
+class Receive(Instruction):
     """A Modbus Receive (RD) instruction."""
 
     target: ModbusRtuTarget | ModbusTcpTarget
@@ -1515,7 +1515,7 @@ class Receive(AfInstruction):
 
 
 @dataclass(frozen=True)
-class Send(AfInstruction):
+class Send(Instruction):
     """A Modbus Send (SD) instruction."""
 
     target: ModbusRtuTarget | ModbusTcpTarget
@@ -1951,7 +1951,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
     kw = call.kwargs
     for name in ("target", "remote_start"):
         if name not in kw:
-            raise CsvError(f"{call.name} needs a {name}= keyword")
+            raise CsvReadError(f"{call.name} needs a {name}= keyword")
 
     target = _parse_target(kw["target"])
     remote_start = _parse_remote_start(kw["remote_start"])

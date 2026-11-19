@@ -24,8 +24,8 @@ import pytest
 from laddercodec import decode, encode
 from laddercodec.csv import read_csv
 from laddercodec.csv.contract import CSV_HEADER
-from laddercodec.csv.converter import CsvError
-from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
+from laddercodec.csv.converter import CsvReadError
+from laddercodec.csv.writer import CsvWriteError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact, Counter, Drum, Timer
 from laddercodec.model import PinnedInstruction
@@ -175,7 +175,7 @@ def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:
         ["", *conds[1], ""],
         ["", *_pin_row(0), "NOP"],
     ]
-    with pytest.raises(CsvError, match="the row with NOP in column AF is the box.s Down input"):
+    with pytest.raises(CsvReadError, match="the row with NOP in column AF is the box.s Down input"):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 
@@ -192,7 +192,7 @@ def test_count_down_rejects_bridge_under_a_lead_row(tmp_path: Path) -> None:
         ["", *wired("Y001"), ".reset()"],
     ]
     with pytest.raises(
-        CsvError, match=r"has only one Up row.* Leave no blank-AF row directly above count_down"
+        CsvReadError, match=r"has only one Up row.* Leave no blank-AF row directly above count_down"
     ):
         read_csv(_write(tmp_path / "main.csv", rows))
 
@@ -200,7 +200,7 @@ def test_count_down_rejects_bridge_under_a_lead_row(tmp_path: Path) -> None:
 def test_timer_rejects_foreign_pin(tmp_path: Path) -> None:
     rows = _csv_rows("on_delay(T1,TD1,preset=3000,unit=Tms)", 2, (".down()",))
     with pytest.raises(
-        CsvError, match=r"on_delay\(\) has no \.down\(\) pin. Its only pin is \.reset\(\)"
+        CsvReadError, match=r"on_delay\(\) has no \.down\(\) pin. Its only pin is \.reset\(\)"
     ):
         read_csv(_write(tmp_path / "main.csv", rows))
 
@@ -319,7 +319,7 @@ def test_writer_names_pin_rows_csv_cannot_express() -> None:
         instructions=[_drum((1, 3, 4)), "", "", "", ""],
         comment=None,
     )
-    with pytest.raises(WriterError, match=r"pins on rows \(1, 3, 4\).*\(1, 2, 3\)"):
+    with pytest.raises(CsvWriteError, match=r"pins on rows \(1, 3, 4\).*\(1, 2, 3\)"):
         decoded_rung_to_rows(rung)
 
 

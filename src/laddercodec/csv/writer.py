@@ -50,10 +50,10 @@ from typing import get_args
 
 from .._layout import LayoutError, circuit, drawn
 from ..decode import Rung
-from ..errors import WriterError
+from ..errors import CsvWriteError
 from ..instructions import (
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
+    Instruction,
     RawInstruction,
     Tee,
     UnknownCondition,
@@ -73,12 +73,14 @@ from .parser import _parse_single_rung_rows
 
 def _token_to_csv(token: object) -> str:
     """Serialize a condition or AF token to its CSV string."""
-    if isinstance(token, (Tee, ConditionInstruction, AfInstruction)):
+    if isinstance(token, (Tee, Condition, Instruction)):
         return token.to_csv()
     if isinstance(token, UnknownCondition):
-        raise WriterError(f"Cannot serialize unknown condition to CSV (raw {len(token.raw)} bytes)")
+        raise CsvWriteError(
+            f"Cannot serialize unknown condition to CSV (raw {len(token.raw)} bytes)"
+        )
     if isinstance(token, UnknownInstruction):
-        raise WriterError(
+        raise CsvWriteError(
             f"Cannot serialize unknown instruction to CSV (raw {len(token.raw)} bytes)"
         )
     # Wire tokens and plain strings ("", "-", "|", "T", "+", "+|", "-!", "-|", "NOP") are
@@ -149,9 +151,9 @@ def _emit_blank_continuation(
 
 
 def _require_blank_af(af: object, *, message: str) -> None:
-    """Raise ``WriterError(message)`` if *af*, a continuation row's AF cell, is not blank."""
+    """Raise ``CsvWriteError(message)`` if *af*, a continuation row's AF cell, is not blank."""
     if af != "":
-        raise WriterError(message)
+        raise CsvWriteError(message)
 
 
 def _emit_pin_gap(
@@ -222,14 +224,14 @@ def _emit_pinned_block(
     lead = af.lead_rows
     needed = start + height
     if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(
+        raise CsvWriteError(
             f"{name} on row {start} from 0 is {height} rows tall, but the rung has only "
             f"{len(condition_rows)} rows"
         )
     for offset in range(1, height):
         if offset == lead:
             if af_tokens[start + offset] != "NOP":
-                raise WriterError(
+                raise CsvWriteError(
                     f"{name}: row {start + offset} is the box's main input. Its instruction "
                     f"must be 'NOP', not {af_tokens[start + offset]!r}"
                 )
@@ -238,7 +240,7 @@ def _emit_pinned_block(
 
     main = af.pin_rows[lead - 1] if lead else 0
     if main != lead:
-        raise WriterError(
+        raise CsvWriteError(
             f"{name}: pin_rows {af.pin_rows} puts the main input on row {main} of the box. "
             f"It must be on row {lead}."
         )
@@ -273,7 +275,7 @@ def _emit_generic_tall_block(
     condition_rows: Sequence[Sequence[object]],
     af_tokens: Sequence[object],
     start: int,
-    af: AfInstruction,
+    af: Instruction,
 ) -> tuple[int, int]:
     """Append the rows of a tall AF instruction that is not pinned.
 
@@ -285,7 +287,7 @@ def _emit_generic_tall_block(
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
     if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(
+        raise CsvWriteError(
             f"{type(af).__name__} on row {start} from 0 is {visual_rows} rows tall, but the rung has "
             f"only {len(condition_rows)} rows"
         )
@@ -315,7 +317,7 @@ def _display_token(token: object) -> str:
     """Return a compact user-facing representation for mismatch errors."""
     try:
         return repr(_token_to_csv(token))
-    except WriterError:
+    except CsvWriteError:
         return repr(token)
 
 
@@ -325,7 +327,7 @@ def _af_tokens_match(expected: object, actual: object) -> bool:
     if expected == actual:
         return True
 
-    if not isinstance(expected, AfInstruction) or not isinstance(actual, AfInstruction):
+    if not isinstance(expected, Instruction) or not isinstance(actual, Instruction):
         return False
 
     if not isinstance(expected, RawInstruction) and not isinstance(actual, RawInstruction):
@@ -353,18 +355,18 @@ def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]], *, held: bool = False
         with unchecked() if held else nullcontext():
             rebuilt = convert_rung(_parse_single_rung_rows(rows))
     except (TypeError, ValueError) as exc:
-        raise WriterError(
+        raise CsvWriteError(
             f"CSV round-trip validation failed: emitted rows do not reparse: {exc}"
         ) from exc
     if len(rebuilt) != 1:
-        raise WriterError(
+        raise CsvWriteError(
             f"CSV round-trip validation failed: the rows read back as {len(rebuilt)} rungs"
         )
     return rebuilt[0]
 
 
 def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: bool = False) -> None:
-    """Raise ``WriterError`` if the CSV rows written for *rung* lose any of it on read.
+    """Raise ``CsvWriteError`` if the CSV rows written for *rung* lose any of it on read.
 
     Pass ``exact`` for a rung in CLICK's layout.  Its rows must then read back to the rung
     itself.  Without ``exact``, if the read drops blank rows at the end of the rung, this
@@ -394,13 +396,13 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
                 stacklevel=2,
             )
         else:
-            raise WriterError(
+            raise CsvWriteError(
                 "CSV round-trip validation failed: "
                 f"logical row count mismatch: expected {rung.logical_rows}, got {rebuilt.logical_rows}"
             )
 
     if rebuilt.comment != rung.comment:
-        raise WriterError(
+        raise CsvWriteError(
             "CSV round-trip validation failed: "
             f"comment mismatch: expected {rung.comment!r}, got {rebuilt.comment!r}"
         )
@@ -411,7 +413,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
     ):
         for col_idx, (expected, actual) in enumerate(zip(expected_row, actual_row, strict=True)):
             if expected != actual or not _same_refusals(expected, actual):
-                raise WriterError(
+                raise CsvWriteError(
                     "CSV round-trip validation failed: "
                     f"condition mismatch at row {row_idx} col {CONDITION_COLUMNS[col_idx]}: "
                     f"expected {_display_token(expected)}, got {_display_token(actual)}"
@@ -427,12 +429,12 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
                 and isinstance(actual, PinnedInstruction)
                 and expected.pin_rows != actual.pin_rows
             ):
-                raise WriterError(
+                raise CsvWriteError(
                     "CSV round-trip validation failed: "
                     f"{_display_token(expected)} at row {row_idx} has its pins on rows "
                     f"{expected.pin_rows}, which read back as {actual.pin_rows}"
                 )
-            raise WriterError(
+            raise CsvWriteError(
                 "CSV round-trip validation failed: "
                 f"AF mismatch at row {row_idx}: "
                 f"expected {_display_token(expected)}, got {_display_token(actual)}"
@@ -461,7 +463,7 @@ def decoded_rung_to_rows(rung: Rung, subject: str = "The rung") -> list[list[str
     below the timer.  A rung can hold several tall or pinned instructions, and
     each one reads back with all of its rows.
 
-    Raise ``WriterError`` with the code ``layout-too-tall`` if a rung to write needs more
+    Raise ``CsvWriteError`` with the code ``layout-too-tall`` if a rung to write needs more
     than 32 rows.  Its message starts with *subject*, and its ``__cause__`` is a
     ``LayoutError`` with the same code.
     """
@@ -478,16 +480,16 @@ def _drawn(rung: Rung, subject: str) -> list[tuple[Rung, bool]]:
     try:
         parts, exact = drawn(rung, subject)
     except LayoutError as exc:
-        raise WriterError(str(exc), code=exc.code) from exc
+        raise CsvWriteError(str(exc), code=exc.code) from exc
     if not exact:
         return [(rung, False)]
     if parts != [rung]:
         try:
             same = circuit(parts) == circuit([rung])
         except LayoutError as exc:
-            raise WriterError(f"CSV layout changed the rung's circuit: {exc}") from exc
+            raise CsvWriteError(f"CSV layout changed the rung's circuit: {exc}") from exc
         if not same:
-            raise WriterError("CSV layout changed the rung's circuit")
+            raise CsvWriteError("CSV layout changed the rung's circuit")
     return [(part, True) for part in parts]
 
 
@@ -509,7 +511,7 @@ def _rung_rows(rung: Rung) -> list[list[str]]:
         af = af_tokens[row_idx]
         consumed = 1
 
-        if isinstance(af, AfInstruction):
+        if isinstance(af, Instruction):
             if isinstance(af, PinnedInstruction):
                 data_row_count, consumed = _emit_pinned_block(
                     rows, data_row_count, condition_rows, af_tokens, row_idx, af
@@ -578,7 +580,7 @@ def csv_rows(
 
     Raises
     ------
-    WriterError
+    CsvWriteError
         If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
         written, such as one whose shape the CSV can't hold.  It is also raised
         for a rung that needs more than the 32 rows of a CLICK rung.  The message
@@ -598,7 +600,7 @@ def _csv_rows(
     ``UndecodedRungWarning`` points two frames up, at the line that called one of them.
     """
     if stop not in get_args(UndecodedStop):
-        raise WriterError(f"{caller}: stop={stop!r} must be 'end' or 'return'")
+        raise CsvWriteError(f"{caller}: stop={stop!r} must be 'end' or 'return'")
     out: list[list[str]] = []
     rung_number = 0  # Counts the rungs written. A rung CLICK would split counts as several.
     for rung_index, rung in enumerate(rungs):
@@ -657,12 +659,12 @@ def write_csv(
 
     Raises
     ------
-    WriterError
+    CsvWriteError
         If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
         written, such as one whose shape the CSV can't hold.  It is also raised
         for a rung that needs more than the 32 rows of a CLICK rung, as
         :func:`csv_rows` raises it.  ``write_csv`` builds every row before it opens
-        *path*.  If it raises ``WriterError``, it has not created or changed the file.
+        *path*.  If it raises ``CsvWriteError``, it has not created or changed the file.
     """
     write_rows(Path(path), _csv_rows(rungs, index=index, stop=stop, caller="write_csv"))
 

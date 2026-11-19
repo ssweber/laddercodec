@@ -44,7 +44,7 @@ class EncodeError(LaddercodecError):
     """
 
 
-class CsvError(LaddercodecError):
+class CsvReadError(LaddercodecError):
     """Raised when ``read_csv`` or ``read_bundle`` cannot read a CSV.
 
     ``read_csv`` raises it for a file that isn't UTF-8 text, and for a row, a token or a
@@ -55,27 +55,27 @@ class CsvError(LaddercodecError):
     raises it when ``main.csv`` is missing, when CLICK refuses the name of a file in
     ``subroutines/`` as a subroutine name, when one of those names starts or ends with
     whitespace, and when two of them are equal with the case of A-Z ignored.  For a name
-    that CLICK refuses, the ``CsvError`` copies the refusal's data in the same way as for a
+    that CLICK refuses, the ``CsvReadError`` copies the refusal's data in the same way as for a
     pin row, described next.
 
     Both functions raise it for a bad ``allow=``, before they read any file.  A bad
     ``allow=`` is an item that is not a code's name, a single string or bytes in place of a
     list, a value that you can't iterate over, or a non-empty ``allow=`` with
-    ``unchecked=True``.  This ``CsvError`` has no ``location``.
+    ``unchecked=True``.  This ``CsvReadError`` has no ``location``.
 
     Some boxes, such as a counter, take inputs from pin rows below the box's own row.
     ``read_csv`` builds such a box from all of its rows.  If the box refuses a value at that
-    step, the ``FieldError`` reaches you wrapped in a ``CsvError``, and ``except FieldError``
-    does not catch it.  The ``CsvError`` copies the refusal's data.  ``field``, ``fields``,
+    step, the ``FieldError`` reaches you wrapped in a ``CsvReadError``, and ``except FieldError``
+    does not catch it.  The ``CsvReadError`` copies the refusal's data.  ``field``, ``fields``,
     ``reason``, ``code`` and ``click_id`` are those of the first refusal, with the meanings
     they have on ``FieldError``.  ``errors`` holds every refusal for the box, and each is a
     ``FieldError`` with its own ``location``.  ``errors[0]`` is the wrapped ``FieldError``,
     which is also ``__cause__``.  It is not this exception.  A refusal of a value that a pin
     row sets is located at that pin's row.  Any other refusal is located at the box's own row.
 
-    A ``CsvError`` that is not about a refused field has ``field`` and ``reason`` set to
+    A ``CsvReadError`` that is not about a refused field has ``field`` and ``reason`` set to
     ``None``, an empty ``fields``, and ``errors == (self,)``.  A pin token that does not
-    parse and a rung with no rows are two examples.  Such a ``CsvError`` has ``code`` and
+    parse and a rung with no rows are two examples.  Such a ``CsvReadError`` has ``code`` and
     ``click_id`` set to ``None``, except in these two cases:
 
     - ``read_csv`` and ``read_bundle`` raise it for a rung that needs more than the 32 rows
@@ -86,7 +86,7 @@ class CsvError(LaddercodecError):
       the case of A-Z is ignored.  Its ``code`` is then ``duplicate-subroutine-name``, and its
       ``click_id`` is ``GUI-036``.
 
-    If you build a ``CsvError`` with ``refusal``, it copies its attributes from the refusal
+    If you build a ``CsvReadError`` with ``refusal``, it copies its attributes from the refusal
     and ignores ``field``, ``code`` and ``click_id``.
     """
 
@@ -95,7 +95,7 @@ class CsvError(LaddercodecError):
     reason: Reason | None
     code: Code | None
     click_id: str | None
-    errors: tuple[FieldError, ...] | tuple[CsvError]
+    errors: tuple[FieldError, ...] | tuple[CsvReadError]
 
     def __init__(
         self,
@@ -122,12 +122,12 @@ class CsvError(LaddercodecError):
             self.errors = refusal.errors
 
 
-class WriterError(LaddercodecError):
+class CsvWriteError(LaddercodecError):
     """Raised when ``write_csv`` or ``csv_rows`` is given a rung that the CSV can't hold, or
     a bad ``stop=``.
 
     ``stop=`` must be ``"end"`` or ``"return"``.  ``write_csv`` builds every row before it
-    opens the file.  If it raises ``WriterError``, it has not created or changed the file.
+    opens the file.  If it raises ``CsvWriteError``, it has not created or changed the file.
 
     ``write_bundle`` raises it for a rung that the CSV can't hold, for two subroutines whose
     names are equal when the case of A-Z is ignored, for two subroutines whose files would be
@@ -175,7 +175,7 @@ class LayoutError(LaddercodecError):
       main input circuit.  Its ``click_id`` is ``C000A``.
 
     ``click_id`` is ``None`` for the four ``layout-`` codes.  When ``write_csv`` can't lay
-    out a rung, it raises :class:`~laddercodec.WriterError`.  The ``__cause__`` of that error
+    out a rung, it raises :class:`~laddercodec.CsvWriteError`.  The ``__cause__`` of that error
     can be a ``LayoutError`` with one of these codes, or with the code of a ``check()``
     finding such as ``not-series-parallel``.  Its ``click_id`` is then CLICK's id when CLICK
     has one, such as ``C0001``.

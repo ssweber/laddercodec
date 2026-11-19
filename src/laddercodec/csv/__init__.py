@@ -36,7 +36,7 @@ def read_csv(
         r = rungs[0]
         r.logical_rows    # int, len(r.conditions)
         r.conditions      # tuple[tuple[ConditionToken, ...], ...]
-        r.instructions    # tuple[AfToken, ...]
+        r.instructions    # tuple[InstructionToken, ...]
         r.comment         # str | None
 
     Each rung is drawn as CLICK's syntax check draws it.  The CSV gives the
@@ -81,14 +81,14 @@ def read_csv(
     refused value that the copy still holds then raises, even if *allow* listed its code.
 
     A file that isn't UTF-8 text, or a row, token or rung that can't be read, raises
-    ``CsvError``.  A value that CLICK's dialog refuses raises ``FieldError``, or
+    ``CsvReadError``.  A value that CLICK's dialog refuses raises ``FieldError``, or
     ``AddressError`` for an address.  Each error carries a :class:`CsvLocation` as its
     ``location``, with the file, line, rung, row and column where they are known.
     ``CsvLocation.of(exc)`` returns it, and the error message ends with it.  When
     *unchecked* is ``True`` or *allow* lists a code, each refusal that an instruction
     keeps carries the location it would have raised with.
 
-    ``read_csv`` checks *allow* before it reads the file.  It raises ``CsvError``, with no
+    ``read_csv`` checks *allow* before it reads the file.  It raises ``CsvReadError``, with no
     location, in these cases:
 
     - an item is not a code's name;

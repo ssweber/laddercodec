@@ -44,7 +44,7 @@ from laddercodec.instructions import (
     UnknownCondition,
     UnknownInstruction,
 )
-from laddercodec.model import AfInstruction, ConditionInstruction
+from laddercodec.model import Condition, Instruction
 from laddercodec.operands.unchecked import rebuilt, refusals, stored_blob, unchecked
 from laddercodec.refused import warn_refused
 
@@ -65,8 +65,8 @@ CLASSES = sorted(
     {
         cls
         for cls in (
-            *_subclasses(AfInstruction),
-            *_subclasses(ConditionInstruction),
+            *_subclasses(Instruction),
+            *_subclasses(Condition),
             UnknownCondition,
             UnknownInstruction,
             Tee,

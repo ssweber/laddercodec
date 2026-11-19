@@ -24,7 +24,7 @@ from laddercodec import (
     write_csv,
 )
 from laddercodec.csv.writer import (
-    WriterError,
+    CsvWriteError,
     _validate_roundtrip,
     decoded_rung_to_rows,
 )
@@ -538,7 +538,7 @@ class TestDecodedRungToRows:
         assert [row[1] for row in rows] == ["C96", "C97", ""]
 
     def test_shift_without_a_layout_requires_three_rows(self) -> None:
-        """A 2-row shift with no contacts raises WriterError.
+        """A 2-row shift with no contacts raises CsvWriteError.
 
         With no contact to lay out, the writer writes the rung as it is stored. The CSV has
         no form for a shift on 2 rows.
@@ -551,7 +551,8 @@ class TestDecodedRungToRows:
         )
 
         with pytest.raises(
-            WriterError, match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows"
+            CsvWriteError,
+            match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows",
         ):
             decoded_rung_to_rows(rung)
 
@@ -596,7 +597,7 @@ class TestDecodedRungToRows:
             comment_rtf=None,
             comment=None,
         )
-        with pytest.raises(WriterError):
+        with pytest.raises(CsvWriteError):
             decoded_rung_to_rows(rung)
 
 
@@ -867,7 +868,7 @@ class TestRoundTripValidator:
         rows = decoded_rung_to_rows(rung)
         rows[1][32] = ""
 
-        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+        with pytest.raises(CsvWriteError, match=r"AF mismatch at row 1"):
             _validate_roundtrip(rung, rows)
 
     def test_raises_on_missing_count_down_top_row_contact(self) -> None:
@@ -896,7 +897,7 @@ class TestRoundTripValidator:
         rows = decoded_rung_to_rows(rung)
         rows[0][1] = ""
 
-        with pytest.raises(WriterError, match=r"condition mismatch at row 1 col A"):
+        with pytest.raises(CsvWriteError, match=r"condition mismatch at row 1 col A"):
             _validate_roundtrip(rung, rows)
 
     def test_raises_on_missing_generic_tall_continuation_comparison(self) -> None:
@@ -913,7 +914,7 @@ class TestRoundTripValidator:
         rows = decoded_rung_to_rows(rung)
         rows[1][1] = ""
 
-        with pytest.raises(WriterError, match=r"condition mismatch at row 2 col A"):
+        with pytest.raises(CsvWriteError, match=r"condition mismatch at row 2 col A"):
             _validate_roundtrip(rung, rows)
 
     def test_raises_on_missing_drum_jump_pin(self) -> None:
@@ -934,7 +935,7 @@ class TestRoundTripValidator:
 
         # Without its .jump() label, the jump row reads back as an OR leg of the reset. That
         # leg pushes the jump pin, which is then unused, down a row.
-        with pytest.raises(WriterError, match=r"round-trip validation failed"):
+        with pytest.raises(CsvWriteError, match=r"round-trip validation failed"):
             _validate_roundtrip(rung, rows)
 
 

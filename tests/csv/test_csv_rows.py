@@ -15,10 +15,10 @@ from laddercodec import (
     CSV_HEADER,
     Coil,
     Contact,
+    CsvWriteError,
     Rung,
     UndecodedRungWarning,
     UnknownInstruction,
-    WriterError,
     csv_rows,
     decode,
     decode_program,
@@ -63,14 +63,14 @@ def _file_rows(path: Path) -> list[list[str]]:
 def _run(call: Callable[..., object], *args: Any, **kwargs: Any) -> tuple[object, list[str]]:
     """Call *call* with the arguments given.
 
-    Return what it returns or the ``WriterError`` it raises, and the warnings that it emits,
+    Return what it returns or the ``CsvWriteError`` it raises, and the warnings that it emits,
     as text.
     """
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
             result: object = call(*args, **kwargs)
-        except WriterError as exc:
+        except CsvWriteError as exc:
             result = exc
     return result, [f"{w.category.__name__}: {w.message}" for w in caught]
 
@@ -183,7 +183,9 @@ def test_a_bad_stop_raises_writer_error(name: str, tmp_path: Path) -> None:
         "csv_rows": lambda: csv_rows([_split_rung()], stop="halt"),  # type: ignore[arg-type]
         "write_csv": lambda: write_csv(path, [_split_rung()], stop="halt"),  # type: ignore[arg-type]
     }
-    with pytest.raises(WriterError, match=rf"^{name}: stop='halt' must be 'end' or 'return'$") as e:
+    with pytest.raises(
+        CsvWriteError, match=rf"^{name}: stop='halt' must be 'end' or 'return'$"
+    ) as e:
         calls[name]()
     assert e.value.code is None
     assert e.value.click_id is None
@@ -199,19 +201,19 @@ def _unwritable_rung() -> Rung:
 def test_a_writer_error_leaves_no_file(tmp_path: Path) -> None:
     """The rung that fails comes after one that can be written, and no file is made."""
     path = tmp_path / "m.csv"
-    with pytest.raises(WriterError, match="is 3 rows tall, but the rung has only 2 rows") as e:
+    with pytest.raises(CsvWriteError, match="is 3 rows tall, but the rung has only 2 rows") as e:
         write_csv(path, [_split_rung(), _unwritable_rung()])
     assert e.value.code is None
     assert e.value.click_id is None
     assert not path.exists()
-    with pytest.raises(WriterError, match="is 3 rows tall, but the rung has only 2 rows"):
+    with pytest.raises(CsvWriteError, match="is 3 rows tall, but the rung has only 2 rows"):
         csv_rows([_split_rung(), _unwritable_rung()])
 
 
 def test_a_writer_error_leaves_an_existing_file_unchanged(tmp_path: Path) -> None:
     path = tmp_path / "m.csv"
     path.write_bytes(b"kept\r\n")
-    with pytest.raises(WriterError):
+    with pytest.raises(CsvWriteError):
         write_csv(path, [_split_rung(), _unwritable_rung()])
     assert path.read_bytes() == b"kept\r\n"
 

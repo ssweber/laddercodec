@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, get_args
 
 from ..codes import Code
-from ..model import AfInstruction, FieldError, Reason
+from ..model import FieldError, Instruction, Reason
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
 
@@ -27,7 +27,7 @@ _STOPS: tuple[UndecodedStop, ...] = get_args(UndecodedStop)
 
 
 @dataclass(frozen=True)
-class Undecoded(AfInstruction):
+class Undecoded(Instruction):
     """A marker for a rung that laddercodec could not decode, with the reason.
 
     When a decoder cannot read a rung, it puts a marker rung in its place.  The marker rung

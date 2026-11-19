@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
@@ -136,7 +136,7 @@ class Timer(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a timer. Write it as "
                 "on_delay(done,accumulator,preset=...,unit=...) or off_delay(...), such as "
                 "on_delay(T1,TD1,preset=1000,unit=Tms)."
@@ -151,14 +151,14 @@ class Timer(PinnedInstruction):
             else:
                 args.append(seg)
         if len(args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}"
             )
         done, accumulator = args
         preset = kwargs.get("preset", "")
         unit = kwargs.get("unit", "")
         if not preset or not unit:
-            raise CsvError(f"{kind} missing preset or unit kwargs: {token!r}")
+            raise CsvReadError(f"{kind} missing preset or unit kwargs: {token!r}")
         return cls(
             kind=kind,
             done=done,

@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError
-from ..model import Address, AfInstruction, Reason
+from ..errors import CsvReadError
+from ..model import Address, Instruction, Reason
 from ..operands.address import read_typed_address
 from ..operands.banks import REGISTER_BANKS
 from ..operands.checks import (
@@ -134,7 +134,7 @@ _SEARCH_TAGS = (
 
 
 @dataclass(frozen=True)
-class Search(AfInstruction):
+class Search(Instruction):
     """A search instruction.
 
     Attributes
@@ -341,13 +341,13 @@ def from_tags(
 def parse_af_call(call: AfCall) -> Search:
     """Parse an AF AST call into a Search."""
     if len(call.args) != 1:
-        raise CsvError(f"search expects 1 positional arg (expression), got {len(call.args)}")
+        raise CsvReadError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
     # DOTALL: a text value may hold a line break.
     m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr, re.DOTALL)
     if not m:
-        raise CsvError(
+        raise CsvReadError(
             f"Could not read the search expression {expr!r}. Write the table, an operator "
             "and a value, such as DS1..DS10 == DS20."
         )
@@ -355,7 +355,7 @@ def parse_af_call(call: AfCall) -> Search:
     result = call.kwargs.get("result")
     found = call.kwargs.get("found")
     if not result or not found:
-        raise CsvError(
+        raise CsvReadError(
             "search needs result= and found=, such as "
             "search(DS1..DS10 == DS20,result=DS30,found=C1)."
         )
