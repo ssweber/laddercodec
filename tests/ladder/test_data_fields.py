@@ -623,12 +623,17 @@ class TestDrumCsvChecks:
     def _time_event(self, unit: str = "unit=Tms,", accumulator: str = "accumulator=TD1,") -> str:
         return self.TIME_EVENT.format(unit=unit, accumulator=accumulator)
 
-    @pytest.mark.parametrize("unit", ["", "unit=,"])
-    def test_a_time_drum_without_a_unit_is_a_csv_error(self, tmp_path: Path, unit: str) -> None:
+    def test_a_time_drum_without_a_unit_is_a_csv_error(self, tmp_path: Path) -> None:
         with pytest.raises(CsvReadError, match="time_drum needs unit="):
-            _read_af(tmp_path, self._time(unit))
+            _read_af(tmp_path, self._time(""))
         with pytest.raises(CsvReadError, match="time_event_drum needs unit="):
-            _read_af(tmp_path, self._time_event(unit))
+            _read_af(tmp_path, self._time_event(""))
+
+    def test_a_blank_unit_is_missing(self, tmp_path: Path) -> None:
+        for token in (self._time("unit=,"), self._time_event("unit=,")):
+            with pytest.raises(FieldError, match="^Drum.unit: is blank; it needs a value") as error:
+                _read_af(tmp_path, token)
+            assert (error.value.reason, error.value.code) == (Reason.MISSING, Code.BLANK_FIELD)
 
     def test_a_bad_unit_is_a_field_error(self, tmp_path: Path) -> None:
         for token in (self._time("unit=Bad,"), self._time_event("unit=Bad,")):

@@ -80,24 +80,18 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
     conflict.
   - A range refusal spans its `A : B`.
   - SUM's CT refusals and X/Y refusals span the range argument.
-- **The blanks a CSV token still reads as syntax.** These blanks already read as the field `missing`:
-  - a blank argument that fills one text field or a range (a range with a blank end, `..DS4`, too);
-  - a blank `oneshot=` or `maintained=`, in every family, `out` and `for` included.
+- **The blanks a CSV token still reads as syntax.** A blank argument of an AF token reads as its field
+  `missing`. That covers a blank `unit=`, Math `mode=`, drum list, Modbus `target=` and search expression. An
+  absent keyword stays a `CsvReadError` (ruled). So does a Math `mode=` that is neither `decimal` nor `hex`
+  (ruled). These blanks are still a syntax error with no field:
+  - A token with blanks of two forms, a range and a single field (`pack_bits(,)`, `unpack_to_bits(,)`), because
+    every blank in a token is tried in the same form (ruled).
+  - A blank argument that the token has no field for (`toggle(C1,on_acc=)`).
+  - A blank in a condition token. Condition tokens are not read for blanks, so `rise()`, `DS1==` and `~` are
+    syntax errors.
 
-  The Timer `unit=` and Drum `unit=`, accumulator and pattern value checks are made at construction. An absent
-  keyword stays a `CsvReadError` (ruled). These blanks are still a syntax error with no field, where Python says
-  `missing`:
-  - a blank `unit=` in a Timer or time drum, and a blank Math `mode=` (a Math `mode=` that is neither
-    `decimal` nor `hex` is a `CsvReadError` too);
-  - a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a search
-    expression (`search(,result=DS1,found=C1)`).
-
-  To read them as `missing`, change `timer.py`, `drum.py`, `math.py`, `search.py` and `send_receive.py`. Also:
-  - A token with blanks of two forms, a range and a single field (`pack_bits(,)`, `unpack_to_bits(,)`), stays a
-    syntax error, because every blank in a token is tried in the same form.
-  - Condition tokens are not read for blanks. `rise()`, `DS1==` and `~` are syntax errors.
-  - The coil parser drops a blank argument. It accepts `out(C1,)`. It reads `out(,oneshot=)` with `oneshot=` as
-    the operand, which is an `address` refusal.
+  The coil parser drops a blank argument. It accepts `out(C1,)`. It reads `out(,oneshot=)` with `oneshot=` as
+  the operand, which is an `address` refusal.
 - **One parser per token.** Each family's `from_csv_token` parses with its own regex. Twice, one has disagreed
   with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route every
   `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their

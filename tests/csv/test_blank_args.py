@@ -20,7 +20,9 @@ from typing import Any
 import pytest
 
 from laddercodec import (
+    Code,
     CsvLocation,
+    Drum,
     FieldError,
     Reason,
     RefusedFieldWarning,
@@ -39,8 +41,10 @@ from laddercodec.operands.unchecked import refusals, unchecked
 from tests.sweep_keys import kind_of
 
 AF = 31
+TCP = 'ModbusTcpTarget(name="tcp",ip="192.168.1.10",port=502,device_id=1)'
+RTU = 'ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=5)'
 SEND = (
-    'send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",port=502,device_id=1),'
+    f"send(target={TCP},"
     "remote_start=ModbusAddress(address=0h,register_type=coil),source=C11,sending=C1,"
     "success=C2,error=C3,exception_response=DS100)"
 )
@@ -57,12 +61,13 @@ TIME_DRUM = (
     "accumulator=TD1,completion_flag=C2)"
 )
 RECEIVE = (
-    'receive(target=ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=5),'
+    f"receive(target={RTU},"
     'remote_start="DS1",dest=DS1..DS5,receiving=C1,success=C2,error=C3,'
     "exception_response=DS100)"
 )
 TIMED = "timed(C1,on_acc=TD18,on_preset=1000,unit=Tms)"
 TIMING = ("on_acc", "on_preset", "off_acc", "off_preset", "unit")
+SEARCH_FIELDS = ["Search.op", "Search.table_start", "Search.table_end", "Search.value"]
 
 #: Each case is a token with a blank argument and the fields that the read refuses as missing.
 BLANKS = [
@@ -103,6 +108,30 @@ BLANKS = [
     (SEND.replace("source=C11", "source="), ["Send.source"]),
     (SEND.replace('ip="192.168.1.10"', "ip="), ["ModbusTcpTarget.ip"]),
     (EVENT_DRUM.replace("current_step=DS1", "current_step="), ["Drum.current_step"]),
+    # A blank choice: a unit or a Math mode.
+    ("on_delay(T1,TD1,preset=1,unit=)", ["Timer.unit"]),
+    ("on_delay(T1,TD1,preset=,unit=)", ["Timer.unit", "Timer.preset"]),
+    ("math(DS1 + 1,DS2,mode=)", ["Math.mode"]),
+    (TIME_DRUM.replace("unit=Tms", "unit="), ["Drum.unit"]),
+    (TIME_EVENT_DRUM.replace("unit=Tms", "unit="), ["Drum.unit"]),
+    # A blank drum list.
+    (EVENT_DRUM.replace("outputs=[C3]", "outputs="), ["Drum.outputs"]),
+    (EVENT_DRUM.replace("events=[C2]", "events="), ["Drum.events"]),
+    (EVENT_DRUM.replace("pattern=[[1]]", "pattern="), ["Drum.pattern"]),
+    (TIME_DRUM.replace("presets=[1000]", "presets="), ["Drum.presets"]),
+    (TIME_EVENT_DRUM.replace("events=[None,C1501,C1502]", "events="), ["Drum.events"]),
+    (
+        TIME_EVENT_DRUM.replace("presets=[1000,None,500]", "presets=").replace(
+            "events=[None,C1501,C1502]", "events="
+        ),
+        ["Drum.presets", "Drum.events"],
+    ),
+    # A blank Modbus target.
+    (SEND.replace(TCP, ""), ["Send.target"]),
+    (RECEIVE.replace(RTU, ""), ["Receive.target"]),
+    # A blank search expression leaves the table, the operator and the value blank.
+    ("search(,result=DS1,found=C1)", SEARCH_FIELDS),
+    ("search(,result=,found=C1)", [*SEARCH_FIELDS[:3], "Search.result", SEARCH_FIELDS[3]]),
 ]
 
 #: Tokens that are malformed in another way, whether or not an argument is blank, each with
@@ -116,6 +145,13 @@ SYNTAX = [
     ("count_up(CT1,CTD1,preset=,)", "Positional arg after keyword arg"),
     ("call(,)", r"Could not read 'call\(,\)' as a Call instruction"),
     ("toggle(C1,on_acc=)", r"toggle takes only the coil.s address"),
+    # An absent keyword, and a Math mode that is not blank, decimal or hex.
+    (TIME_DRUM.replace(",unit=Tms", ""), "^time_drum needs unit="),
+    ("math(DS1 + 1,DS2,mode=Decimal)", r"^math mode must be 'decimal' or 'hex', got 'Decimal'"),
+    ("search(,result=DS1)", "^search needs result= and found="),
+    # Blanks of two forms, a range and a single field.
+    ("pack_bits(,)", "^'' is not a range. Write the source of pack_bits"),
+    ("unpack_to_bits(,)", "^'' is not a range. Write the destination of unpack_to_bits"),
 ]
 
 
@@ -126,13 +162,13 @@ def _cells(af: str) -> list[str]:
 def _write(path: Path, af: str) -> Path:
     """Write a CSV of two rungs to *path* and return *path*. The second rung's output is *af*.
 
-    If *af* is a ``count_`` or ``event_drum`` token, add a ``.reset()`` row under it."""
+    If *af* is a counter or drum token, add a ``.reset()`` row under it."""
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(CSV_HEADER)
         writer.writerow(_cells("out(Y001)"))
         writer.writerow(_cells(af))
-        if af.startswith(("count_", "event_drum")):
+        if af.startswith(("count_", "event_drum", "time_drum", "time_event_drum")):
             writer.writerow(["", *_cells(".reset()")[1:]])
     return path
 
@@ -206,6 +242,74 @@ def test_a_token_broken_otherwise_stays_a_syntax_error(token: str, match: str) -
     with pytest.raises(ValueError, match=match) as raised:
         _read(token)
     assert getattr(raised.value, "field", None) is None
+
+
+#: A blank in a field that is not text: a choice, a drum list, a Modbus target or the parts of a
+#: search expression. Each case is (token, the field that the refusal names first).
+NOT_TEXT = [
+    ("on_delay(T1,TD1,preset=1,unit=)", "Timer.unit"),
+    ("math(DS1 + 1,DS2,mode=)", "Math.mode"),
+    (TIME_DRUM.replace("unit=Tms", "unit="), "Drum.unit"),
+    (EVENT_DRUM.replace("outputs=[C3]", "outputs="), "Drum.outputs"),
+    (EVENT_DRUM.replace("pattern=[[1]]", "pattern="), "Drum.pattern"),
+    (SEND.replace(TCP, ""), "Send.target"),
+    ("search(,result=DS1,found=C1)", "Search.op"),
+]
+
+
+@pytest.mark.parametrize(("token", "field"), NOT_TEXT)
+def test_a_blank_that_is_not_text_says_it_is_blank(tmp_path: Path, token: str, field: str) -> None:
+    path = _write(tmp_path / "main.csv", token)
+    with pytest.raises(FieldError) as raised:
+        read_csv(path)
+    error = raised.value
+    assert type(error) is FieldError
+    assert (error.field, error.reason, error.code) == (field, Reason.MISSING, Code.BLANK_FIELD)
+    assert str(error) == (
+        f"{field}: is blank; it needs a value "
+        f"(at {path}, line 3, rung at line 3, row 0 from 0, column AF)"
+    )
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "on_delay(T1,TD1,preset=1,unit=)",
+        "math(DS1 + 1,DS2,mode=)",
+        EVENT_DRUM.replace("outputs=[C3]", "outputs="),
+        TIME_EVENT_DRUM.replace("presets=[1000,None,500]", "presets="),
+        SEND.replace(TCP, ""),
+        RECEIVE.replace(RTU, ""),
+        "search(,result=DS1,found=C1)",
+    ],
+)
+def test_an_instruction_read_with_a_blank_writes_the_blank(token: str) -> None:
+    with unchecked():
+        held = _read(token)
+    assert held.to_csv() == token
+
+
+def test_an_empty_drum_list_is_not_a_blank_one() -> None:
+    with pytest.raises(FieldError) as raised:
+        _read(EVENT_DRUM.replace("outputs=[C3]", "outputs=[]"))
+    assert str(raised.value) == "Drum.outputs: 0 outputs is outside 1-16"
+    assert (raised.value.reason, raised.value.code) == (Reason.RANGE, Code.DRUM_SIZE_OUT_OF_RANGE)
+
+
+def test_a_drum_refuses_a_blank_list_only_if_its_kind_uses_it() -> None:
+    fields: dict[str, Any] = {
+        "kind": "event_drum",
+        "outputs": ("C3",),
+        "events": ("C2",),
+        "pattern": ((1,),),
+        "current_step": "DS1",
+        "completion_flag": "C1",
+    }
+    with pytest.raises(FieldError) as raised:
+        Drum(**{**fields, "outputs": ""})
+    assert [(e.field, e.code) for e in raised.value.errors] == [("Drum.outputs", Code.BLANK_FIELD)]
+    # An event drum has no presets, so a blank list of them is an empty one.
+    assert Drum(**{**fields, "presets": ""}).presets == ()
 
 
 def test_fill_blank_args() -> None:

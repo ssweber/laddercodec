@@ -121,7 +121,7 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - Do: Lower the count or the start address.
 - **Word Swap only where a Send offers it.** `word_swap=True` on a `Send` now raises `FieldError` with reason `conflict` and code `option-not-offered` unless the Send uses FC16. It raises the same error for a TXT source, and for a count of 1 from DS, DH, TD or SD. v0.4.0 accepted it.
   - Do: Drop `word_swap=1`.
-- **A blank CSV argument raises `FieldError`.** A blank argument such as `out()` now raises `FieldError` with reason `missing` and the blank `field`. v0.4.0 raised a `ValueError` that named no field. An empty required field also raises `FieldError` with reason `missing`.
+- **A blank CSV argument raises `FieldError`.** A blank argument now raises `FieldError` with reason `missing` and the blank `field`, as in `out()`, `unit=`, `mode=`, a drum's `outputs=`, a Modbus `target=` and `search(,result=DS1,found=C1)`. v0.4.0 raised a `ValueError` that named no field. An empty required field also raises `FieldError` with reason `missing`.
   - Do: Catch `FieldError`, or `ValueError`, for a blank argument. Read `reason` and `field` to tell a blank from a bad value.
 - **Hex Math and SD writes follow CLICK.** A hex `Math` formula that holds a DS register, or a bit in a `SUM`, now raises `FieldError` with `OBJ-1002`. An SD register that a program can't write now raises `FieldError` with reason `not_writable` as a `Copy` destination, in a `BlockCopy` or `Fill` destination range and as a decimal `Math` result. A `Fill` into `SD29..SD38` raises it with `OBJ-004`, because SD30 is read-only. v0.4.0 accepted all of these.
   - Do: Change the value before you build or read the instruction.
