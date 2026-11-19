@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from laddercodec import FieldError, Tee, read_csv
-from laddercodec.model import AfInstruction, ConditionInstruction
+from laddercodec.model import Condition, Instruction
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -61,7 +61,7 @@ def golden_instructions() -> dict[str, Any]:
                 for cell in cells:
                     if isinstance(cell, Tee):
                         cell = cell.contact
-                    if isinstance(cell, (AfInstruction, ConditionInstruction)):
+                    if isinstance(cell, (Instruction, Condition)):
                         found.setdefault(key_of(cell), cell)
     return found
 

@@ -23,7 +23,7 @@ from laddercodec._layout.network import cell_of
 from laddercodec.csv.contract import CSV_HEADER
 from laddercodec.csv.converter import convert_literal, convert_rung
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
+from laddercodec.csv.writer import CsvWriteError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact, Tee
 from tests.undecoded_captures import without_marker
@@ -326,7 +326,7 @@ def test_circuit_catches_a_contact_drawn_twice(
     assert _contacts(parts) == (["C1", "C5", "C5"] if lose else ["C1", "C5", "C5", "C6"])
     with pytest.raises(LayoutError, match="2 times"):
         circuit([drawn])
-    with pytest.raises(WriterError, match="changed the rung's circuit") as written:
+    with pytest.raises(CsvWriteError, match="changed the rung's circuit") as written:
         decoded_rung_to_rows(drawn)
     assert written.value.code is None
     assert written.value.click_id is None

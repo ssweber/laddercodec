@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
-    AfInstruction,
+    Instruction,
     InstructionType,
     Reason,
 )
@@ -84,7 +84,7 @@ _COIL_FORM = (
 
 
 @dataclass(frozen=True)
-class Coil(AfInstruction):
+class Coil(Instruction):
     """An output coil: ``out``, ``latch`` (Set) or ``reset``, on one bit or a range.
 
     ``Coil("Y001", kind="latch")`` is the CSV token ``latch(Y001)``, and
@@ -168,31 +168,31 @@ class Coil(AfInstruction):
         """
         token = token.strip()
         if token.startswith("immediate("):
-            raise CsvError(
+            raise CsvReadError(
                 f"Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}"
             )
 
         m = re.fullmatch(r"(out|latch|reset)\((.+)\)", token)
         if not m:
-            raise CsvError(_COIL_FORM.format(token=token))
+            raise CsvReadError(_COIL_FORM.format(token=token))
 
         kind = cast(CoilKind, m.group(1))
         inner = m.group(2).strip()
         parts = [seg.strip() for seg in inner.split(",") if seg.strip()]
         if not parts:
-            raise CsvError(_COIL_FORM.format(token=token))
+            raise CsvReadError(_COIL_FORM.format(token=token))
 
         arg = parts[0]
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise CsvError(_COIL_FORM.format(token=token))
+                raise CsvReadError(_COIL_FORM.format(token=token))
             k, v = seg.split("=", 1)
             kwargs[k.strip()] = v.strip()
 
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
-            raise CsvError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvReadError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
         oneshot = check_csv_flag(kwargs, "oneshot", "Coil.oneshot")
 
         immediate_inner = False
@@ -203,14 +203,14 @@ class Coil(AfInstruction):
 
         immediate = immediate_inner
         if ":" in arg:
-            raise CsvError(
+            raise CsvReadError(
                 f"{token!r} writes a range with ':'. Write it with '..', such as out(C1..C8)."
             )
 
         if ".." in arg:
             parts = [p.strip() for p in arg.split("..")]
             if len(parts) != 2 or not all(parts):
-                raise CsvError(
+                raise CsvReadError(
                     f"Could not read the range in {token!r}. Write it as two addresses "
                     "joined by '..', such as out(C1..C8)."
                 )

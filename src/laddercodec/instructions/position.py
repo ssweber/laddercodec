@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
-from ..errors import CsvError
-from ..model import AfInstruction
+from ..errors import CsvReadError
+from ..model import Instruction
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
     AfInstructionFamilySpec,
@@ -65,7 +65,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Position(AfInstruction):
+class PositionMove(Instruction):
     """The Position instruction, with each field kept as the text that its tag stores.
 
     laddercodec does not interpret the fields. Each field is named after CLICK's tag id
@@ -151,15 +151,15 @@ class Position(AfInstruction):
         return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{rows},{','.join(specs)})"
 
     @classmethod
-    def from_csv_token(cls, token: str) -> Position:
+    def from_csv_token(cls, token: str) -> PositionMove:
         """Parse ``raw(Position,0x2736,1,...)`` token."""
         from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise CsvError(f"Not a raw Position token: {token!r}")
+            raise CsvReadError(f"Not a raw Position token: {token!r}")
         parts = _split_raw_args(token[4:-1])
         if parts[0] != _CLASS_NAME:
-            raise CsvError(f"Not a Position token: {token!r}")
+            raise CsvReadError(f"Not a Position token: {token!r}")
 
         tags: dict[int, str] = {}
         for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):
@@ -181,25 +181,25 @@ def from_tags(
     tags: dict[int, str],
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
-) -> Position | None:
-    """Build a ``Position`` from the tags of an instruction blob, or return None.
+) -> PositionMove | None:
+    """Build a ``PositionMove`` from the tags of an instruction blob, or return None.
 
     Return None if the blob is not a Position. The clipboard decoder and the program-file
     decoder both call this.
     """
     if class_name != _CLASS_NAME or type_code != _TYPE_CODE:
         return None
-    return Position(**_extract_fields(tags))
+    return PositionMove(**_extract_fields(tags))
 
 
-def parse_af_call(call: AfCall) -> Position:
+def parse_af_call(call: AfCall) -> PositionMove:
     """Parse a ``raw(Position,...)`` call from a CSV rung's AF (output) column."""
-    return Position.from_csv_token(call.to_token())
+    return PositionMove.from_csv_token(call.to_token())
 
 
 SPEC = AfInstructionFamilySpec(
     family_name="position",
-    instruction_types=(Position,),
+    instruction_types=(PositionMove,),
     binary_class_names=(_CLASS_NAME,),
     from_tags=from_tags,
     cell_params_from_tags=fixed_cell_params(EMAIL_MOTION_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),

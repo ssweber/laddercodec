@@ -30,7 +30,7 @@ from .instructions import (
 )
 from .instructions.undecoded import UndecodedStop
 from .legacy import warn_legacy
-from .model import AfInstruction, Program
+from .model import Instruction, Program
 from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
 from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
@@ -363,7 +363,7 @@ def _scr_af(
     part_rows: bytes,
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
-) -> AfInstruction | None:
+) -> Instruction | None:
     """Build an AF instruction from SCR tags, with each pin on its stored row."""
     parsed_af = from_tags_af(
         class_name,
@@ -399,7 +399,7 @@ def _scr_box(
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
     cell_rows: bytes,
-) -> AfInstruction:
+) -> Instruction:
     """Return the AF box of an SCR entry.
 
     The box is the typed instruction if the height of that instruction matches the row
@@ -765,13 +765,13 @@ def _build_rung(
     comment_rtf: bytes | None,
 ) -> Rung:
     """Build a Rung from parsed SCR components."""
-    from .instructions import AfToken, ConditionToken, Tee, UnknownCondition
+    from .instructions import ConditionToken, InstructionToken, Tee, UnknownCondition
 
     # Initialize grids
     conditions: list[list[ConditionToken]] = [
         [""] * _CONDITION_COLUMNS for _ in range(logical_rows)
     ]
-    instructions: list[AfToken] = [""] * logical_rows
+    instructions: list[InstructionToken] = [""] * logical_rows
 
     # 1. Place instructions from instruction section
     instr_positions: set[tuple[int, int]] = set()

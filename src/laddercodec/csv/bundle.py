@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..codes import Code
 from ..decode import Rung
-from ..errors import CsvError, LaddercodecError, WriterError
+from ..errors import CsvReadError, CsvWriteError, LaddercodecError
 from ..model import FieldError, Program, Project, check_program_name
 from ..refused import warn_refused
 from ..undecoded import UndecodedStop
@@ -51,13 +51,13 @@ def _bundle_paths(directory: Path) -> tuple[Path, list[Path]]:
     """Return the path of ``main.csv`` in *directory* and the paths of its subroutine files.
 
     The subroutine files are the files directly in ``subroutines/`` whose names end in
-    ``.csv``, in any case, in the order of :func:`_in_bundle_order`.  Raise ``CsvError``
+    ``.csv``, in any case, in the order of :func:`_in_bundle_order`.  Raise ``CsvReadError``
     if ``main.csv`` is missing.
     """
     main_path = directory / "main.csv"
     if not main_path.exists():
         with located_in_file(main_path):
-            raise CsvError(f"Bundle directory {directory} is missing required main.csv")
+            raise CsvReadError(f"Bundle directory {directory} is missing required main.csv")
     sub_dir = directory / "subroutines"
     if not sub_dir.is_dir():
         return main_path, []
@@ -129,18 +129,18 @@ def read_bundle(
 
     Raises
     ------
-    CsvError
+    CsvReadError
         If *allow* holds an item that is not a code's name, if *allow* is a single string,
         bytes or a value that you can't iterate over, or if you pass both
         ``unchecked=True`` and a non-empty *allow*.  ``read_bundle`` checks *allow*
         before it reads any file, and this error has no location.
 
-        ``CsvError`` is also raised if ``main.csv`` is missing, if a file can't be read, or
+        ``CsvReadError`` is also raised if ``main.csv`` is missing, if a file can't be read, or
         if the names of the files in ``subroutines/`` are refused.  ``read_bundle`` checks
         the names before it reads any file.  It refuses a name that CLICK refuses as a
         subroutine name, a name that starts or ends with whitespace, and two names that are
         equal when the case of A-Z is ignored.  For a name that CLICK refuses, the
-        ``CsvError`` copies the ``FieldError``'s ``field``, ``code``, ``reason`` and
+        ``CsvReadError`` copies the ``FieldError``'s ``field``, ``code``, ``reason`` and
         ``click_id``.  For two names that are equal when the case of A-Z is ignored, its
         ``code`` is
         ``duplicate-subroutine-name`` and its ``click_id`` is ``GUI-036``.
@@ -173,7 +173,7 @@ def read_bundle(
 def _subroutine_names(paths: Sequence[Path]) -> list[str]:
     """Return the subroutine name of each file in *paths*: its name without ``.csv``.
 
-    Raise ``CsvError`` if CLICK refuses a name as a subroutine name, if a name starts or
+    Raise ``CsvReadError`` if CLICK refuses a name as a subroutine name, if a name starts or
     ends with whitespace, or if two names are equal when the case of A-Z is ignored.  Read
     no file.
     """
@@ -185,7 +185,7 @@ def _subroutine_names(paths: Sequence[Path]) -> list[str]:
             try:
                 check_program_name(name, _NAME_FIELD)
             except FieldError as exc:
-                raise CsvError(
+                raise CsvReadError(
                     f"The file name {path.name!r} is not a subroutine name that CLICK "
                     f"accepts. {exc}. Rename the file.",
                     refusal=exc,
@@ -193,13 +193,13 @@ def _subroutine_names(paths: Sequence[Path]) -> list[str]:
             if name != name.strip():
                 # write_bundle strips the name, so this file could not come back from a
                 # write.
-                raise CsvError(
+                raise CsvReadError(
                     f"The subroutine name in {path.name!r} starts or ends with whitespace. "
                     "Remove the whitespace from the start and end of the file name."
                 )
             first = seen.setdefault(_same_name_key(name), path)
             if first is not path:
-                raise CsvError(
+                raise CsvReadError(
                     f"Subroutine files {first.name!r} and {path.name!r} have the same name "
                     "when the case of A-Z is ignored (GUI-036). Rename one of them.",
                     code=Code.DUPLICATE_SUBROUTINE_NAME,
@@ -239,7 +239,7 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
     ------
     FieldError
         If CLICK refuses a subroutine's name.  The ``field`` is ``Program.name``.
-    WriterError
+    CsvWriteError
         If two subroutines have names that are equal when the case of A-Z is ignored.
         The error's ``code`` is then ``duplicate-subroutine-name``, and its ``click_id``
         is ``GUI-036``.  It is also raised, with no ``code`` and no ``click_id``, for two
@@ -251,7 +251,7 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
         also raises it for a rung that the CSV can't hold, as ``write_csv`` does.
 
     ``write_bundle`` checks the names and the paths, and builds the rows of every file,
-    before it writes any file.  If it raises ``FieldError`` or ``WriterError``, it has
+    before it writes any file.  If it raises ``FieldError`` or ``CsvWriteError``, it has
     not created or changed any file.  The message of an error from a program's rungs
     starts with the program: ``Main program:`` or ``Subroutine 'Pump':``.  An
     ``OSError`` while it writes, such as a full disk, can leave some files written and
@@ -267,14 +267,14 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
         # Windows refuses U+0001 to U+001F.  U+007F is refused with them.
         control = next((ch for ch in program.name if ch < " " or ch == "\x7f"), None)
         if control is not None:
-            raise WriterError(
+            raise CsvWriteError(
                 f"Subroutine {program.name!r} holds the control character "
                 f"U+{ord(control):04X}. Remove the character from the name."
             )
         name = program.name.strip()
         key = _same_name_key(name)
         if key in names:
-            raise WriterError(
+            raise CsvWriteError(
                 f"Subroutines {names[key]!r} and {name!r} have the same name when the case "
                 "of A-Z is ignored (GUI-036). Rename one of them.",
                 code=Code.DUPLICATE_SUBROUTINE_NAME,
@@ -282,7 +282,7 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
             )
         file_key = _same_file_key(name)
         if file_key in file_names:
-            raise WriterError(
+            raise CsvWriteError(
                 f"The files of subroutines {file_names[file_key]!r} and {name!r} would be one file "
                 "on a file system that ignores case, such as NTFS. Rename one of them."
             )
@@ -298,13 +298,13 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
 
     for folder in (directory, sub_dir):
         if folder.exists() and not folder.is_dir():
-            raise WriterError(
+            raise CsvWriteError(
                 f"{folder} exists and is not a directory. Move it or remove it, then write "
                 "the bundle again."
             )
     for path, *_ in programs:
         if path.exists() and not path.is_file():
-            raise WriterError(
+            raise CsvWriteError(
                 f"{path} exists and is not a file. Move it or remove it, then write the "
                 "bundle again."
             )

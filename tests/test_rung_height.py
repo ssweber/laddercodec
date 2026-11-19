@@ -1,7 +1,7 @@
 """A CLICK rung holds 1 to 32 rows, and every path that reads or writes a rung refuses more.
 
-``read_csv`` and ``read_bundle`` raise ``CsvError``.  ``csv_rows``, ``write_csv`` and
-``write_bundle`` raise ``WriterError``.  ``lay_out`` raises ``LayoutError``.  Each error has
+``read_csv`` and ``read_bundle`` raise ``CsvReadError``.  ``csv_rows``, ``write_csv`` and
+``write_bundle`` raise ``CsvWriteError``.  ``lay_out`` raises ``LayoutError``.  Each error has
 the code ``layout-too-tall``.  ``check()`` reports the same code for a ``Rung`` that you
 build.  Each case below is drawn at exactly 32 rows, which every path accepts, and at 33.
 """
@@ -19,7 +19,6 @@ import laddercodec._grid
 import laddercodec.empty_multirow
 from laddercodec import (
     CSV_HEADER,
-    AfInstruction,
     Box,
     Branch,
     Circuit,
@@ -27,16 +26,17 @@ from laddercodec import (
     Coil,
     Contact,
     Copy,
-    CsvError,
     CsvLocation,
+    CsvReadError,
+    CsvWriteError,
     EncodeError,
+    Instruction,
     LayoutError,
     Parallel,
     Program,
     Project,
     Rung,
     Timer,
-    WriterError,
     check,
     csv_rows,
     decode,
@@ -140,7 +140,7 @@ def test_read_csv_takes_32_rows(tmp_path: Path, case: str, strict: bool) -> None
 @pytest.mark.parametrize("case", CASES)
 def test_read_csv_refuses_33_rows(tmp_path: Path, case: str, strict: bool) -> None:
     path = _write(tmp_path / "r.csv", [["#", "a comment"], *_rows(case, 33)])
-    with pytest.raises(CsvError) as caught:
+    with pytest.raises(CsvReadError) as caught:
         read_csv(path, strict=strict)
     error = caught.value
     assert error.code is Code.LAYOUT_TOO_TALL
@@ -171,7 +171,7 @@ def test_read_bundle(tmp_path: Path, case: str, rows: int, where: str) -> None:
         (rung,) = program.rungs
         assert rung.logical_rows == 32
         return
-    with pytest.raises(CsvError) as caught:
+    with pytest.raises(CsvReadError) as caught:
         read_bundle(tmp_path)
     assert caught.value.code is Code.LAYOUT_TOO_TALL
     assert CsvLocation.of(caught.value) == CsvLocation(file=tall, rung_line=2)
@@ -179,7 +179,7 @@ def test_read_bundle(tmp_path: Path, case: str, rows: int, where: str) -> None:
 
 def test_17_copies_need_34_rows(tmp_path: Path) -> None:
     tokens = [f"copy({n},DS{n})" for n in range(1, 18)]
-    with pytest.raises(CsvError, match="needs 34 rows"):
+    with pytest.raises(CsvReadError, match="needs 34 rows"):
         read_csv(_write(tmp_path / "r.csv", _box_rows(tokens)))
 
 
@@ -206,7 +206,7 @@ def test_a_rung_that_click_splits_is_refused_for_one_rung_of_33_rows(
     short = [_row("", ["C9", *["-"] * 30], "out(C200)")]
     rows = [*tall, *short] if k == 1 else [*short, *tall]
     rows = [["R" if n == 0 else "", *row[1:]] for n, row in enumerate(rows)]
-    with pytest.raises(CsvError) as caught:
+    with pytest.raises(CsvReadError) as caught:
         read_csv(_write(tmp_path / "r.csv", rows))
     assert caught.value.code is Code.LAYOUT_TOO_TALL
     rest = (
@@ -217,7 +217,7 @@ def test_a_rung_that_click_splits_is_refused_for_one_rung_of_33_rows(
     assert str(caught.value).startswith(f"CLICK splits the rung {rest}")
     drawn = convert_literal(_parse_single_rung_rows(rows))
     assert drawn.logical_rows == 34
-    with pytest.raises(WriterError) as written:
+    with pytest.raises(CsvWriteError) as written:
         csv_rows([drawn])
     assert str(written.value) == f"CLICK splits rungs[0] {rest}"
     assert written.value.code is Code.LAYOUT_TOO_TALL
@@ -277,8 +277,8 @@ def test_writers_take_32_rows(tmp_path: Path, case: str) -> None:
     assert read_bundle(tmp_path / "b").main.rungs == [back]
 
 
-def _writer_error(write: Callable[[], object]) -> WriterError:
-    with pytest.raises(WriterError) as caught:
+def _writer_error(write: Callable[[], object]) -> CsvWriteError:
+    with pytest.raises(CsvWriteError) as caught:
         write()
     error = caught.value
     assert error.code is Code.LAYOUT_TOO_TALL
@@ -330,11 +330,11 @@ def _boxes(case: str, rows: int) -> tuple[Box, ...]:
     return tuple(out)
 
 
-def _af_token(token: str) -> AfInstruction:
+def _af_token(token: str) -> Instruction:
     """Return the AF instruction that the CSV *token* reads to."""
     rung = convert_literal(_parse_single_rung_rows([_row("R", ["X001", *["-"] * 30], token)]))
     (instruction, *_) = rung.instructions
-    assert isinstance(instruction, AfInstruction)
+    assert isinstance(instruction, Instruction)
     return instruction
 
 

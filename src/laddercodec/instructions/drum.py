@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError, EncodeError
+from ..errors import CsvReadError, EncodeError
 from ..model import (
     Address,
     PinnedInstruction,
@@ -123,7 +123,9 @@ def _parse_simple_list(val: str) -> tuple[str, ...]:
     """Parse ``"[a,b,c]"`` into a tuple of strings."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise CsvError(f"{val!r} is not a list. Write it in square brackets, such as [Y001,Y002].")
+        raise CsvReadError(
+            f"{val!r} is not a list. Write it in square brackets, such as [Y001,Y002]."
+        )
     inner = val[1:-1].strip()
     if not inner:
         return ()
@@ -136,7 +138,7 @@ def _parse_pattern(val: str) -> tuple[tuple[int | str, ...], ...]:
     A cell other than 0 or 1 stays text, for the Drum to refuse."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise CsvError(
+        raise CsvReadError(
             f"{val!r} is not a pattern. Write one bracketed row of 0s and 1s per step, such as "
             "[[1,0],[0,1]]."
         )
@@ -257,7 +259,7 @@ def _refuse_blank_steps(
 def _timer_done_bit(accumulator: str) -> str:
     """Return the done bit of the timer that owns *accumulator*: ``TD101`` -> ``T101``."""
     if not accumulator.startswith("TD"):
-        raise CsvError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
+        raise CsvReadError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
     return f"T{accumulator[2:]}"
 
 
@@ -544,7 +546,7 @@ class Drum(PinnedInstruction):
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Drum:
         if ".reset" not in pins:
-            raise CsvError("Drum requires a .reset() pin row")
+            raise CsvReadError("Drum requires a .reset() pin row")
         drum = replace(self, pin_rows=cast(tuple[int, int, int], pin_rows))
         if ".jump" in pins:
             target = pins[".jump"][0] if pins[".jump"] else ""
@@ -679,7 +681,7 @@ class Drum(PinnedInstruction):
             # Field 80: the done bit of the accumulator's timer (TD101 -> T101)
             try:
                 done_bit = _timer_done_bit(self.accumulator)
-            except CsvError as exc:  # The accumulator was changed after the drum was built.
+            except CsvReadError as exc:  # The accumulator was changed after the drum was built.
                 raise EncodeError(str(exc)) from exc
             out += _tagged_field(0x6068, done_bit)
 
@@ -812,7 +814,7 @@ def from_tags(
 def parse_af_call(call: AfCall) -> Drum:
     """Parse an AF AST call into a Drum.
 
-    Raise ``CsvError`` if the call lacks a keyword it needs or leaves it blank, such as
+    Raise ``CsvReadError`` if the call lacks a keyword it needs or leaves it blank, such as
     ``unit`` or a time & event drum's ``accumulator``.  A value that the Drum refuses
     raises the Drum's ``FieldError``."""
     outputs = _parse_simple_list(call.kwargs.get("outputs", "[]"))
@@ -836,19 +838,19 @@ def parse_af_call(call: AfCall) -> Drum:
     # The Drum refuses a unit that is not a TimeUnit.
     unit = cast("TimeUnit | Literal['']", call.kwargs.get("unit", ""))
     if not unit:
-        raise CsvError(f"{call.name} needs unit=")
+        raise CsvReadError(f"{call.name} needs unit=")
     accumulator = call.kwargs.get("accumulator", "")
 
     if call.name == "time_event_drum":
         presets = _parse_optional_list(call.kwargs.get("presets", "[]"))
         events = _parse_optional_list(call.kwargs.get("events", "[]"))
         if len(presets) != len(events):
-            raise CsvError(
+            raise CsvReadError(
                 f"time_event_drum needs one preset and one event per step "
                 f"(None for unused): {len(presets)} presets, {len(events)} events"
             )
         if not accumulator:
-            raise CsvError("time_event_drum needs accumulator=")
+            raise CsvReadError("time_event_drum needs accumulator=")
         return Drum(
             kind="time_event_drum",
             outputs=outputs,

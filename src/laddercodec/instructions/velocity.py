@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
-from ..errors import CsvError
-from ..model import AfInstruction
+from ..errors import CsvReadError
+from ..model import Instruction
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
     AfInstructionFamilySpec,
@@ -60,7 +60,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Velocity(AfInstruction):
+class VelocityMove(Instruction):
     """A Velocity instruction. Each field holds the string of one stored tag, and this
     library does not interpret it.
 
@@ -135,15 +135,15 @@ class Velocity(AfInstruction):
         return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{rows},{','.join(specs)})"
 
     @classmethod
-    def from_csv_token(cls, token: str) -> Velocity:
+    def from_csv_token(cls, token: str) -> VelocityMove:
         """Parse ``raw(Velocity,0x2735,1,...)`` token."""
         from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise CsvError(f"Not a raw Velocity token: {token!r}")
+            raise CsvReadError(f"Not a raw Velocity token: {token!r}")
         parts = _split_raw_args(token[4:-1])
         if parts[0] != _CLASS_NAME:
-            raise CsvError(f"Not a Velocity token: {token!r}")
+            raise CsvReadError(f"Not a Velocity token: {token!r}")
 
         tags: dict[int, str] = {}
         for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):
@@ -165,21 +165,21 @@ def from_tags(
     tags: dict[int, str],
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
-) -> Velocity | None:
-    """Construct a Velocity from tag data (shared by both decoders)."""
+) -> VelocityMove | None:
+    """Construct a ``VelocityMove`` from tag data (shared by both decoders)."""
     if class_name != _CLASS_NAME or type_code != _TYPE_CODE:
         return None
-    return Velocity(**_extract_fields(tags))
+    return VelocityMove(**_extract_fields(tags))
 
 
-def parse_af_call(call: AfCall) -> Velocity:
-    """Parse an AF AST call into a Velocity."""
-    return Velocity.from_csv_token(call.to_token())
+def parse_af_call(call: AfCall) -> VelocityMove:
+    """Parse an AF AST call into a ``VelocityMove``."""
+    return VelocityMove.from_csv_token(call.to_token())
 
 
 SPEC = AfInstructionFamilySpec(
     family_name="velocity",
-    instruction_types=(Velocity,),
+    instruction_types=(VelocityMove,),
     binary_class_names=(_CLASS_NAME,),
     from_tags=from_tags,
     cell_params_from_tags=fixed_cell_params(EMAIL_MOTION_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),

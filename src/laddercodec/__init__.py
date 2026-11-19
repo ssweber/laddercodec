@@ -11,7 +11,7 @@ marker that stands in for a rung that laddercodec could not decode. ``lay_out()`
 the rungs that CLICK's Syntax Check draws for a ``Circuit``.
 """
 
-from .circuit import Box, Branch, Circuit, Parallel, Series, lay_out
+from .circuit import Box, Branch, Circuit, Parallel, Series, Term, lay_out
 from .codes import CLICK_IDS, Code
 from .compat import find_v4_only, is_v4_only
 from .csv import CsvLocation, read_csv
@@ -22,15 +22,14 @@ from .decode import Rung, decode
 from .decode_program import decode_program
 from .encode import encode
 from .errors import (
-    CsvError,
+    CsvReadError,
+    CsvWriteError,
     DecodeError,
     EncodeError,
     LaddercodecError,
     LayoutError,
-    WriterError,
 )
 from .instructions import (
-    AfToken,
     BlockCopy,
     BlockCopyConvert,
     Break,
@@ -54,6 +53,7 @@ from .instructions import (
     Fill,
     ForLoop,
     Home,
+    InstructionToken,
     Math,
     MathMode,
     ModbusAddress,
@@ -68,7 +68,7 @@ from .instructions import (
     OutVariantUnit,
     Pack,
     PackKind,
-    Position,
+    PositionMove,
     RawInstruction,
     Receive,
     ReceiveFunctionCode,
@@ -87,15 +87,15 @@ from .instructions import (
     UnknownInstruction,
     Unpack,
     UnpackKind,
-    Velocity,
+    VelocityMove,
 )
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
 from .model import (
     AddressError,
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
     FieldError,
+    Instruction,
     Program,
     Project,
     Reason,
@@ -126,6 +126,7 @@ __all__ = [
     "Box",
     "Series",
     "Parallel",
+    "Term",
     "Rung",
     "Program",
     "Project",
@@ -137,17 +138,17 @@ __all__ = [
     "LaddercodecError",
     "DecodeError",
     "EncodeError",
-    "WriterError",
-    "CsvError",
+    "CsvWriteError",
+    "CsvReadError",
     "LayoutError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
-    "ConditionInstruction",
-    "AfInstruction",
+    "Condition",
+    "Instruction",
     "ConditionToken",
-    "AfToken",
+    "InstructionToken",
     "BlockCopy",
     "Call",
     "Contact",
@@ -170,7 +171,7 @@ __all__ = [
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Pack",
-    "Position",
+    "PositionMove",
     "Receive",
     "Send",
     "Timer",
@@ -178,7 +179,7 @@ __all__ = [
     "UnknownCondition",
     "UnknownInstruction",
     "Unpack",
-    "Velocity",
+    "VelocityMove",
     "RawInstruction",
     "Return",
     "Search",

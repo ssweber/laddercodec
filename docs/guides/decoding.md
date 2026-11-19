@@ -45,10 +45,9 @@ All standard Click instruction types are decoded into domain objects:
 
 Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline. A cell whose stored value CLICK's dialog refuses is not raw. It decodes as its instruction ([Values CLICK's dialog refuses](#values-clicks-dialog-refuses)).
 
-At the moment, Click `Email`, `Home`, `Position`, and `Velocity` instructions
-also surface this way. They are supported for binary/SCR round-trip, but they
-are not yet modeled as dedicated DSL classes, so they currently emit
-`raw(...)` tokens.
+CLICK's Email, Home, Position and Velocity instructions decode as `Email`, `Home`,
+`PositionMove` and `VelocityMove`. Each field holds the text that its tag stores, and
+`write_csv` writes each instruction as a `raw(...)` token.
 
 ### Legacy encodings
 

@@ -36,7 +36,7 @@ from laddercodec.instructions import (
     Unpack,
 )
 from laddercodec.instructions.send_receive import ModbusRtuTarget
-from laddercodec.model import AfInstruction, ConditionInstruction, check_flag
+from laddercodec.model import Condition, Instruction, check_flag
 
 _PACKAGE = "laddercodec.instructions"
 
@@ -50,12 +50,12 @@ def _all_subclasses(base: type) -> set[type]:
 
 
 def instruction_classes() -> list[type]:
-    """Return every dataclass in laddercodec that subclasses ``ConditionInstruction`` or
-    ``AfInstruction``, sorted by module and name."""
+    """Return every dataclass in laddercodec that subclasses ``Condition`` or
+    ``Instruction``, sorted by module and name."""
     package = importlib.import_module(_PACKAGE)
     for info in pkgutil.iter_modules(package.__path__):
         importlib.import_module(f"{_PACKAGE}.{info.name}")
-    classes = _all_subclasses(ConditionInstruction) | _all_subclasses(AfInstruction)
+    classes = _all_subclasses(Condition) | _all_subclasses(Instruction)
     return sorted(
         (
             cls
@@ -192,7 +192,7 @@ def test_guard_finds_the_known_flags() -> None:
 
 def test_guard_self_test() -> None:
     @dataclasses.dataclass
-    class Unchecked(AfInstruction):
+    class Unchecked(Instruction):
         flag: bool = False
         maybe: bool | None = None
 
@@ -200,7 +200,7 @@ def test_guard_self_test() -> None:
             self.flag = check_flag(self.flag, "Unchecked.flag")
 
     @dataclasses.dataclass
-    class Plain(AfInstruction):
+    class Plain(Instruction):
         count: int = 0
 
     assert bool_fields(Unchecked) == ["flag", "maybe"]
@@ -228,7 +228,7 @@ def test_guard_counts_only_an_assignment_with_the_class_label() -> None:
 
 def test_guard_resolves_inherited_checks() -> None:
     @dataclasses.dataclass
-    class Base(AfInstruction):
+    class Base(Instruction):
         flag: bool = False
 
         def __post_init__(self) -> None:

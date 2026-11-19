@@ -12,8 +12,10 @@ from pathlib import Path
 from laddercodec import (
     Coil,
     CompareContact,
+    ConditionToken,
     Contact,
     Counter,
+    InstructionToken,
     RawInstruction,
     Rung,
     Tee,
@@ -21,7 +23,6 @@ from laddercodec import (
     read_csv,
 )
 from laddercodec.csv import CSV_HEADER
-from laddercodec.encode import AfToken, ConditionToken
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "fixtures" / "ladder_captures" / "golden"
 TOTAL_COLUMNS = len(CSV_HEADER)  # 33
@@ -35,7 +36,7 @@ __all__ = [
 ]
 
 
-def _token_to_csv(token: ConditionToken | AfToken) -> str:
+def _token_to_csv(token: ConditionToken | InstructionToken) -> str:
     """Return the CSV text of *token*.
 
     Call ``to_csv()`` on a Tee, Contact, Coil, CompareContact, Counter, Timer or
@@ -49,7 +50,7 @@ def _token_to_csv(token: ConditionToken | AfToken) -> str:
 def write_golden_csv(
     path: Path,
     condition_rows: list[list[ConditionToken]],
-    af_tokens: list[AfToken],
+    af_tokens: list[InstructionToken],
     comment: str | None = None,
 ) -> None:
     """Write a golden CSV file from encode_rung() arguments."""

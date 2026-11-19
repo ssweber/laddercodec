@@ -53,7 +53,7 @@ src/laddercodec/
 ├── encode_multi.py       # Internal encode_rungs(): N rungs in one buffer
 ├── _grid.py              # Shared grid building: _validate_rung, _compute_rung_metadata, _build_rung_grid
 ├── binary_helpers.py     # UTF-16LE, tagged-field read/write primitives
-├── errors.py             # LaddercodecError(ValueError) and the tree under it: DecodeError, EncodeError, CsvError, WriterError, LayoutError
+├── errors.py             # LaddercodecError(ValueError) and the tree under it: DecodeError, EncodeError, CsvReadError, CsvWriteError, LayoutError
 ├── codes.py              # Code: the kebab-case name of each refusal, finding and layout error rule; CLICK_IDS
 ├── decode.py             # decode() (always a list[Rung]) + internal decode_rung(), decode_rungs()
 ├── decode_program.py     # decode_program(): Scr*.tmp to Program
@@ -69,7 +69,7 @@ src/laddercodec/
 ├── cell.py               # ClickCell, preamble, terminal and row builders
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
-├── model.py              # InstructionType enum, ConditionInstruction / AfInstruction bases; re-exports operands/
+├── model.py              # InstructionType enum, Condition / Instruction bases; re-exports operands/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
 │   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, normalize_fields,
 │   │                     #   normalize_items, display form, read_as_typed, X/Y slots, xy_points, xy_room;
@@ -118,7 +118,7 @@ src/laddercodec/
   - A comment that doesn't decode keeps the rung's logic and gives an `UndecodedCommentWarning`.
   - Only a bad envelope (magic, size, SCR header) raises.
   - `decode_program()` reads Click's `Scr*.tmp` program files, which are about 17x smaller than the clipboard form. It parses instructions the same way and uses different framing.
-- **Instructions.** Each dataclass knows how to serialize itself. The grid loop calls `token.build_blob()` and `token.cell_params()`. Isinstance dispatch recognizes `ConditionInstruction` and `AfInstruction` subclasses.
+- **Instructions.** Each dataclass knows how to serialize itself. The grid loop calls `token.build_blob()` and `token.cell_params()`. Isinstance dispatch recognizes `Condition` and `Instruction` subclasses.
 - **Operand rules.**
   - A refused field raises `FieldError` at construction (`AddressError` for an address).
   - A decoder builds the instruction anyway and keeps the refusal (`operands/unchecked.py`).

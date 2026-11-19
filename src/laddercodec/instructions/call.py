@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
 from ..codes import Code
-from ..errors import CsvError
-from ..model import AfInstruction, Reason, check_program_name
+from ..errors import CsvReadError
+from ..model import Instruction, Reason, check_program_name
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
 
@@ -27,7 +27,7 @@ _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 
 
 @dataclass(frozen=True)
-class Call(AfInstruction):
+class Call(Instruction):
     """Subroutine call instruction."""
 
     subroutine: str  # subroutine name (e.g. "coverage_sub")
@@ -49,7 +49,7 @@ class Call(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a Call instruction. Write it as "
                 'call("name"), with the subroutine name in double quotes.'
             )

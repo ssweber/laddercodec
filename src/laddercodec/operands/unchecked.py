@@ -21,7 +21,7 @@ Some refusals cannot be kept by any instruction. These still raise inside the bl
 - A refusal that a check raised because it crashed on a value that it can't read.
 
 An instruction class opts in with :func:`holds_refusals`.
-:class:`~laddercodec.model.AfInstruction` and :class:`~laddercodec.model.ConditionInstruction`
+:class:`~laddercodec.model.Instruction` and :class:`~laddercodec.model.Condition`
 apply it to every subclass. The Modbus targets and the Modbus address apply it themselves.
 
 An instruction is frozen, so the refusals that it holds are the refusals that it was

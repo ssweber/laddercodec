@@ -105,9 +105,9 @@ from .topology import (
 
 _PAGE_SIZE = 0x1000
 
-from .encode import AfToken, ConditionToken
+from .instructions import ConditionToken, InstructionToken
 
-RungInput = tuple[int, Sequence[Sequence[ConditionToken]], Sequence[AfToken]]
+RungInput = tuple[int, Sequence[Sequence[ConditionToken]], Sequence[InstructionToken]]
 
 
 # ---------------------------------------------------------------------------

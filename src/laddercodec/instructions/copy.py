@@ -29,13 +29,13 @@ from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError, WriterError
+from ..errors import CsvReadError, CsvWriteError
 from ..model import (
     ADDRESS_BANKS,
     Address,
     AddressError,
-    AfInstruction,
     FieldError,
+    Instruction,
     Reason,
     xy_slot,
 )
@@ -1268,7 +1268,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[CopyConvert, dict[str, str]]:
     """
     m = _CONVERT_CALL_RE.fullmatch(raw.strip())
     if not m:
-        raise CsvError(
+        raise CsvReadError(
             f"Could not read convert={raw}. Write to_value, to_ascii, to_text(...) or "
             "to_binary(...), such as convert=to_value."
         )
@@ -1278,7 +1278,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[CopyConvert, dict[str, str]]:
 
     if fmt not in ("text", "binary"):
         if inner:
-            raise CsvError(f"to_{fmt} takes no arguments: {raw!r}")
+            raise CsvReadError(f"to_{fmt} takes no arguments: {raw!r}")
         return cast(CopyConvert, f"to_{fmt}"), {}
 
     # to_text and to_binary: parse kwargs
@@ -1287,7 +1287,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[CopyConvert, dict[str, str]]:
         for part in inner.split(","):
             part = part.strip()
             if "=" not in part:
-                raise CsvError(f"to_{fmt} options must be keyword arguments: {raw!r}")
+                raise CsvReadError(f"to_{fmt} options must be keyword arguments: {raw!r}")
             k, v = part.split("=", 1)
             k = k.strip()
             if fmt == "binary" and k != "termination_code":
@@ -1309,13 +1309,13 @@ def _parse_range(arg: str, name: str, role: str) -> tuple[str, str]:
     ``"destination"``. The error messages use both.
     """
     if ".." not in arg:
-        raise CsvError(
+        raise CsvReadError(
             f"{arg!r} is not a range. Write the {role} of {name} as two addresses joined by "
             "'..', such as DS1..DS10."
         )
     parts = [p.strip() for p in arg.split("..")]
     if len(parts) != 2 or not all(parts):
-        raise CsvError(
+        raise CsvReadError(
             f"Could not read the range {arg!r}. Write the {role} of {name} as two addresses "
             "joined by '..', such as DS1..DS10."
         )
@@ -1401,7 +1401,7 @@ def _termination_csv(termination_code: str) -> list[str]:
 
 
 @dataclass(frozen=True)
-class Copy(AfInstruction):
+class Copy(Instruction):
     """A single copy instruction.
 
     Attributes
@@ -1722,7 +1722,7 @@ class Copy(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"copy\((.+)\)", token)
         if not m:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a copy. Write it as copy(source,dest), such as "
                 "copy(DS1,DS2)."
             )
@@ -1740,7 +1740,7 @@ class Copy(AfInstruction):
                 args.append(seg)
 
         if len(args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"copy expects 2 positional args (source, dest), got {len(args)}: {token!r}"
             )
         return _copy_from_csv(args, kwargs)
@@ -1777,7 +1777,7 @@ class Copy(AfInstruction):
             # own keyword, with no converter.
             kw.extend(_termination_csv(self.termination_code))
         else:
-            raise WriterError(f"Unknown convert: {self.convert!r}")
+            raise CsvWriteError(f"Unknown convert: {self.convert!r}")
 
         if kw:
             return f"copy({','.join(parts)},{','.join(kw)})"
@@ -1843,7 +1843,7 @@ _BLOCKCOPY_CONVERTS = frozenset({None, *get_args(BlockCopyConvert)})
 
 
 @dataclass(frozen=True)
-class BlockCopy(AfInstruction):
+class BlockCopy(Instruction):
     """A block copy instruction (copy_type_idx=1).
 
     Copies a contiguous range of source registers to a destination range.
@@ -2056,7 +2056,7 @@ class BlockCopy(AfInstruction):
 
 
 @dataclass(frozen=True)
-class Fill(AfInstruction):
+class Fill(Instruction):
     """A fill instruction (copy_type_idx=2).
 
     Fills a contiguous range of destination registers with a single value.
@@ -2163,7 +2163,7 @@ _PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
 
 
 @dataclass(frozen=True)
-class Pack(AfInstruction):
+class Pack(Instruction):
     """A pack instruction (copy_type_idx=3).
 
     Packs a range of source registers into a single destination.
@@ -2330,7 +2330,7 @@ _UNPACK_KINDS = frozenset(get_args(UnpackKind))
 
 
 @dataclass(frozen=True)
-class Unpack(AfInstruction):
+class Unpack(Instruction):
     """An unpack instruction (copy_type_idx=4).
 
     Unpacks a single source into a range of destination registers.
@@ -2669,11 +2669,11 @@ _CSV_KWARGS: dict[str, frozenset[str]] = {
 
 
 def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
-    """Raise ``CsvError`` for a keyword that the CSV call ``name`` does not accept. A
+    """Raise ``CsvReadError`` for a keyword that the CSV call ``name`` does not accept. A
     misspelt keyword (``terminaton_code=``) is then reported, not silently ignored."""
     unknown = set(kwargs) - _CSV_KWARGS[name]
     if unknown:
-        raise CsvError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
+        raise CsvReadError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
 
 
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
@@ -2724,12 +2724,14 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
     """Parse an AF AST call into a Copy-family instruction."""
     if call.name == "copy":
         if len(call.args) != 2:
-            raise CsvError(f"copy expects 2 positional args (source, dest), got {len(call.args)}")
+            raise CsvReadError(
+                f"copy expects 2 positional args (source, dest), got {len(call.args)}"
+            )
         return _copy_from_csv(call.args, call.kwargs)
 
     if call.name == "blockcopy":
         if len(call.args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs("blockcopy", call.kwargs)
@@ -2750,7 +2752,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
 
     if call.name == "fill":
         if len(call.args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"fill expects 2 positional args (value, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
@@ -2764,7 +2766,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
 
     if call.name in ("pack_bits", "pack_words", "pack_text"):
         if len(call.args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
@@ -2782,7 +2784,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
 
     if call.name in ("unpack_to_bits", "unpack_to_words"):
         if len(call.args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"{call.name} expects 2 positional args (source, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
@@ -2795,7 +2797,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             oneshot=check_csv_flag(call.kwargs, "oneshot", "Unpack.oneshot"),
         )
 
-    raise CsvError(f"Unsupported copy-family instruction: {call.name!r}")
+    raise CsvReadError(f"Unsupported copy-family instruction: {call.name!r}")
 
 
 SPEC = AfInstructionFamilySpec(

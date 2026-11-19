@@ -16,7 +16,7 @@ import pytest
 from laddercodec import RawInstruction, decode, read_csv
 from laddercodec.binary_helpers import NotANumber, tag_int
 from laddercodec.instructions import (
-    ConditionInstruction,
+    Condition,
     from_tags_af,
     from_tags_condition,
     parse_af_blob,
@@ -57,7 +57,7 @@ def test_no_number_in_a_numeric_tag_leaves_the_blob_raw(golden, cls, tag) -> Non
     token = _token(golden, cls)
     class_name, type_code, _parts, _extra, fields = _decompose_blob(token.build_blob())
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    parse = from_tags_condition if isinstance(token, ConditionInstruction) else from_tags_af
+    parse = from_tags_condition if isinstance(token, Condition) else from_tags_af
     assert (
         type(parse(class_name, type_code, dict(tags), variant_u16, variant_string)).__name__ == cls
     )

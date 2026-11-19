@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
-from ..errors import CsvError
-from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
+from ..errors import CsvReadError
+from ..model import FieldError, Instruction, InstructionType, Reason, normalize_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
 from .family import AfInstructionFamilySpec
@@ -99,7 +99,7 @@ def _check_for_count(text: str) -> None:
 
 
 @dataclass(frozen=True)
-class ForLoop(AfInstruction):
+class ForLoop(Instruction):
     """FOR loop instruction."""
 
     count: str
@@ -120,7 +120,7 @@ class ForLoop(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"for\((.+)\)", token)
         if not m:
-            raise CsvError(_FOR_FORM.format(token=token))
+            raise CsvReadError(_FOR_FORM.format(token=token))
 
         args: list[str] = []
         kwargs: dict[str, str] = {}
@@ -132,10 +132,10 @@ class ForLoop(AfInstruction):
                 args.append(seg)
 
         if len(args) != 1:
-            raise CsvError(_FOR_FORM.format(token=token))
+            raise CsvReadError(_FOR_FORM.format(token=token))
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
-            raise CsvError(f"for does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvReadError(f"for does not support keyword argument(s): {sorted(unknown)}")
 
         return cls(count=args[0], oneshot=check_csv_flag(kwargs, "oneshot", "ForLoop.oneshot"))
 
@@ -164,14 +164,16 @@ class ForLoop(AfInstruction):
 
 
 @dataclass(frozen=True)
-class Next(AfInstruction):
+class Next(Instruction):
     """NEXT loop instruction."""
 
     @classmethod
     def from_csv_token(cls, token: str) -> Next:
         token = token.strip()
         if not re.fullmatch(r"next\(\s*\)", token):
-            raise CsvError(f"Could not read {token!r} as a Next instruction. Write it as next().")
+            raise CsvReadError(
+                f"Could not read {token!r} as a Next instruction. Write it as next()."
+            )
         return cls()
 
     def to_csv(self) -> str:
@@ -187,7 +189,7 @@ class Next(AfInstruction):
 
 
 @dataclass(frozen=True)
-class Break(AfInstruction):
+class Break(Instruction):
     """The CLICK v4 BREAK instruction, which leaves the innermost loop.
 
     Its binary class is ``Next``, with func code 9233."""
@@ -196,7 +198,9 @@ class Break(AfInstruction):
     def from_csv_token(cls, token: str) -> Break:
         token = token.strip()
         if not re.fullmatch(r"break\(\s*\)", token):
-            raise CsvError(f"Could not read {token!r} as a Break instruction. Write it as break().")
+            raise CsvReadError(
+                f"Could not read {token!r} as a Break instruction. Write it as break()."
+            )
         return cls()
 
     def to_csv(self) -> str:
@@ -212,7 +216,7 @@ class Break(AfInstruction):
 
 
 @dataclass(frozen=True)
-class Continue(AfInstruction):
+class Continue(Instruction):
     """The CLICK v4 CONTINUE instruction, which skips to the next iteration of the loop.
 
     Its binary class is ``Next``, with func code 9232."""
@@ -221,7 +225,7 @@ class Continue(AfInstruction):
     def from_csv_token(cls, token: str) -> Continue:
         token = token.strip()
         if not re.fullmatch(r"continue\(\s*\)", token):
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a Continue instruction. Write it as continue()."
             )
         return cls()

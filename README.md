@@ -49,7 +49,7 @@ print(rung.instructions)
 
 `laddercodec` is **beta** for clipboard encode/decode, CSV I/O, and `decode_program()`.
 
-`Email`, `Home`, `Position`, and `Velocity` still intentionally surface as `raw(...)` passthroughs so clipboard and program data round-trips stay lossless while those families remain opaque.
+`Email`, `Home`, `PositionMove`, and `VelocityMove` still intentionally surface as `raw(...)` passthroughs so clipboard and program data round-trips stay lossless while those families remain opaque.
 
 ## Learn more
 

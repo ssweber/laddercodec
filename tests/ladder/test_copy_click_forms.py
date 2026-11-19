@@ -26,7 +26,7 @@ import pytest
 from laddercodec import Rung, decode, decode_program, encode, read_csv, write_csv
 from laddercodec.binary_helpers import _build_blob
 from laddercodec.csv import CSV_HEADER
-from laddercodec.errors import CsvError
+from laddercodec.errors import CsvReadError
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.math import Math
@@ -585,8 +585,8 @@ def test_search_text_takes_what_copy_takes(tmp_path: Path, text: str) -> None:
 )
 def test_a_line_break_outside_quotes_is_refused(tmp_path: Path, token: str) -> None:
     """read_csv accepts a line break only inside quoted text. Anywhere else it raises
-    CsvError."""
-    with pytest.raises(CsvError):
+    CsvReadError."""
+    with pytest.raises(CsvReadError):
         _read_af(tmp_path, token)
 
 
@@ -729,7 +729,7 @@ def test_txt_into_df_takes_no_converter(
 def test_a_keyword_the_call_does_not_take_is_refused(tmp_path: Path, token: str) -> None:
     """read_csv raises for a keyword that the call does not take, such as a misspelt one,
     instead of dropping it and its value."""
-    with pytest.raises(CsvError, match="does not support keyword argument"):
+    with pytest.raises(CsvReadError, match="does not support keyword argument"):
         _read_af(tmp_path, token)
 
 

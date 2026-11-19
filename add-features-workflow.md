@@ -48,7 +48,7 @@ In `decode.py`:
 - Import new types and lookup tables
 - Add `_parse_<name>()` function following existing `_parse_contact`/`_parse_coil` pattern
 - Wire into `_decode_data_row`: condition column → try contact, then compare, then unknown; AF column → try coil, then timer, then unknown
-- Update `ConditionToken`/`AfToken` type aliases
+- Update `ConditionToken`/`InstructionToken` type aliases
 
 ## 8. Verify
 

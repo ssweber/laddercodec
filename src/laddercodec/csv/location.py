@@ -29,18 +29,18 @@ class CsvLocation:
     it keeps.
 
     Every exception that ``read_csv`` raises for a bad CSV has a ``CsvLocation`` as its
-    ``location`` attribute. This is so for a ``CsvError``, which is raised for a row or
+    ``location`` attribute. This is so for a ``CsvReadError``, which is raised for a row or
     token that ``read_csv`` can't read. It is also so for a ``FieldError`` or an
     ``AddressError``, which keeps its own class. :meth:`of` returns the location of an
     exception. The message of each exception ends with `` (at <location>)``.
 
     ``read_csv`` raises a ``csv.Error``, or a ``UnicodeDecodeError`` for a file that isn't
-    UTF-8, as a ``CsvError`` with the same message. The original exception is its
+    UTF-8, as a ``CsvReadError`` with the same message. The original exception is its
     ``__cause__``. For a file that isn't UTF-8, the location holds only ``file``.
 
     A check can refuse a value while a box takes its pin rows. Examples are a ``.jump()``
     target, or a ``.reset()`` on a timer that can't be retentive. ``read_csv`` then raises a
-    ``CsvError`` that carries the data of the refusal. Each refusal in the ``errors`` of a
+    ``CsvReadError`` that carries the data of the refusal. Each refusal in the ``errors`` of a
     ``FieldError`` has its own location. Each field of the location is ``None`` where it is
     not known or does not apply.
 

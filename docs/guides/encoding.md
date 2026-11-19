@@ -85,11 +85,12 @@ A circuit has no rows or columns. It is built from these parts:
 |---|---|
 | `Series(terms)` | terms in series, from left to right |
 | `Parallel(legs)` | two or more legs, drawn from the top down in the order given |
-| `Box(instruction, pins=())` | an AF instruction or `"NOP"`, and the term that feeds each pin it uses |
+| `Box(instruction, pins=())` | an `Instruction` or `"NOP"`, and the term that feeds each pin it uses |
 | `Branch(conditions=(), outputs=())` | conditions in series, then the boxes and branches that hang off their end |
 | `Circuit(branch, comment=None)` | the branch from the rail, and the rung's comment |
 
-A term is a `Contact`, a `CompareContact`, a `Series` or a `Parallel`. The parts
+A term is a `Contact`, a `CompareContact`, a `Series` or a `Parallel`. `Term` is a type
+alias for these four classes. Use it in your type hints. The parts
 are frozen and can be hashed. A part that a class doesn't take raises `FieldError`
 with the code `invalid-circuit`.
 

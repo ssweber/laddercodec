@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec.csv.converter import CsvError, convert_rung
+from laddercodec.csv.converter import CsvReadError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import write_csv
 from laddercodec.decode import Rung, decode
@@ -58,7 +58,7 @@ def _convert_program(
     for idx, rung in enumerate(rungs):
         try:
             converted.extend(_args(r) for r in convert_rung(rung))
-        except (CsvError, NotImplementedError, ValueError) as exc:
+        except (CsvReadError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"rung {idx}: {exc}") from exc
     return rungs, converted
 

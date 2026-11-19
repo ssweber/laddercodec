@@ -11,9 +11,9 @@ from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import (
-    ConditionInstruction,
+    Condition,
     InstructionType,
     Reason,
 )
@@ -150,7 +150,7 @@ _COMPARE_TAGS = (0x3218, 0x6066, 0x6067, 0x21F7, 0x0000)
 
 
 @dataclass(frozen=True)
-class CompareContact(ConditionInstruction):
+class CompareContact(Condition):
     """A comparison contact (EQ, NE, GT, LT, GE, LE).
 
     It sits in a condition column, like any contact. Its binary class name is ``Compare``
@@ -207,7 +207,7 @@ class CompareContact(ConditionInstruction):
         """Parse the CSV token of a compare contact, such as ``DS1==1`` or ``DS2>=DS3``.
 
         A token with the wire-down prefix ``T:`` or ``|:``, such as ``T:DS1==1``, raises
-        :class:`~laddercodec.CsvError`. A contact holds no wire. Wrap the contact in a
+        :class:`~laddercodec.CsvReadError`. A contact holds no wire. Wrap the contact in a
         :class:`~laddercodec.Tee` instead.
         """
         token = token.strip()
@@ -215,7 +215,7 @@ class CompareContact(ConditionInstruction):
 
         parts = split_comparison(token)
         if parts is None:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a compare contact. Write two operands joined by "
                 "==, !=, <, >, <= or >=, such as DS1==1."
             )

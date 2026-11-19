@@ -32,7 +32,7 @@ from laddercodec import (
 )
 from laddercodec.codes import Code
 from laddercodec.instructions.coil import CoilKind
-from laddercodec.model import AfInstruction
+from laddercodec.model import Instruction
 from laddercodec.operands.address import check_address, display_form_only
 from laddercodec.operands.checks import (
     ALL_KINDS,
@@ -336,7 +336,7 @@ def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
 
 
 @dataclasses.dataclass
-class _Inner(AfInstruction):
+class _Inner(Instruction):
     a: str = "x"  # not blank, because a blank value is refused as missing
     b: str = "x"
 
@@ -347,7 +347,7 @@ class _Inner(AfInstruction):
 
 
 @dataclasses.dataclass
-class _Outer(AfInstruction):
+class _Outer(Instruction):
     items: tuple[str, ...] = ()
     other: str = "x"
     mode: str = ""
@@ -501,7 +501,7 @@ def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
     """The conftest fixture fails a refusal that names a field its class does not have."""
 
     @dataclasses.dataclass
-    class Box(AfInstruction):
+    class Box(Instruction):
         operand: str = "C1"
 
         def __post_init__(self) -> None:

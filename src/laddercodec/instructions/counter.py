@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError, EncodeError
+from ..errors import CsvReadError, EncodeError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
@@ -144,7 +144,7 @@ class Counter(PinnedInstruction):
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Counter:
         if ".reset" not in pins:
-            raise CsvError(f"{self.kind} requires a .reset() pin row")
+            raise CsvReadError(f"{self.kind} requires a .reset() pin row")
         return replace(
             self,
             reset_enabled=True,
@@ -158,7 +158,7 @@ class Counter(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a counter. Write it as "
                 "count_up(done,accumulator,preset=...) or count_down(...), such as "
                 "count_up(CT1,CTD1,preset=100)."
@@ -175,13 +175,13 @@ class Counter(PinnedInstruction):
                 args.append(seg)
 
         if len(args) != 2:
-            raise CsvError(
+            raise CsvReadError(
                 f"{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}"
             )
 
         preset = kwargs.get("preset", "")
         if not preset:
-            raise CsvError(f"{kind} missing preset kwarg: {token!r}")
+            raise CsvReadError(f"{kind} missing preset kwarg: {token!r}")
 
         return cls(
             kind=kind,

@@ -43,7 +43,7 @@ from ..binary_helpers import (
     _variant_tagged_field,
 )
 from ..codes import Code
-from ..model import AfInstruction, FieldError, Reason
+from ..model import FieldError, Instruction, Reason
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec, cell_rows_spec
 
@@ -344,7 +344,7 @@ def _split_raw_args(text: str) -> list[str]:
 
 
 @dataclass(frozen=True)
-class RawInstruction(AfInstruction):
+class RawInstruction(Instruction):
     """An AF instruction kept as its blob, so that it is written back byte for byte.
 
     Attributes

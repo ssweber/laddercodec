@@ -47,7 +47,7 @@ from laddercodec import (
     write_csv,
 )
 from laddercodec.csv import CSV_HEADER, CsvLocation
-from laddercodec.csv.writer import WriterError
+from laddercodec.csv.writer import CsvWriteError
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.call import Call
 from laddercodec.instructions.coil import Coil
@@ -64,7 +64,7 @@ from laddercodec.instructions.search import Search
 from laddercodec.instructions.send_receive import Receive, Send
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
-from laddercodec.model import AfInstruction, Reason
+from laddercodec.model import Instruction, Reason
 from laddercodec.operands.unchecked import refusals, stored_blob
 from tests.kept_refusals import kept
 
@@ -514,7 +514,7 @@ def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> No
         assert [e.field for e in refusals(inst)] == [e.field for e in refusals(inst_scr)]
         blob = stored_blob(inst)
         assert blob is not None and blob in clipboard
-        if isinstance(inst_scr, AfInstruction):
+        if isinstance(inst_scr, Instruction):
             raw = raw_boxes.pop(0)
             assert stored_blob(inst_scr) == raw.blob
             assert inst_scr.build_blob() == raw.blob
@@ -676,7 +676,7 @@ def test_write_csv_refuses_a_value_forced_after_construction(tmp_path) -> None:
     """
     copy_af = Copy("DS1", "DS2")
     _force(copy_af, dest="Y001")
-    with pytest.raises(WriterError, match="Y001"):
+    with pytest.raises(CsvWriteError, match="Y001"):
         write_csv(tmp_path / "out.csv", [_copy_rung(copy_af)])
 
 
@@ -694,5 +694,5 @@ def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
     rung = replace(rung, conditions=[[contact, *rung.conditions[0][1:]]])
     write_csv(tmp_path / "held.csv", [rung])
     _force(copy_af, dest="Y002")
-    with pytest.raises(WriterError, match="Y002"):
+    with pytest.raises(CsvWriteError, match="Y002"):
         write_csv(tmp_path / "out.csv", [rung])

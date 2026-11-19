@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..instructions import KNOWN_AF_NAMES as _KNOWN_AF_NAMES
 from .contract import CONDITION_COLUMNS
 
@@ -21,7 +21,7 @@ class CanonicalRow:
 
     def __post_init__(self) -> None:
         if len(self.conditions) != len(CONDITION_COLUMNS):
-            raise CsvError(
+            raise CsvReadError(
                 f"CanonicalRow.conditions must contain {len(CONDITION_COLUMNS)} values; "
                 f"got {len(self.conditions)}"
             )
@@ -139,7 +139,9 @@ class RowAst:
 
     def __post_init__(self) -> None:
         if len(self.condition_nodes) != len(self.canonical.conditions):
-            raise CsvError("RowAst.condition_nodes length must match canonical.conditions length")
+            raise CsvReadError(
+                "RowAst.condition_nodes length must match canonical.conditions length"
+            )
 
 
 @dataclass(frozen=True)

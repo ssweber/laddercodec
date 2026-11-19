@@ -37,14 +37,14 @@ from laddercodec.binary_helpers import _STANDARD_SENTINEL, _tag_wire_type, tag_d
 from laddercodec.csv import read_csv
 from laddercodec.instructions import Tee, from_tags_af, from_tags_condition
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
-from laddercodec.model import AfInstruction, ConditionInstruction
+from laddercodec.model import Condition, Instruction
 from laddercodec.operands.unchecked import refusals
 from tests.scr_defaults import fixture_pairs, mismatches, read_clipboard, survey
 from tests.undecoded_captures import without_marker
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-Instruction = AfInstruction | ConditionInstruction
+Instruction = Instruction | Condition
 
 
 def _native_captures() -> list[Path]:
@@ -119,7 +119,7 @@ def test_instruction_decodes_without_default_tags(token_csv: str) -> None:
     token = _CORPUS[token_csv]
     class_name, type_marker, _parts, _extra, fields = _decompose_blob(token.build_blob())
     tag_dicts = _fields_to_tag_dicts(_scr_fields(class_name, fields))
-    decode_tags = from_tags_condition if isinstance(token, ConditionInstruction) else from_tags_af
+    decode_tags = from_tags_condition if isinstance(token, Condition) else from_tags_af
     parsed = decode_tags(class_name, type_marker, *tag_dicts)
     assert parsed is not None, f"{token_csv} fell back to raw without its default tags"
     assert parsed.to_csv() == token_csv

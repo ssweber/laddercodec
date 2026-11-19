@@ -11,11 +11,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
 
 from ..codes import Code
-from ..errors import WriterError
+from ..errors import CsvWriteError
 from ..model import (
-    AfInstruction,
-    ConditionInstruction,
+    Condition,
     FieldError,
+    Instruction,
     PinnedInstruction,
     Reason,
     display_form_only,
@@ -68,7 +68,7 @@ from .forloop import Break, Continue, ForLoop, Next
 from .home import Home
 from .math import Math, MathMode
 from .out_variant import OutVariant, OutVariantKind, OutVariantUnit
-from .position import Position
+from .position import PositionMove
 from .raw import RawInstruction
 from .return_ import Return
 from .search import Search
@@ -87,12 +87,12 @@ from .send_receive import (
 from .shift import Shift
 from .timer import Timer, TimerKind, TimeUnit
 from .undecoded import Undecoded, UndecodedStop
-from .velocity import Velocity
+from .velocity import VelocityMove
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
-_Parsed = TypeVar("_Parsed", bound=ConditionInstruction | AfInstruction)
+_Parsed = TypeVar("_Parsed", bound=Condition | Instruction)
 
 # ---------------------------------------------------------------------------
 # Decode-side fallback types and token aliases
@@ -124,12 +124,12 @@ class Tee:
     It is the contact form of the ``"T"`` wire token. In the CSV, the cell is the contact's
     token with a ``T:`` prefix. ``Tee(Contact("X001"))`` is ``T:X001``.
 
-    ``contact`` is a ``Contact``, a ``CompareContact`` or another condition instruction,
-    or an ``UnknownCondition``. Building a ``Tee`` around anything else raises
+    ``contact`` is a ``Contact``, a ``CompareContact`` or another ``Condition``, or an
+    ``UnknownCondition``. Building a ``Tee`` around anything else raises
     :class:`~laddercodec.FieldError`, and so does a ``Tee`` around a ``Tee``.
     """
 
-    contact: ConditionInstruction | UnknownCondition
+    contact: Condition | UnknownCondition
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -141,7 +141,7 @@ class Tee:
                     Reason.FORM,
                     code=Code.INVALID_TEE,
                 )
-            elif not isinstance(self.contact, (ConditionInstruction, UnknownCondition)):
+            elif not isinstance(self.contact, (Condition, UnknownCondition)):
                 check.refuse(
                     "contact",
                     f"{self.contact!r} is not a contact. Wrap a Contact or a CompareContact, "
@@ -154,10 +154,10 @@ class Tee:
         """Return the CSV text of the cell: ``T:`` and the contact's token, such as ``T:X001``.
 
         ``write_csv`` writes this text for the cell. An ``UnknownCondition`` has no CSV
-        token, so a ``Tee`` around one raises :class:`~laddercodec.WriterError`.
+        token, so a ``Tee`` around one raises :class:`~laddercodec.CsvWriteError`.
         """
         if isinstance(self.contact, UnknownCondition):
-            raise WriterError(
+            raise CsvWriteError(
                 f"Tee holds an UnknownCondition ({len(self.contact.raw)} bytes), and no CSV "
                 "token holds one. Replace the contact, such as Tee(Contact('X001'))."
             )
@@ -181,15 +181,15 @@ class UnknownInstruction:
             object.__setattr__(self, "raw", bytes(self.raw))
 
 
-ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition | Tee
+ConditionToken = str | Contact | CompareContact | Condition | UnknownCondition | Tee
 """A condition-column cell of a ``Rung``.
 
-It is a wire token (``"-"``, ``"|"``, ``"T"`` or ``""``), a condition instruction such as a
+It is a wire token (``"-"``, ``"|"``, ``"T"`` or ``""``), a ``Condition`` such as a
 ``Contact`` or a ``CompareContact``, or an ``UnknownCondition`` for a cell that the decoder
 could not read. A cell that holds one of these instructions and a wire down is a
 :class:`Tee` around the instruction."""
 
-AfToken = (
+InstructionToken = (
     str
     | Coil
     | OutVariant
@@ -209,13 +209,13 @@ AfToken = (
     | Return
     | Undecoded
     | RawInstruction
-    | AfInstruction
+    | Instruction
     | UnknownInstruction
 )
 """An AF-column cell of a ``Rung``.
 
 It is ``""``, ``"NOP"``, an output instruction, or an ``UnknownInstruction`` for a cell that
-the decoder could not read.  An output instruction is any ``AfInstruction``, including a
+the decoder could not read.  An output instruction is any ``Instruction``, including a
 ``RawInstruction`` and the ``Undecoded`` marker."""
 
 
@@ -281,7 +281,7 @@ def get_af_family_for_token(token: object) -> AfInstructionFamilySpec | None:
     return None
 
 
-def parse_af_call(call: AfCall) -> AfInstruction | None:
+def parse_af_call(call: AfCall) -> Instruction | None:
     """Parse a CSV AF call node using the owning family spec."""
     spec = get_af_family_by_csv_name(call.name)
     if spec is None or spec.parse_csv_call is None:
@@ -306,7 +306,7 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
     return None
 
 
-def parse_af_blob(raw: bytes) -> AfInstruction | None:
+def parse_af_blob(raw: bytes) -> Instruction | None:
     """Try to parse an AF-column instruction blob."""
     import struct
 
@@ -342,7 +342,7 @@ def _keeping_blob(parsed: _Parsed, raw: bytes) -> _Parsed:
     return parsed
 
 
-def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
+def _with_pin_rows(parsed: Instruction | None, extra: bytes) -> Instruction | None:
     """Return *parsed* with its ``pin_rows`` set from the blob's part bytes, *extra*.
 
     Each part byte is the row of one pin. Return *parsed* unchanged if it is not a
@@ -363,7 +363,7 @@ def from_tags_condition(
     tags: dict[int, str],
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
-) -> ConditionInstruction | None:
+) -> Condition | None:
     """Build a condition instruction from tag data through the registered specs.
 
     See :func:`_from_tags`.
@@ -376,7 +376,7 @@ def from_tags_condition(
         variant_u16_tags,
         variant_string_tags,
     )
-    return cast(ConditionInstruction | None, built)
+    return cast(Condition | None, built)
 
 
 def from_tags_af(
@@ -385,7 +385,7 @@ def from_tags_af(
     tags: dict[int, str],
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
-) -> AfInstruction | None:
+) -> Instruction | None:
     """Build an AF instruction from tag data through the registered specs.
 
     See :func:`_from_tags`.
@@ -393,7 +393,7 @@ def from_tags_af(
     built = _from_tags(
         AF_FAMILY_SPECS, class_name, type_code, tags, variant_u16_tags, variant_string_tags
     )
-    return cast(AfInstruction | None, built)
+    return cast(Instruction | None, built)
 
 
 def _from_tags(
@@ -452,19 +452,19 @@ def _reads_back(token: object) -> bool:
 
 __all__ = [
     "AF_FAMILY_SPECS",
-    "AfToken",
+    "InstructionToken",
     "CONDITION_FAMILY_SPECS",
     "ConditionToken",
     "INSTRUCTION_MODULES",
     "KNOWN_AF_NAMES",
     "KNOWN_PIN_NAMES",
-    "AfInstruction",
+    "Instruction",
     "AfInstructionFamilySpec",
     "BlockCopy",
     "Call",
     "Coil",
     "CompareContact",
-    "ConditionInstruction",
+    "Condition",
     "ConditionInstructionFamilySpec",
     "Counter",
     "Contact",
@@ -484,7 +484,7 @@ __all__ = [
     "Continue",
     "OutVariant",
     "Pack",
-    "Position",
+    "PositionMove",
     "RawInstruction",
     "Receive",
     "Return",
@@ -497,7 +497,7 @@ __all__ = [
     "UnknownInstruction",
     "Undecoded",
     "Unpack",
-    "Velocity",
+    "VelocityMove",
     "BlockCopyConvert",
     "CoilKind",
     "CompareOp",

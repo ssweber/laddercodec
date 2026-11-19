@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 from ..instructions import Tee, UnknownCondition
 from ..instructions.raw import RawInstruction
-from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
+from ..model import Condition, Instruction, PinnedInstruction
 
 COLUMNS = 31
 AF_X = COLUMNS
@@ -48,7 +48,7 @@ def cell_of(token: object) -> GridCell:
     """
     if isinstance(token, Tee):
         return GridCell(token.contact, True, True)
-    if isinstance(token, (ConditionInstruction, UnknownCondition)):
+    if isinstance(token, (Condition, UnknownCondition)):
         return GridCell(token, True, False)
     text = str(token)
     return GridCell(None, text in ("-", "T"), text in ("T", "|"))
@@ -161,7 +161,7 @@ def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = Fals
         elif raw_pins and isinstance(token, RawInstruction) and token.part_rows():
             slots = tuple(s for s in (r, *(r + off for off in token.part_rows())) if s < rows)
             boxes.append(BoxNode(token, r, slots, tuple(True for _ in slots), 0))
-        elif isinstance(token, AfInstruction):
+        elif isinstance(token, Instruction):
             boxes.append(BoxNode(token, r, (r,), (True,), 0))
         elif token not in ("", None):
             boxes.append(BoxNode(token, r, (r,), (True,), 0))

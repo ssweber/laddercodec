@@ -60,6 +60,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Box",
     "Series",
     "Parallel",
+    "Term",
     "Rung",
     "Program",
     "Project",
@@ -71,17 +72,17 @@ EXPECTED_ROOT_EXPORTS = (
     "LaddercodecError",
     "DecodeError",
     "EncodeError",
-    "WriterError",
-    "CsvError",
+    "CsvWriteError",
+    "CsvReadError",
     "LayoutError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
-    "ConditionInstruction",
-    "AfInstruction",
+    "Condition",
+    "Instruction",
     "ConditionToken",
-    "AfToken",
+    "InstructionToken",
     "BlockCopy",
     "Call",
     "Contact",
@@ -104,7 +105,7 @@ EXPECTED_ROOT_EXPORTS = (
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Pack",
-    "Position",
+    "PositionMove",
     "Receive",
     "Send",
     "Timer",
@@ -112,7 +113,7 @@ EXPECTED_ROOT_EXPORTS = (
     "UnknownCondition",
     "UnknownInstruction",
     "Unpack",
-    "Velocity",
+    "VelocityMove",
     "RawInstruction",
     "Return",
     "Search",
@@ -194,14 +195,14 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     from laddercodec.csv import converter, writer
 
     assert laddercodec.DecodeError is decode_mod.DecodeError
-    assert laddercodec.WriterError is writer.WriterError
-    assert laddercodec.CsvError is converter.CsvError
+    assert laddercodec.CsvWriteError is writer.CsvWriteError
+    assert laddercodec.CsvReadError is converter.CsvReadError
     assert laddercodec.UnknownCondition is instructions.UnknownCondition
     assert laddercodec.UnknownInstruction is instructions.UnknownInstruction
     assert laddercodec.Email is instructions.email.Email
     assert laddercodec.Home is instructions.home.Home
-    assert laddercodec.Position is instructions.position.Position
-    assert laddercodec.Velocity is instructions.velocity.Velocity
+    assert laddercodec.PositionMove is instructions.position.PositionMove
+    assert laddercodec.VelocityMove is instructions.velocity.VelocityMove
     codes = importlib.import_module("laddercodec.codes")
     assert laddercodec.Code is codes.Code
     assert laddercodec.CLICK_IDS is codes.CLICK_IDS
@@ -209,7 +210,7 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     unchecked = importlib.import_module("laddercodec.operands.unchecked")
     assert laddercodec.replace is unchecked.replace
     circuit = importlib.import_module("laddercodec.circuit")
-    for name in ("Box", "Branch", "Circuit", "Parallel", "Series", "lay_out"):
+    for name in ("Box", "Branch", "Circuit", "Parallel", "Series", "Term", "lay_out"):
         assert getattr(laddercodec, name) is getattr(circuit, name), name
     errors = importlib.import_module("laddercodec.errors")
     assert laddercodec.LayoutError is errors.LayoutError
@@ -221,8 +222,8 @@ def test_errors_form_one_tree_of_value_errors() -> None:
     for error in (
         laddercodec.DecodeError,
         laddercodec.EncodeError,
-        laddercodec.CsvError,
-        laddercodec.WriterError,
+        laddercodec.CsvReadError,
+        laddercodec.CsvWriteError,
         laddercodec.FieldError,
         laddercodec.LayoutError,
     ):

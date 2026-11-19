@@ -85,10 +85,10 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
   - a blank `oneshot=` or `maintained=`, in every family, `out` and `for` included.
 
   The Timer `unit=` and Drum `unit=`, accumulator and pattern value checks are made at construction. An absent
-  keyword stays a `CsvError` (ruled). These blanks are still a syntax error with no field, where Python says
+  keyword stays a `CsvReadError` (ruled). These blanks are still a syntax error with no field, where Python says
   `missing`:
   - a blank `unit=` in a Timer or time drum, and a blank Math `mode=` (a Math `mode=` that is neither
-    `decimal` nor `hex` is a `CsvError` too);
+    `decimal` nor `hex` is a `CsvReadError` too);
   - a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a search
     expression (`search(,result=DS1,found=C1)`).
 
@@ -102,7 +102,7 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
   with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route every
   `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their
   equivalent, so that one parser reads each token.
-- **Token-syntax class split.** Some token-syntax errors are a `CsvError` and others are a `FieldError` with no
+- **Token-syntax class split.** Some token-syntax errors are a `CsvReadError` and others are a `FieldError` with no
   field. Pick one class for a token that is not syntax.
 - **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
 - **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`. It should
@@ -667,14 +667,19 @@ the API cleanup.
 
 ## Stable public API (nothing; ClickNick follows)
 
-The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `CsvError` (was `ConvertError`),
-`DecodeError`, `WriterError`, `AfToken`, `ConditionToken`, `Email`, `Home`, `Position` and `Velocity`. Still open:
+The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `CsvReadError` (was `ConvertError`),
+`DecodeError`, `CsvWriteError` (was `WriterError`), `InstructionToken`, `ConditionToken`, `Email`, `Home`, `PositionMove`, `VelocityMove` and `Term`. Still open:
 - ClickNick also imports `csv.contract.CONDITION_COLUMNS` and `csv.writer.decoded_rung_to_rows`. Either these
   move to the top level or ClickNick stops using them.
-- Email, Home, Position and Velocity are to be marked provisional, with no renames (API cleanup, ids).
+- The tag-id fields of `Email`, `Home`, `PositionMove` and `VelocityMove` are still to be renamed (API cleanup, ids).
 - Everything else is internal. A test pins `__all__`. Message text is not part of the API.
 
 ## Settled (don't reopen)
+
+- **Public class names (Sam, 2026-11-18):** `Instruction`, `InstructionToken`, `Condition`, `CsvReadError`,
+  `CsvWriteError`, `PositionMove` and `VelocityMove` are the names, with no alias for the names that they
+  replaced. The CSV tokens, the binary class names and the `Code` names do not change. `laddercodec` exports
+  `Term`. Every other public name stays.
 
 - **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`. Never rewrite them as CLICK's dialog does
   (`7h`, `77h`). The error names the fix.

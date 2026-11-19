@@ -17,7 +17,7 @@ From the inspect output you'll see one of two cases:
 
 Tip: use the reported `class='...'` value. If the class name is already registered, you're likely adding a new variant; if it's new, you're likely adding a new instruction type.
 
-Note: `Email`, `Home`, `Position`, and `Velocity` are currently known enough
+Note: `Email`, `Home`, `PositionMove`, and `VelocityMove` are currently known enough
 to round-trip, but they still intentionally surface as `raw(...)` passthroughs
 until dedicated typed DSL models are added.
 
@@ -25,8 +25,8 @@ until dedicated typed DSL models are added.
 
 All instruction dataclasses inherit from one of two base classes in `model.py`:
 
-- **`ConditionInstruction`** — condition-side (Contact, CompareContact)
-- **`AfInstruction`** — AF-side (Coil, Timer, Copy, BlockCopy, Fill, RawInstruction)
+- **`Condition`** — condition-side (Contact, CompareContact)
+- **`Instruction`** — AF-side (Coil, Timer, Copy, BlockCopy, Fill, RawInstruction)
 
 Both declare `to_csv()`, `build_blob()`, and `cell_params()` stubs. The pipeline uses these base classes for isinstance dispatch, so **new instruction types that inherit from the right base class are automatically recognized** by the encoder, decoder, grid builder, and CSV writer.
 
@@ -115,7 +115,7 @@ Same as above. For new types, inspect will often show `RawInstruction` with a ne
 
 In `src/laddercodec/instructions/`:
 
-- New `@dataclass` inheriting from `AfInstruction` (or `ConditionInstruction`)
+- New `@dataclass` inheriting from `Instruction` (or `Condition`)
 - Implement `to_csv()`, `build_blob()`, `cell_params()`, and a module-level `from_tags()`
 - Follow existing modules (coil.py, timer.py, copy.py) as templates
 - Add `InstructionType` enum value in `model.py` if it uses a new type marker

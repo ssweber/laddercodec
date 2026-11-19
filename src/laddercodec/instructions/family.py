@@ -10,13 +10,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction
+from ..model import Condition, Instruction
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
 
-AfCallParser = Callable[["AfCall"], AfInstruction]
+AfCallParser = Callable[["AfCall"], Instruction]
 
 # Signature for from_tags() factory functions.
 ConditionFromTagsParser = Callable[
@@ -27,7 +27,7 @@ ConditionFromTagsParser = Callable[
         dict[int, dict[int, int]] | None,  # variant_u16_tags
         dict[int, dict[int, str]] | None,  # variant_string_tags
     ],
-    ConditionInstruction | None,
+    Condition | None,
 ]
 AfFromTagsParser = Callable[
     [
@@ -37,7 +37,7 @@ AfFromTagsParser = Callable[
         dict[int, dict[int, int]] | None,  # variant_u16_tags
         dict[int, dict[int, str]] | None,  # variant_string_tags
     ],
-    AfInstruction | None,
+    Instruction | None,
 ]
 
 #: A hook that returns the cell kwargs (``visual_rows``, ``sub_rows``) of a box from its
@@ -78,7 +78,7 @@ class ConditionInstructionFamilySpec:
     """Metadata and hooks for one family of condition-column instructions."""
 
     family_name: str
-    instruction_types: tuple[type[ConditionInstruction], ...]
+    instruction_types: tuple[type[Condition], ...]
     binary_class_names: tuple[str, ...]
     from_tags: ConditionFromTagsParser | None = None
 
@@ -88,7 +88,7 @@ class AfInstructionFamilySpec:
     """Metadata and hooks for one family of AF-column (output) instructions."""
 
     family_name: str
-    instruction_types: tuple[type[AfInstruction], ...]
+    instruction_types: tuple[type[Instruction], ...]
     binary_class_names: tuple[str, ...]
     from_tags: AfFromTagsParser | None = None
     csv_names: tuple[str, ...] = ()

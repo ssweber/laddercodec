@@ -19,12 +19,12 @@ from laddercodec import (
     Coil,
     CompareContact,
     Contact,
-    CsvError,
+    CsvReadError,
+    CsvWriteError,
     EncodeError,
     FieldError,
     Rung,
     Tee,
-    WriterError,
     decode,
     decode_program,
     encode,
@@ -118,9 +118,9 @@ def test_a_tee_writes_t_and_the_contact_token(inner: object, text: str) -> None:
 
 def test_a_tee_around_an_unknown_contact_has_no_csv_text() -> None:
     tee = Tee(UnknownCondition(b"\x00\x01"))
-    with pytest.raises(WriterError, match=r"Tee holds an UnknownCondition \(2 bytes\)"):
+    with pytest.raises(CsvWriteError, match=r"Tee holds an UnknownCondition \(2 bytes\)"):
         tee.to_csv()
-    with pytest.raises(WriterError):
+    with pytest.raises(CsvWriteError):
         _token_to_csv(tee)
 
 
@@ -162,7 +162,7 @@ def test_every_decoded_cell_token_has_csv_text(path: Path) -> None:
 )
 def test_a_contact_token_with_a_wire_down_is_refused(cls: type, token: str) -> None:
     """A contact class reads only the contact. The ``T:`` form is a ``Tee``."""
-    with pytest.raises(CsvError, match=r"Wrap the contact in a Tee"):
+    with pytest.raises(CsvReadError, match=r"Wrap the contact in a Tee"):
         cls.from_csv_token(token)
 
 

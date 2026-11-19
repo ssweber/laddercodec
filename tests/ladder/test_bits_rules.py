@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, CsvError, FieldError, decode, read_csv
+from laddercodec import AddressError, CsvReadError, FieldError, decode, read_csv
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
@@ -400,7 +400,7 @@ class TestCompare:
         assert (node.left, node.op, node.right) == (left, op, right)
 
     def test_wire_down_prefix_is_refused(self) -> None:
-        with pytest.raises(CsvError, match=r"Wrap the contact in a Tee"):
+        with pytest.raises(CsvReadError, match=r"Wrap the contact in a Tee"):
             CompareContact.from_csv_token('T:TXT1!=">"')
 
 

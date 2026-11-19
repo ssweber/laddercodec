@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Literal, TypeAlias
 from .codes import Code
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
-from .model import AfInstruction, PinnedInstruction, Reason
+from .model import Instruction, PinnedInstruction, Reason
 from .operands.checks import Refusals
 
 if TYPE_CHECKING:
@@ -105,7 +105,7 @@ class Parallel:
 
 @dataclass(frozen=True, init=False)
 class Box:
-    """An output box: an AF instruction, or ``"NOP"``, with the circuit of each pin it uses.
+    """An output box: an ``Instruction``, or ``"NOP"``, with the circuit of each pin it uses.
 
     ``pins`` maps the name of a pin, such as ``".reset"``, to the term that feeds it.  The
     names are those of ``instruction.pin_names()`` whose entry in ``pin_labels()`` is not
@@ -114,23 +114,23 @@ class Box:
     out is drawn with nothing wired to it.  ``laddercodec.check()`` reports such a pin.
     """
 
-    instruction: AfInstruction | Literal["NOP"]
+    instruction: Instruction | Literal["NOP"]
     pins: tuple[tuple[str, Term], ...]
 
     def __init__(
         self,
-        instruction: AfInstruction | Literal["NOP"],
+        instruction: Instruction | Literal["NOP"],
         pins: Mapping[str, Term] | Iterable[tuple[str, Term]] = (),
     ) -> None:
         object.__setattr__(self, "instruction", instruction)
         with Refusals(self) as check:
-            is_box = isinstance(instruction, AfInstruction) or (
+            is_box = isinstance(instruction, Instruction) or (
                 isinstance(instruction, str) and instruction == "NOP"
             )
             if not is_box:
                 check.refuse(
                     "instruction",
-                    f"{instruction!r} is not an output instruction. Write an AF instruction or "
+                    f"{instruction!r} is not an output instruction. Write an Instruction or "
                     f"'NOP', such as {_COIL_BOX}.",
                     Reason.FORM,
                     code=Code.INVALID_CIRCUIT,
@@ -216,8 +216,8 @@ class Circuit:
                 )
 
 
-#: A term of a circuit: a contact, or terms in series or in parallel.
 Term: TypeAlias = Contact | CompareContact | Series | Parallel
+"""A term of a circuit: a ``Contact``, a ``CompareContact``, a ``Series`` or a ``Parallel``."""
 
 
 def lay_out(circuit: Circuit) -> list[Rung]:

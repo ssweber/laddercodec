@@ -12,10 +12,10 @@ from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
-from ..errors import CsvError
+from ..errors import CsvReadError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
-    ConditionInstruction,
+    Condition,
     InstructionType,
     Reason,
     check_address,
@@ -64,20 +64,20 @@ _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
 
 def refuse_down_prefix(token: str, class_name: str) -> None:
-    """Raise :class:`~laddercodec.CsvError` if *token* starts with ``T:`` or ``|:``.
+    """Raise :class:`~laddercodec.CsvReadError` if *token* starts with ``T:`` or ``|:``.
 
     The prefix marks a wire down in the contact's cell. A contact class holds no wire, so
     its ``from_csv_token`` cannot read the prefix.
     """
     if len(token) > 2 and token[1] == ":" and token[0] in ("T", "|"):
-        raise CsvError(
+        raise CsvReadError(
             f"{token!r} has a wire down, and a {class_name} holds no wire. Wrap the contact "
             f"in a Tee, such as Tee({class_name}.from_csv_token({token[2:]!r}))."
         )
 
 
 @dataclass(frozen=True)
-class Contact(ConditionInstruction):
+class Contact(Condition):
     """A contact: normally open (``no``), normally closed (``nc``), or an edge contact
     (``rise``, ``fall``).
 
@@ -122,7 +122,7 @@ class Contact(ConditionInstruction):
         """Parse NO/NC/immediate forms plus edge forms `rise(...)`/`fall(...)`.
 
         A token with the wire-down prefix ``T:`` or ``|:``, such as ``T:X001``, raises
-        :class:`~laddercodec.CsvError`. A contact holds no wire. Wrap the contact in a
+        :class:`~laddercodec.CsvReadError`. A contact holds no wire. Wrap the contact in a
         :class:`~laddercodec.Tee` instead.
         """
 

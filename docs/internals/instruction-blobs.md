@@ -464,6 +464,5 @@ Email, Home, Position and Velocity boxes span 3 rows; the editor stores `03 03`.
 
 A box whose stored row span (+0x09) is not the height of the typed instruction decodes as `raw(...)` and keeps its stored bytes, in both decoders. In the native captures only the 1-row Email, Home, Position and Velocity copy-backs do this. Its CSV token holds the stored height (`rows=1,sub=1`), so it reads back as stored.
 
-At the moment, `Email`, `Home`, `Position`, and `Velocity` still deliberately
-travel through this raw path. They round-trip correctly, but they are not yet
-modeled as dedicated DSL instruction classes.
+`Email`, `Home`, `PositionMove` and `VelocityMove` keep each field as the text that its
+tag stores. Their CSV form is a `raw(...)` token.

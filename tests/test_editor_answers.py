@@ -45,7 +45,7 @@ from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, ModbusRtuTarget, Receive
 from laddercodec.instructions.undecoded import Undecoded
-from laddercodec.model import ADDRESS_BANKS, AfInstruction
+from laddercodec.model import ADDRESS_BANKS, Instruction
 
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
@@ -858,7 +858,7 @@ def reads_as_raw(rows: list[str]) -> bool:
     )
 
 
-def saved_box(raw: RawInstruction) -> AfInstruction | None:
+def saved_box(raw: RawInstruction) -> Instruction | None:
     """Return the box that ``decode_program`` reads from the program-file entry that *raw*
     was written from, or None if that box is raw too.
 

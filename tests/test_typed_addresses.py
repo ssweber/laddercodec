@@ -54,7 +54,7 @@ from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import _compose_blob, _decompose_blob, _fields_to_tag_dicts
 from laddercodec.instructions.search import Search
-from laddercodec.model import AfInstruction, display_form_only
+from laddercodec.model import Instruction, display_form_only
 from laddercodec.operands.address import read_as_typed
 from laddercodec.operands.unchecked import refusals, stored_blob
 from tests.kept_refusals import kept
@@ -63,7 +63,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 GRIDS = FIXTURES / "editor_grids"
 
 #: Every save in the answer files that holds a typed address, as (grid, case, instruction, CSV).
-ANSWERED: list[tuple[str, str, AfInstruction, str]] = [
+ANSWERED: list[tuple[str, str, Instruction, str]] = [
     ("copy_single", "single DS2 -> DS001", Copy("DS2", "DS1"), "copy(DS2,DS1)"),
     ("copy_single", "single DS2 -> DS01", Copy("DS2", "DS1"), "copy(DS2,DS1)"),
     ("copy_single", "single DS2 -> ds1", Copy("DS2", "DS1"), "copy(DS2,DS1)"),
@@ -154,7 +154,7 @@ def _raw_box(rung: Rung) -> RawInstruction:
     return raw
 
 
-def _program_box(raw: RawInstruction) -> AfInstruction:
+def _program_box(raw: RawInstruction) -> Instruction:
     """Return the box that ``decode_program`` reads from the program file entry that ``raw``
     was written from.
 
@@ -171,7 +171,7 @@ def _program_box(raw: RawInstruction) -> AfInstruction:
 
 @pytest.mark.parametrize(("grid", "label", "inst", "csv_text"), ANSWERED)
 def test_each_answered_save_reads_in_display_form(
-    tmp_path: Path, grid: str, label: str, inst: AfInstruction, csv_text: str
+    tmp_path: Path, grid: str, label: str, inst: Instruction, csv_text: str
 ) -> None:
     case = _case(grid, label)
     assert case["outcome"] == "accepted"
@@ -247,7 +247,7 @@ def _retagged(blob: bytes, edits: dict[int, tuple[str, str]]) -> bytes:
     return _compose_blob(class_name, type_code, parts, extra, edited)
 
 
-def _from_program(blob: bytes, rows: int) -> AfInstruction:
+def _from_program(blob: bytes, rows: int) -> Instruction:
     """Return the box that ``decode_program`` reads from a program file entry with the
     fields of ``blob``.
 
@@ -264,7 +264,7 @@ def _from_program(blob: bytes, rows: int) -> AfInstruction:
 #: Boxes that ``decode_program`` reads and that keep the blob composed from the program file,
 #: each with a flag set.  Each case is (id, instruction, the tag edits that make the stored
 #: text differ from the display form, the tags of the flags that are set).
-FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, ...]]] = [
+FLAGGED: list[tuple[str, Instruction, dict[int, tuple[str, str]], tuple[int, ...]]] = [
     ("copy oneshot, typed", Copy("DS2", "DS1", oneshot=True), {0x6076: ("DS1", "ds1")}, (0x11F8,)),
     (
         "copy oneshot, edge space",
@@ -310,7 +310,7 @@ FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, .
     [pytest.param(*case[1:], id=case[0]) for case in FLAGGED],
 )
 def test_a_program_box_reads_back_from_the_clipboard(
-    inst: AfInstruction, edits: dict[int, tuple[str, str]], flags: tuple[int, ...]
+    inst: Instruction, edits: dict[int, tuple[str, str]], flags: tuple[int, ...]
 ) -> None:
     """A box read from a program file reads back from the clipboard as itself.
 
@@ -328,7 +328,7 @@ def test_a_program_box_reads_back_from_the_clipboard(
         warnings.simplefilter("error", RefusedFieldWarning)
         [decoded] = decode(data)
     assert isinstance(decoded, Rung)
-    [back] = [t for t in decoded.instructions if isinstance(t, AfInstruction)]
+    [back] = [t for t in decoded.instructions if isinstance(t, Instruction)]
     assert back == inst and not refusals(back)
     assert encode(decoded) == data
 
@@ -344,13 +344,13 @@ def test_a_program_box_holding_a_refusal_reads_back_from_the_clipboard() -> None
     with pytest.warns(RefusedFieldWarning):
         [decoded] = decode(data)
     assert isinstance(decoded, Rung)
-    [back] = [t for t in decoded.instructions if isinstance(t, AfInstruction)]
+    [back] = [t for t in decoded.instructions if isinstance(t, Instruction)]
     assert isinstance(back, ForLoop) and back.oneshot and back.count == "Y001"
     kept(back, "ForLoop.count")
     assert encode(decoded) == data
 
 
-def _one_box_of(box: AfInstruction) -> bytes:
+def _one_box_of(box: Instruction) -> bytes:
     """Return a one-rung clipboard that holds ``box``."""
     return encode_rung(1, [["-"] * 31], [box])
 
@@ -362,7 +362,7 @@ def _one_box(blob: bytes) -> bytes:
 
 
 #: Clipboard blobs with an address in a typed form that CLICK saves, as (instruction, tag edits).
-TYPED_BLOBS: list[tuple[AfInstruction, dict[int, tuple[str, str]]]] = [
+TYPED_BLOBS: list[tuple[Instruction, dict[int, tuple[str, str]]]] = [
     (Copy("DS2", "DS1"), {0x6076: ("DS1", "DS001")}),
     (Copy("DS2", "DS1"), {0x6076: ("DS1", "ds1")}),
     (Copy("DS2", "DS[DS1]"), {0x6076: ("DS[DS1]", "DS[ds1]")}),
@@ -383,7 +383,7 @@ TYPED_BLOBS: list[tuple[AfInstruction, dict[int, tuple[str, str]]]] = [
 
 @pytest.mark.parametrize(("inst", "edits"), TYPED_BLOBS)
 def test_a_typed_clipboard_blob_reads_in_display_form(
-    inst: AfInstruction, edits: dict[int, tuple[str, str]]
+    inst: Instruction, edits: dict[int, tuple[str, str]]
 ) -> None:
     blob = _retagged(inst.build_blob(), edits)
     parsed = parse_af_blob(blob)
@@ -418,7 +418,7 @@ def test_a_typed_clipboard_blob_reads_in_display_form(
     ],
 )
 def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
-    inst: AfInstruction, edits: dict[int, tuple[str, str]], field: str, display: str
+    inst: Instruction, edits: dict[int, tuple[str, str]], field: str, display: str
 ) -> None:
     data = _one_box(_retagged(inst.build_blob(), edits))
     with pytest.warns(RefusedFieldWarning):
@@ -454,7 +454,7 @@ def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
     ],
 )
 def test_a_form_no_save_shows_stays_raw(
-    inst: AfInstruction, edits: dict[int, tuple[str, str]]
+    inst: Instruction, edits: dict[int, tuple[str, str]]
 ) -> None:
     assert parse_af_blob(inst.build_blob()) == inst
     assert parse_af_blob(_retagged(inst.build_blob(), edits)) is None

@@ -32,7 +32,7 @@ class RefusedFieldWarning(UserWarning):
     Attributes
     ----------
     instruction:
-        The decoded instruction, a contact or an AF instruction.
+        The decoded instruction, a ``Condition`` or an ``Instruction``.
     error:
         The :class:`~laddercodec.FieldError` that building the instruction would raise.
         It is the first refusal.

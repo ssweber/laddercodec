@@ -23,7 +23,7 @@ from typing import Any
 
 from ..codes import Code
 from ..instructions import Tee
-from ..model import AfInstruction, PinnedInstruction
+from ..model import Instruction, PinnedInstruction
 from .network import COLUMNS, WIRE_LEG, Network
 from .tree import (
     BoxItem,
@@ -67,7 +67,7 @@ class _Sink:
 
 def box_height(token: object) -> int:
     """Return the number of rows that a box with no pins spans.  A NOP spans one."""
-    if isinstance(token, AfInstruction):
+    if isinstance(token, Instruction):
         return max(1, int(token.cell_params().get("visual_rows", 1)))
     return 1
 

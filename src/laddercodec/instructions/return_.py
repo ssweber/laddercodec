@@ -9,8 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..errors import CsvError
-from ..model import AfInstruction
+from ..errors import CsvReadError
+from ..model import Instruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -22,14 +22,14 @@ _RETURN_TAGS = (0x3218, 0x0000)
 
 
 @dataclass(frozen=True)
-class Return(AfInstruction):
+class Return(Instruction):
     """Return instruction."""
 
     @classmethod
     def from_csv_token(cls, token: str) -> Return:
         token = token.strip()
         if not re.fullmatch(r"return\(\s*\)", token):
-            raise CsvError(
+            raise CsvReadError(
                 f"Could not read {token!r} as a Return instruction. Write it as return()."
             )
         return cls()
@@ -70,7 +70,7 @@ def from_tags(
 def parse_af_call(call: AfCall) -> Return:
     """Parse an AF AST call into a Return."""
     if call.args or call.kwargs:
-        raise CsvError("return expects no arguments")
+        raise CsvReadError("return expects no arguments")
     return Return()
 
 

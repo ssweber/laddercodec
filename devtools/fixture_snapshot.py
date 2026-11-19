@@ -99,7 +99,7 @@ def sha256(data: bytes) -> str:
 def token_text(token: Any) -> str:
     """Return the CSV text of one decoded cell. Add the pin rows and labels of a pinned box."""
     from laddercodec.instructions import UnknownCondition, UnknownInstruction
-    from laddercodec.model import AfInstruction, ConditionInstruction, PinnedInstruction
+    from laddercodec.model import Condition, Instruction, PinnedInstruction
 
     if isinstance(token, str):
         return token
@@ -109,7 +109,7 @@ def token_text(token: Any) -> str:
         return f"T:{token_text(token.contact)}"
     if isinstance(token, (UnknownCondition, UnknownInstruction)):
         return f"?{type(token).__name__}:{len(token.raw)}:{sha256(token.raw)}"
-    if isinstance(token, (AfInstruction, ConditionInstruction)):
+    if isinstance(token, (Instruction, Condition)):
         try:
             text = token.to_csv()
         except Exception as exc:
