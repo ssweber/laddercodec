@@ -248,6 +248,10 @@ either of these holds:
 - its `0x2227` and `0x6077` differ from what the encoder writes for its fields
 - its save is a type `7` or `8` other than DD to or from DF, or a number with an end
 
+When a Copy from `decode_program()` keeps a blob, that blob is the clipboard form of the
+program file's entry
+([From a program file to the clipboard](binary-format.md#from-a-program-file-to-the-clipboard)).
+
 ## Math formulas
 
 A Math blob (class `Math`, type 0x271A) has 1010 tagged fields: 9 header

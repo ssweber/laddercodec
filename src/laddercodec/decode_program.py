@@ -19,7 +19,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
+from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type, flag_set, tag_default
 from .decode import AF_DOWN_WIRE, Rung, _drop_tall_span_nops, _fits_stored_span
 from .errors import DecodeError
 from .instructions import (
@@ -30,8 +30,14 @@ from .instructions import (
 )
 from .instructions.undecoded import UndecodedStop
 from .legacy import warn_legacy
-from .model import Instruction, Program
-from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
+from .model import Condition, Instruction, Program
+from .operands.unchecked import (
+    fields_blob,
+    keep_cell_rows,
+    keep_stored_blob,
+    needs_stored_blob,
+    unchecked,
+)
 from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 from .undecoded import (
@@ -54,6 +60,9 @@ _MAX_SECTION_INSTRUCTIONS = 512
 #: The main program's index. Its file ends with two extra bytes, and an undecoded marker
 #: in it acts as ``end()``.
 _MAIN_PROG_IDX = 1
+#: The func code tag. A program file stores it for some instructions, such as an Out's
+#: latch (8195) or reset (8196). It leaves out a Copy's func code, even a one-shot's (8961).
+_FUNC_CODE_TAG = 0x3218
 
 
 _ScrVariantU16Tags = dict[int, dict[int, int]]
@@ -415,47 +424,196 @@ def _scr_box(
         variant_u16_tags,
         variant_string_tags,
     )
+    entry = _ScrEntry(class_name, type_code, tags, part_rows, variant_u16_tags, variant_string_tags)
     if parsed_af is not None and _fits_stored_span(parsed_af, cell_rows[0]):
         if needs_stored_blob(parsed_af):
             # The instruction holds refusals, or it read a stored address in another form:
             # without a space at its start or end, or in display form where CLICK saved it
             # as typed. While its fields are unchanged, it writes the blob that a raw box
             # of this entry would write.
-            keep_stored_blob(parsed_af, _scr_blob(class_name, type_code, tags, part_rows))
+            keep_stored_blob(parsed_af, _scr_blob(entry, parsed_af))
             keep_cell_rows(parsed_af, cell_rows[0], cell_rows[1])
         return parsed_af
-    return _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
+    return _scr_raw(entry, cell_rows, parsed_af or _af_form(entry))
 
 
-def _scr_blob(class_name: str, type_code: int, tags: dict[int, str], part_rows: bytes) -> bytes:
-    """Return the clipboard blob that a raw box writes, built from an SCR entry's tags."""
+@dataclass(frozen=True)
+class _ScrEntry:
+    """The class, type code, part rows and tags of one SCR instruction entry."""
+
+    class_name: str
+    type_code: int
+    tags: dict[int, str]
+    part_rows: bytes
+    variant_u16_tags: _ScrVariantU16Tags
+    variant_string_tags: _ScrVariantStringTags
+
+
+#: The classes whose clipboard blob writes a set flag as ``-1``. Every other class writes
+#: it as ``1``. A clear flag is ``0`` in every class.
+_MINUS_ONE_FLAG_CLASSES = frozenset({"Copy", "Drum", "Math", "Search"})
+
+
+def _set_flag(class_name: str) -> str:
+    """Return the value that the clipboard writes for a set flag of *class_name*."""
+    return "-1" if class_name in _MINUS_ONE_FLAG_CLASSES else "1"
+
+
+def _scr_blob(entry: _ScrEntry, form: Condition | Instruction | None) -> bytes:
+    """Return the clipboard blob of an SCR entry.
+
+    A program file stores a tag only when its value differs from the default, and it
+    stores a flag with no value. The clipboard stores every tag of the instruction, in a
+    fixed order, and writes a flag as ``-1``, ``1`` or ``0``. *form* is an instruction of
+    the entry's class. Its blob gives the order of the tags, the func code when the entry
+    does not store it, and the array entries that the entry leaves out. The function
+    writes the entry's values over that blob (:func:`_over_form`). A value tag that the
+    entry leaves out takes ``tag_default``.
+
+    If *form* is None, or its blob does not have the entry's class, type code, part count
+    and tags, the function writes only the tags that the program file stores
+    (:func:`_stored_tags`).
+    """
     from .instructions.raw import _compose_blob
 
+    if form is not None:
+        try:
+            blob = _over_form(entry, fields_blob(form))
+        except Exception:  # noqa: BLE001 - the form only adds tags; any failure drops it
+            blob = None
+        if blob is not None:
+            return blob
     return _compose_blob(
-        class_name,
-        type_code,
-        len(part_rows),
-        _clipboard_part_rows(part_rows),
-        [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
+        entry.class_name,
+        entry.type_code,
+        len(entry.part_rows),
+        _clipboard_part_rows(entry.part_rows),
+        _stored_tags(entry),
     )
 
 
-def _scr_raw(
-    class_name: str,
-    type_code: int,
-    tags: dict[int, str],
-    part_rows: bytes,
-    cell_rows: bytes,
-) -> RawInstruction:
+def _stored_tags(entry: _ScrEntry) -> list[tuple[int, bytes, str]]:
+    """Return the tags that *entry* stores, with each stored flag written as ``0`` or set.
+
+    CLICK reads an empty flag on the clipboard as clear, so a flag that the program file
+    stores with no value is written ``0`` when ``flag_set`` reads it clear, and as
+    ``_set_flag`` writes it when set. For a class that laddercodec does not read,
+    ``_set_flag`` gives ``1``.
+    """
+    out = []
+    for tag, value in entry.tags.items():
+        if _tag_wire_type(tag) == "flag" and value == "":
+            value = (
+                _set_flag(entry.class_name) if flag_set(entry.tags, tag, entry.class_name) else "0"
+            )
+        out.append((tag, _STANDARD_SENTINEL, value))
+    return out
+
+
+def _over_form(entry: _ScrEntry, form_blob: bytes) -> bytes | None:
+    """Return *form_blob* with the values of *entry* written over its fields.
+
+    Return None if *form_blob* is not of the entry's class, type code and part count, or
+    lacks a tag that the entry stores. The blob takes the entry's part rows.
+
+    - A tag that the entry stores takes the entry's value, as CLICK saved it.
+    - A value tag that the entry leaves out takes its default (``tag_default``). The func
+      code (0x3218) keeps the form's value when the entry leaves it out. The form is read
+      from the entry's tags, so that code agrees with the flags, such as a Copy's
+      one-shot.
+    - A flag keeps the form's value when the form and the entry agree on whether the flag
+      is set (``flag_set``). Otherwise it is written ``0``, or as the class writes a set
+      flag (``_set_flag``).
+    - An array entry takes the entry's value if the entry stores it, and keeps the form's
+      value if not. A program file can leave out an array entry that is not zero.
+    """
+    from .instructions.raw import _compose_blob, _decompose_blob
+
+    cls, marker, part_count, _extra, fields = _decompose_blob(form_blob)
+    if (cls, marker, part_count) != (entry.class_name, entry.type_code, len(entry.part_rows)):
+        return None
+    plain = {tag for tag, sentinel, _value in fields if sentinel == _STANDARD_SENTINEL}
+    indexed = {
+        (tag, struct.unpack("<I", sentinel)[0])
+        for tag, sentinel, _value in fields
+        if sentinel != _STANDARD_SENTINEL
+    }
+    stored_indexed = {
+        (tag, index)
+        for arrays in (entry.variant_u16_tags, entry.variant_string_tags)
+        for tag, values in arrays.items()
+        for index in values
+    }
+    if not set(entry.tags) <= plain or not stored_indexed <= indexed:
+        return None
+
+    out: list[tuple[int, bytes, str]] = []
+    for tag, sentinel, value in fields:
+        wire = _tag_wire_type(tag)
+        if sentinel != _STANDARD_SENTINEL:
+            index = struct.unpack("<I", sentinel)[0]
+            arrays = entry.variant_u16_tags if wire == "variant_u16" else entry.variant_string_tags
+            stored = arrays.get(tag, {}).get(index)
+            if isinstance(stored, int):
+                # The program file stores an array's u16 unsigned. The clipboard writes it
+                # as a signed 16-bit number.
+                value = str(stored - 0x10000 if stored >= 0x8000 else stored)
+            elif stored is not None:
+                value = stored
+        elif tag == 0x0000:
+            pass
+        elif tag == _FUNC_CODE_TAG:
+            value = entry.tags.get(tag, value)
+        elif wire == "flag":
+            is_set = flag_set(entry.tags, tag, entry.class_name)
+            if is_set != (value not in ("0", "")):
+                value = _set_flag(entry.class_name) if is_set else "0"
+        else:
+            value = entry.tags.get(tag, tag_default(tag, entry.class_name))
+        out.append((tag, sentinel, value))
+    return _compose_blob(cls, marker, part_count, _clipboard_part_rows(entry.part_rows), out)
+
+
+def _af_form(entry: _ScrEntry) -> Instruction | None:
+    """Return an instruction of the entry's AF class whose fields give its clipboard form.
+
+    The decoder keeps an entry raw when its family refuses it, so the family's parser is
+    called again here, without the checks that keep it raw. Return None if no family
+    builds one.
+    """
+    from .instructions import AF_FAMILY_SPECS
+
+    for spec in AF_FAMILY_SPECS:
+        if spec.from_tags is None:
+            continue
+        try:
+            with unchecked():
+                built = spec.from_tags(
+                    entry.class_name,
+                    entry.type_code,
+                    entry.tags,
+                    entry.variant_u16_tags,
+                    entry.variant_string_tags,
+                )
+        except Exception:  # noqa: BLE001 - a family that can't read the entry gives no form
+            return None
+        if built is not None:
+            # Pin rows that the checks refuse leave the form without them: the blob takes
+            # the entry's part rows (_over_form).
+            return _with_pin_rows(built, _clipboard_part_rows(entry.part_rows)) or built
+    return None
+
+
+def _scr_raw(entry: _ScrEntry, cell_rows: bytes, form: Instruction | None = None) -> RawInstruction:
     """Return a ``RawInstruction`` built from the tags of an SCR entry.
 
-    Its rows and sub-rows come from the entry's row bytes, which are the clipboard
-    cell's +0x09 and +0x0A.
+    Its blob is :func:`_scr_blob` of the entry and *form*. Its rows and sub-rows come
+    from the entry's row bytes, which are the clipboard cell's +0x09 and +0x0A.
     """
     return RawInstruction(
-        class_name=class_name,
-        blob=_scr_blob(class_name, type_code, tags, part_rows),
-        part_count=len(part_rows),
+        class_name=entry.class_name,
+        blob=_scr_blob(entry, form),
+        part_count=len(entry.part_rows),
         rows=cell_rows[0] or None,
         sub=cell_rows[1] or None,
     )
@@ -797,6 +955,18 @@ def _build_rung(
                 variant_string_tags,
             )
             if parsed is not None:
+                if needs_stored_blob(parsed):
+                    # As for an AF box (_scr_box): while its fields are unchanged, the
+                    # contact writes the clipboard blob of the entry.
+                    entry = _ScrEntry(
+                        class_name,
+                        type_code,
+                        tags,
+                        part_rows,
+                        variant_u16_tags,
+                        variant_string_tags,
+                    )
+                    keep_stored_blob(parsed, _scr_blob(entry, parsed))
                 conditions[row][col] = parsed
             else:
                 conditions[row][col] = UnknownCondition(raw=class_name.encode())

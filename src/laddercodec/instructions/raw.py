@@ -165,9 +165,8 @@ def _fields_to_tag_dicts(
 
     * **Flag tags** (``0x11xx``/``0x12xx``): clipboard value ``"-1"``
       or ``"1"`` → present in *tags*; ``"0"`` → absent.  An empty value is
-      present too.  CLICK writes ``"-1"``, ``"1"`` or ``"0"``, but a blob
-      composed from the tags of a program file writes a set flag as an empty
-      value, as the program file does.
+      present too, as in a ``raw(...)`` blob that an older laddercodec wrote
+      from a program file.
     * **Value tags** (byte, u16, string) keep their string value in *tags*.
       Read them with ``binary_helpers.tag_value`` or ``tag_int``.
     * **Variant-sentinel fields**: ``0x3Axx`` → *variant_u16_tags*,

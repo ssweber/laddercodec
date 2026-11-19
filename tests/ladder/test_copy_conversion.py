@@ -536,11 +536,11 @@ def test_a_click_capture_decodes_as_the_copy_and_writes_its_bytes(case: str, csv
         assert (click.pop(0x1201), ours.pop(0x1201)) == ("-1", "0")
         assert ours == click
         return
-    # Each unchanged Copy writes the blob that it was decoded from. For the clipboard, that is
-    # the clipboard's blob. For the program file, it is the blob built from the file's tags.
+    # Each unchanged Copy writes the clipboard's blob. From the program file, that blob is
+    # built from the file's tags.
     assert _clip_blob(clip).startswith(from_clip.build_blob())
     assert stored_blob(from_scr) is not None
-    assert from_scr.build_blob() == stored_blob(from_scr)
+    assert from_scr.build_blob() == from_clip.build_blob()
 
 
 @pytest.mark.parametrize(("case", "csv"), CAPTURED)

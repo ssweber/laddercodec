@@ -770,18 +770,24 @@ def test_a_save_of_a_lone_quote_inside_text_with_no_end_decodes_as_the_copy(
     tmp_path: Path,
 ) -> None:
     """A save of ``"A"B"`` into TXT1 that holds the text and the destination, and no end,
-    decodes as the Copy. The Copy writes its stored blob while it is unchanged."""
+    decodes as the Copy. The Copy writes its stored blob while it is unchanged.
+
+    From the clipboard, that blob is the one the clipboard holds. From the program file, it
+    is the clipboard form of the save: every tag of the Copy, with no end and no 0x1201,
+    because the save holds neither."""
     tags = {0x6074: '"A"B"', 0x6076: "TXT1"}
     rung, boxes = _decoded_boxes(tmp_path, tags)
     for box in boxes:
         assert box == Copy('"A"B"', "TXT1")
         assert not refusals(box)
         assert _writes(tmp_path, rung, box) == box
-        blob = stored_blob(box)
-        assert blob is not None
-        assert {k: v for k, v in _tags(blob).items() if v} == tags
-    # The encoder writes the end, as CLICK's dialog does.
-    assert _tags(Copy('"A"B"', "TXT1").build_blob())[0x6077] == "TXT3"
+    from_clip, from_scr = (stored_blob(box) for box in boxes)
+    assert from_clip is not None and from_scr is not None
+    assert {k: v for k, v in _tags(from_clip).items() if v} == tags
+    # The encoder writes the end, as CLICK's dialog does, and sets 0x1201 for a text source.
+    built = _tags(Copy('"A"B"', "TXT1").build_blob())
+    assert (built[0x6077], built[0x1201]) == ("TXT3", "-1")
+    assert list(_tags(from_scr).items()) == list({**built, 0x6077: "", 0x1201: "0"}.items())
 
 
 @pytest.mark.parametrize("text", ['"Tank "A" low"', '"a",b"'])
