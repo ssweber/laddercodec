@@ -271,25 +271,41 @@ def check_program_name(name: str, field_name: str) -> None:
     """
     text = name.strip()
     if not text:
-        raise FieldError(
-            f"{field_name}: {name!r} is blank; a subroutine needs a name",
+        raise make_refusal(
+            FieldError,
+            field_name,
+            says("{name!r} is blank", "a subroutine needs a name", name=name),
             field=field_name,
             reason=Reason.MISSING,
             code=Code.BLANK_FIELD,
         )
     if len(text) > PROGRAM_NAME_MAX:
-        raise FieldError(
-            f"{field_name}: {name!r} is {len(text)} characters; a subroutine name is at "
-            f"most {PROGRAM_NAME_MAX}",
+        raise make_refusal(
+            FieldError,
+            field_name,
+            says(
+                "{name!r} is {count} characters",
+                "a subroutine name is at most {high}",
+                name=name,
+                count=len(text),
+                high=PROGRAM_NAME_MAX,
+            ),
             field=field_name,
             reason=Reason.RANGE,
             code=Code.INVALID_SUBROUTINE_NAME,
         )
     bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
     if bad:
-        raise FieldError(
-            f"{field_name}: {name!r} holds {' '.join(bad)}; a subroutine name may not hold "
-            f"any of {' '.join(_PROGRAM_NAME_FORBIDDEN)} (GUI-040)",
+        raise make_refusal(
+            FieldError,
+            field_name,
+            says(
+                "{name!r} holds {bad}",
+                "a subroutine name may not hold any of {forbidden}",
+                name=name,
+                bad=" ".join(bad),
+                forbidden=" ".join(_PROGRAM_NAME_FORBIDDEN),
+            ),
             field=field_name,
             reason=Reason.FORM,
             click_id="GUI-040",
@@ -297,9 +313,15 @@ def check_program_name(name: str, field_name: str) -> None:
         )
     base = text.rsplit(".", 1)[0] if "." in text else text
     if base.upper() in _DEVICE_NAMES:
-        raise FieldError(
-            f"{field_name}: {name!r} uses the Windows device name {base!r}; CLICK refuses "
-            "it as a subroutine name (GUI-040)",
+        raise make_refusal(
+            FieldError,
+            field_name,
+            says(
+                "{name!r} uses the Windows device name {base!r}",
+                "CLICK refuses it as a subroutine name",
+                name=name,
+                base=base,
+            ),
             field=field_name,
             reason=Reason.FORM,
             click_id="GUI-040",

@@ -14,6 +14,7 @@ from ..codes import Code
 from ..errors import CsvReadError
 from ..model import Instruction, Reason, check_program_name
 from ..operands.checks import Refusals
+from ..operands.message import says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -37,9 +38,10 @@ class Call(Instruction):
             if not self.subroutine:
                 check.refuse(
                     "subroutine",
-                    "The subroutine name is blank. Enter the name of the subroutine to call.",
+                    says("The subroutine name is blank"),
                     Reason.MISSING,
                     code=Code.BLANK_FIELD,
+                    then="Enter the name of the subroutine to call.",
                 )
             # A Call names a subroutine, so the name follows the Add New Subroutine rules.
             check("subroutine", check_program_name)

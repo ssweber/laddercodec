@@ -21,6 +21,7 @@ from ..model import (
     display_form_only,
 )
 from ..operands.checks import Refusals
+from ..operands.message import says
 from ..operands.unchecked import keep_stored_blob, needs_stored_blob, refusals, unchecked
 from . import call as call_mod
 from . import coil as coil_mod
@@ -136,18 +137,21 @@ class Tee:
             if isinstance(self.contact, Tee):
                 check.refuse(
                     "contact",
-                    f"{self.contact!r} is a Tee already. Wrap the contact once, such as "
-                    "Tee(Contact('X001')).",
+                    says("{contact!r} is a Tee already", contact=self.contact),
                     Reason.FORM,
                     code=Code.INVALID_TEE,
+                    then="Wrap the contact once, such as Tee(Contact('X001')).",
                 )
             elif not isinstance(self.contact, (Condition, UnknownCondition)):
                 check.refuse(
                     "contact",
-                    f"{self.contact!r} is not a contact. Wrap a Contact or a CompareContact, "
-                    "such as Tee(Contact('X001')). For a wire down with no contact, write 'T'.",
+                    says("{contact!r} is not a contact", contact=self.contact),
                     Reason.FORM,
                     code=Code.INVALID_TEE,
+                    then=(
+                        "Wrap a Contact or a CompareContact, such as Tee(Contact('X001')). "
+                        "For a wire down with no contact, write 'T'."
+                    ),
                 )
 
     def to_csv(self) -> str:

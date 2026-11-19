@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 from ..codes import Code
 from ..model import FieldError, Instruction, Reason
 from ..operands.checks import Refusals
+from ..operands.message import make_refusal, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -60,35 +61,35 @@ class Undecoded(Instruction):
             if not isinstance(self.error, str):
                 check.refuse(
                     "error",
-                    f"{self.error!r} must be text that says why",
+                    says("{error!r} must be text that says why", error=self.error),
                     Reason.FORM,
                     code=Code.INVALID_UNDECODED,
                 )
             elif not self.error.strip():
                 check.refuse(
                     "error",
-                    "is blank; it must be text that says why",
+                    says("is blank", "it must be text that says why"),
                     Reason.MISSING,
                     code=Code.INVALID_UNDECODED,
                 )
             elif "\n" in self.error or "\r" in self.error:
                 check.refuse(
                     "error",
-                    f"{self.error!r} must be one line",
+                    says("{error!r} must be one line", error=self.error),
                     Reason.FORM,
                     code=Code.INVALID_UNDECODED,
                 )
             if not _is_index(self.rung):
                 check.refuse(
                     "rung",
-                    f"{self.rung!r} must be a whole number from 0",
+                    says("{rung!r} must be a whole number from 0", rung=self.rung),
                     _index_reason(self.rung),
                     code=Code.INVALID_UNDECODED,
                 )
             if self.row is not None and not _is_index(self.row):
                 check.refuse(
                     "row",
-                    f"{self.row!r} must be None or a whole number from 0",
+                    says("{row!r} must be None or a whole number from 0", row=self.row),
                     _index_reason(self.row),
                     code=Code.INVALID_UNDECODED,
                 )
@@ -97,7 +98,7 @@ class Undecoded(Instruction):
             ):
                 check.refuse(
                     "column",
-                    f"{self.column!r} must be None or 0 to 31",
+                    says("{column!r} must be None or 0 to 31", column=self.column),
                     _index_reason(self.column),
                     code=Code.INVALID_UNDECODED,
                 )
@@ -105,7 +106,7 @@ class Undecoded(Instruction):
                 reason = Reason.CHOICE if isinstance(self.stop, str) else Reason.FORM
                 check.refuse(
                     "stop",
-                    f"{self.stop!r} must be 'end' or 'return'",
+                    says("{stop!r} must be 'end' or 'return'", stop=self.stop),
                     reason,
                     code=Code.INVALID_CHOICE,
                 )
@@ -162,8 +163,10 @@ def _whole_number(call: AfCall, key: str) -> int | None:
     if text is None:
         return None
     if not (text.isascii() and text.isdigit()):
-        raise FieldError(
-            f"Undecoded.{key}: {text!r} must be a whole number from 0",
+        raise make_refusal(
+            FieldError,
+            f"Undecoded.{key}",
+            says("{text!r} must be a whole number from 0", text=text),
             field=f"Undecoded.{key}",
             reason=Reason.FORM,
             code=Code.INVALID_UNDECODED,
@@ -178,32 +181,43 @@ def parse_af_call(call: AfCall) -> Undecoded:
     known = {"rung", "row", "column", "stop"}
     extra = sorted(set(call.kwargs) - known)
     if len(call.args) != 1 or not call.args[0].startswith('"') or extra:
-        raise FieldError(
-            f"Undecoded: {call.to_token()!r} must be "
-            'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+        raise make_refusal(
+            FieldError,
+            "Undecoded",
+            says(
+                "{token!r} must be "
+                'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+                token=call.to_token(),
+            ),
             field=None,  # The token's syntax is wrong, not a field's value.
             reason=Reason.FORM,
             code=Code.INVALID_TOKEN,
         )
     rung = _whole_number(call, "rung")
     if rung is None:
-        raise FieldError(
-            f"Undecoded.rung: {call.to_token()!r} has no rung=",
+        raise make_refusal(
+            FieldError,
+            "Undecoded.rung",
+            says("{token!r} has no rung=", token=call.to_token()),
             field="Undecoded.rung",
             reason=Reason.MISSING,
             code=Code.INVALID_UNDECODED,
         )
     stop = call.kwargs.get("stop")
     if stop is None:
-        raise FieldError(
-            f"Undecoded.stop: {call.to_token()!r} has no stop=",
+        raise make_refusal(
+            FieldError,
+            "Undecoded.stop",
+            says("{token!r} has no stop=", token=call.to_token()),
             field="Undecoded.stop",
             reason=Reason.MISSING,
             code=Code.INVALID_UNDECODED,
         )
     if stop not in _STOPS:
-        raise FieldError(
-            f"Undecoded.stop: {stop!r} must be 'end' or 'return'",
+        raise make_refusal(
+            FieldError,
+            "Undecoded.stop",
+            says("{stop!r} must be 'end' or 'return'", stop=stop),
             field="Undecoded.stop",
             reason=Reason.CHOICE,
             code=Code.INVALID_CHOICE,

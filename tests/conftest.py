@@ -71,6 +71,7 @@ NAMED = frozenset(
         "Coil", "OutVariant", "Contact", "CompareContact",
         "Timer", "Counter", "Shift", "ForLoop", "Drum",
         "Send", "Receive", "ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress",
+        "Search", "Call", "Tee", "RawInstruction", "Undecoded",
     }
 )  # fmt: skip
 

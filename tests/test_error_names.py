@@ -24,6 +24,8 @@ from laddercodec import AddressError, FieldError, RefusedFieldWarning, read_csv
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.errors import CsvReadError, LaddercodecError
+from laddercodec.instructions import Tee
+from laddercodec.instructions.call import Call
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
@@ -32,6 +34,8 @@ from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.out_variant import OutVariant
+from laddercodec.instructions.raw import RawInstruction
+from laddercodec.instructions.search import Search
 from laddercodec.instructions.send_receive import (
     ModbusAddress,
     ModbusRtuTarget,
@@ -41,6 +45,7 @@ from laddercodec.instructions.send_receive import (
 )
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
+from laddercodec.instructions.undecoded import Undecoded
 from laddercodec.operands.address import (
     check_address,
     display_form_only,
@@ -795,3 +800,376 @@ def test_a_coil_refusal_shows_the_name_of_each_end_of_the_range() -> None:
         "Coil.range_end: Last (C1) is not above First (C2);"
     )
     assert str(error).startswith("Coil.range_end: 'C1' is not above 'C2';")
+
+
+# ---------------------------------------------------------------------------
+# Search, Call, Tee, RawInstruction and Undecoded
+# ---------------------------------------------------------------------------
+
+_MISC_NAMES = {"DS1": "Count", "DS5": "Last", "TXT1": "Text", "DD1": "Ptr"}
+
+
+@pytest.mark.parametrize(
+    ("build", "short", "detail"),
+    [
+        pytest.param(
+            lambda: Search("DS1", "DS5", "DS7", "DS10", "C10", "bad"),
+            "'bad' is not allowed",
+            "it is one of ==, !=, >, >=, <, <=",
+            id="search-op",
+        ),
+        pytest.param(
+            lambda: Search("DS1", "DS5", '"ab"', "DS10", "C10", ">"),
+            "'>' is not offered for text '\"ab\"'",
+            "text searches with == or !=",
+            id="search-text-order",
+        ),
+        pytest.param(
+            lambda: Search("TXT1", "TXT5", "5", "DS10", "C10", "=="),
+            "'5' is an integer value, which searches CTD, DD, DF, DS, TD, not TXT",
+            "",
+            id="search-constant-table",
+        ),
+        pytest.param(
+            lambda: Search("DS1", "DS5", "DH1", "DS10", "C10", "=="),
+            "'DH1' is a hex address, which searches DH, not DS",
+            "",
+            id="search-group-table",
+        ),
+        pytest.param(
+            lambda: Call(""),
+            "The subroutine name is blank",
+            "Enter the name of the subroutine to call.",
+            id="call-blank",
+        ),
+        pytest.param(
+            lambda: Call("a/b"),
+            "'a/b' holds /",
+            'a subroutine name may not hold any of \\ / : * ? " < > |',
+            id="call-forbidden",
+        ),
+        pytest.param(
+            lambda: Call("a" * 25),
+            "'" + "a" * 25 + "' is 25 characters",
+            "a subroutine name is at most 24",
+            id="call-long",
+        ),
+        pytest.param(
+            lambda: Call("con"),
+            "'con' uses the Windows device name 'con'",
+            "CLICK refuses it as a subroutine name",
+            id="call-device",
+        ),
+        pytest.param(
+            lambda: Tee(Tee(Contact("X1"))),
+            "Tee(contact=Contact(operand='X001', kind='no', immediate=False)) is a Tee already",
+            "Wrap the contact once, such as Tee(Contact('X001')).",
+            id="tee-tee",
+        ),
+        pytest.param(
+            lambda: Tee("X1"),
+            "'X1' is not a contact",
+            "Wrap a Contact or a CompareContact, such as Tee(Contact('X001')). "
+            "For a wire down with no contact, write 'T'.",
+            id="tee-not-a-contact",
+        ),
+        pytest.param(
+            lambda: Undecoded(5, 0),
+            "5 must be text that says why",
+            "",
+            id="undecoded-error-form",
+        ),
+        pytest.param(
+            lambda: Undecoded("", 0),
+            "is blank",
+            "it must be text that says why",
+            id="undecoded-error-blank",
+        ),
+        pytest.param(
+            lambda: Undecoded("a\nb", 0),
+            "'a\\nb' must be one line",
+            "",
+            id="undecoded-error-lines",
+        ),
+        pytest.param(
+            lambda: Undecoded("a", -1),
+            "-1 must be a whole number from 0",
+            "",
+            id="undecoded-rung",
+        ),
+        pytest.param(
+            lambda: Undecoded("a", 0, 1.5),
+            "1.5 must be None or a whole number from 0",
+            "",
+            id="undecoded-row",
+        ),
+        pytest.param(
+            lambda: Undecoded("a", 0, None, 40),
+            "40 must be None or 0 to 31",
+            "",
+            id="undecoded-column",
+        ),
+        pytest.param(
+            lambda: Undecoded("a", 0, stop="bad"),
+            "'bad' must be 'end' or 'return'",
+            "",
+            id="undecoded-stop",
+        ),
+        pytest.param(
+            lambda: RawInstruction(5, b"", 1),
+            "5 is not text",
+            "",
+            id="raw-class-name",
+        ),
+        pytest.param(
+            lambda: RawInstruction("Foo", "x", 1),
+            "str is not bytes",
+            "",
+            id="raw-blob",
+        ),
+        pytest.param(
+            lambda: RawInstruction("Foo", b"", 70000),
+            "70000 is not a whole number from 0 to 65535",
+            "",
+            id="raw-part-count-range",
+        ),
+        pytest.param(
+            lambda: RawInstruction("Foo", b"", "1"),
+            "'1' is not a whole number from 0 to 65535",
+            "",
+            id="raw-part-count-form",
+        ),
+        pytest.param(
+            lambda: RawInstruction("Foo", b"", 1, 0),
+            "0 is not a whole number from 1 to 255",
+            "",
+            id="raw-rows",
+        ),
+        pytest.param(
+            lambda: RawInstruction("Foo", b"", 1, None, "2"),
+            "'2' is not a whole number from 1 to 255",
+            "",
+            id="raw-sub",
+        ),
+    ],
+)
+def test_a_refusal_of_search_call_tee_raw_or_undecoded_renders_its_parts(
+    build: Callable[[], object], short: str, detail: str
+) -> None:
+    error = _refusal(build)
+    assert parts_of(error) is not None
+    assert error.short() == short
+    assert error.detail(_MISC_NAMES) == detail
+    assert error.message() == str(error)
+
+
+def test_a_search_refusal_names_the_table_and_the_value() -> None:
+    error = _refusal(lambda: Search("C1", "C5", "DS7", "DS10", "C10", "=="))
+    assert error.short({"C1": "Valve"}) == "Valve..C5 (C1..C5) is not allowed"
+    error = _refusal(lambda: Search("DS1", "DS5", "DH1", "DS10", "C10", "=="))
+    assert error.message({"DH1": "Word"}) == (
+        "Search.value: Word (DH1) is a hex address, which searches DH, not DS (OBJ-004)"
+    )
+    error = _refusal(lambda: Search("DS1", "DS5", '"ab"', "DS10", "C10", ">"))
+    assert error.short({"ab": "x"}) == "'>' is not offered for text '\"ab\"'"
+
+
+def test_a_text_that_looks_like_an_address_is_never_renamed() -> None:
+    """A subroutine name, a marker's error text and a class name are plain text."""
+    names = {"DS1": "Count"}
+    assert _refusal(lambda: Call("DS1/")).short(names) == "'DS1/' holds /"
+    assert _refusal(lambda: Undecoded("DS1\n", 0)).short(names) == "'DS1\\n' must be one line"
+    assert _refusal(lambda: RawInstruction("DS1", "x", 1)).short(names) == "str is not bytes"
+
+
+@pytest.mark.parametrize(
+    ("token", "short"),
+    [
+        pytest.param("raw(Foo)", "raw(Foo): a raw token is raw(ClassName,...)", id="no-comma"),
+        pytest.param("notraw(x)", "Not a raw token: 'notraw(x)'", id="not-raw"),
+        pytest.param("raw(Foo,zz)", "'zz' is not hex bytes", id="hex"),
+        pytest.param(
+            "raw(Foo,0102,pins=1)",
+            "raw(Foo,hex,...): pins=1 can't follow the hex",
+            id="hex-pins",
+        ),
+        pytest.param(
+            "raw(Foo,0102,extra)",
+            "raw(Foo,hex,...): only rows= and sub= may follow the hex, not 'extra'",
+            id="hex-extra",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,x)",
+            "raw(Foo,...): type marker is 0xTTTT and part count is digits",
+            id="type-marker",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,65536)",
+            "raw(Foo,...): part count 65536 is not a whole number from 0 to 65535",
+            id="part-count",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,3,pins=1/2,rows=5)",
+            "raw(Foo,...): 'rows=5' goes right after the part count, rows= then sub= then "
+            "pins=, once each",
+            id="order",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,3,rows=2,pins=1/2)",
+            "raw(Foo,...): rows=2 does not fit pins=1/2",
+            id="rows-pins",
+        ),
+        pytest.param(
+            "raw(Foo,0102,rows=0)",
+            "raw(Foo,...): rows='0' is not a whole number from 1 to 32",
+            id="rows",
+        ),
+        pytest.param(
+            "raw(Foo,0102,sub=256)",
+            "raw(Foo,...): sub='256' is not a whole number from 1 to 255",
+            id="sub",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,300)",
+            "raw(Foo,...): 300 parts need pins=, each row 1 to 31",
+            id="pins-needed",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,1,pins=1)",
+            "raw(Foo,...): pins=1 is only for a box of 2 or more parts, not 1",
+            id="pins-one-part",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,3,pins=1)",
+            "raw(Foo,...): pins=1 must hold 2 rows, one per part after the first, joined by /",
+            id="pins-count",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,3,pins=1/x)",
+            "raw(Foo,...): pins=1/x holds a row that is not a whole number from 1 to 31",
+            id="pins-row",
+        ),
+        pytest.param(
+            "raw(Foo,0x1234,3,pins=2/1)",
+            "raw(Foo,...): pins=2/1 must ascend",
+            id="pins-order",
+        ),
+        pytest.param("raw(Foo,0x1234,1,bad)", "Invalid field spec: 'bad'", id="field-spec"),
+    ],
+)
+def test_a_raw_token_refusal_keeps_its_parts(token: str, short: str) -> None:
+    error = _refusal(lambda: RawInstruction.from_csv_token(token))
+    assert parts_of(error) is not None
+    assert error.short() == short
+    assert error.message(_MISC_NAMES) == str(error)
+
+
+def test_a_raw_token_refusal_that_states_what_the_box_needs_has_a_detail() -> None:
+    error = _refusal(lambda: RawInstruction.from_csv_token("raw(Foo,0102,pins=1)"))
+    assert error.detail() == "the blob holds the part bytes"
+    error = _refusal(lambda: RawInstruction.from_csv_token("raw(Foo,0x1234,3,rows=2,pins=1/2)"))
+    assert error.detail() == "the box ends one row below its last pin (rows=3)"
+
+
+@pytest.mark.parametrize(
+    ("af", "short"),
+    [
+        pytest.param(
+            'undecoded("why",rung=x,stop=end)',
+            "'x' must be a whole number from 0",
+            id="rung-form",
+        ),
+        pytest.param(
+            'undecoded("why",stop=end)',
+            "'undecoded(\"why\",stop=end)' has no rung=",
+            id="rung-missing",
+        ),
+        pytest.param(
+            'undecoded("why",rung=0)',
+            "'undecoded(\"why\",rung=0)' has no stop=",
+            id="stop-missing",
+        ),
+        pytest.param(
+            'undecoded("why",rung=0,stop=bad)',
+            "'bad' must be 'end' or 'return'",
+            id="stop-choice",
+        ),
+        pytest.param(
+            "undecoded(why,rung=0,stop=end)",
+            "'undecoded(why,rung=0,stop=end)' must be "
+            'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+            id="syntax",
+        ),
+    ],
+)
+def test_an_undecoded_csv_token_refusal_keeps_its_parts(
+    tmp_path: Path, af: str, short: str
+) -> None:
+    """These refusals come from parsing the CSV token, which the guard in
+    ``tests/conftest.py`` does not see."""
+    with pytest.raises(FieldError) as raised:
+        _read_af(tmp_path, af)
+    error = raised.value
+    assert parts_of(error) is not None
+    assert error.short() == short
+    assert error.message(_MISC_NAMES).startswith("Undecoded")
+
+
+_SEARCH_ADDRESSES = (
+    "DS1", "ds1", "DS5", "DS4500", "C1", "c2", "X1", "Y1", "TXT1", "TXT9", "SD1", "DD1", "DF1",
+    "DH1", "XD0", "TD1", "T1", "CT1", "CTD1", "DS[DD1]", "Q1", "",
+)  # fmt: skip
+
+
+def _search_builds() -> Iterator[tuple[Callable[[], object], tuple[str, ...]]]:
+    """Yield each build of a Search in the corpus, with its text fields."""
+    for start, end, value in itertools.product(_SEARCH_ADDRESSES, repeat=3):
+        for op in ("==", ">"):
+            fields = (start, end, value)
+            yield (
+                (
+                    lambda a=fields, op=op: Search(
+                        table_start=a[0],
+                        table_end=a[1],
+                        value=a[2],
+                        result="DS10",
+                        found="C10",
+                        op=op,
+                    )
+                ),
+                fields,
+            )
+    for result, found in itertools.product(_SEARCH_ADDRESSES, repeat=2):
+        yield (
+            (lambda r=result, f=found: Search("DS1", "DS5", "DS7", result=r, found=f, op="==")),
+            (result, found),
+        )
+
+
+def test_every_address_that_a_search_refusal_names_takes_a_name() -> None:
+    """Name each address in the fields, and no address is left in quotes or bare.
+
+    A limit such as ``DS1-DS4500`` is plain on purpose, so a refusal that states one is not
+    checked for the address that the limit holds.
+    """
+    plain: dict[str, str] = {}
+    count = 0
+    for build, fields in _search_builds():
+        try:
+            build()
+        except FieldError as exc:
+            addresses = _addresses(fields)
+            names = {display: f"<{display}>" for display in addresses}
+            for error in exc.errors:
+                count += 1
+                parts = parts_of(error)
+                assert parts is not None, str(error)
+                if re.search(r"\b[A-Z]+\d+-[A-Z]*\d+", str(error)):
+                    continue
+                text = _outside_parentheses(error.message(names))
+                for display, typed in addresses.items():
+                    bare = re.search(rf"(?<![\w<]){re.escape(display)}(?![\w>])", text)
+                    if f"'{display}'" in text or f"'{typed}'" in text or bare:
+                        plain.setdefault(str(error), display)
+    assert count > 1000
+    assert not plain, plain
