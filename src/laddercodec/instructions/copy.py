@@ -2764,8 +2764,8 @@ def _from_tags(
         # disagrees with its text, so return None for one. A number copied into a TXT
         # address has either no end, or the end that its text fills together with the
         # conversion type for its kind of number. Quoted text has either no end or the end
-        # that it fills. It can have no end because CLICK's paste drops the end, even from
-        # CLICK's own clipboard.
+        # that it fills. It can have no end because CLICK's paste drops the end when the
+        # end's address is not in the project.
         number_end = _number_fill_end(copy.source, copy.dest)
         if number_end is not None and destination_end:
             if destination_end != number_end.display or conv_type not in _number_text_types(

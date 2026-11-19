@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 
 
 class UndecodedRungWarning(UserWarning):
-    """Issued when an undecoded marker rung stands in place of a rung.
+    """Issued when a rung can't be decoded or written.
 
-    A decoder issues it for a rung that it cannot decode, and ``write_csv`` for a rung that
-    it cannot write.
+    ``decode()``, ``decode_program()`` and ``write_csv`` put an undecoded marker in the
+    rung's place. ``addresses()`` leaves out the addresses that it can't read.
 
     Attributes
     ----------
@@ -39,14 +39,23 @@ class UndecodedRungWarning(UserWarning):
     program:
         The name of the program when the warning comes from
         :func:`laddercodec.decode_program`, else ``None``.
+    text:
+        The warning's message when the caller gave one, else ``None``. ``addresses()``
+        gives one, because it puts no marker in the rung's place.
     """
 
     def __reduce__(self):
-        return (type(self), (self.marker, self.program))
+        return (type(self), (self.marker, self.program, self.text))
 
-    def __init__(self, marker: Undecoded, program: str | None = None) -> None:
+    def __init__(
+        self, marker: Undecoded, program: str | None = None, text: str | None = None
+    ) -> None:
         self.marker = marker
         self.program = program
+        self.text = text
+        if text is not None:
+            super().__init__(text)
+            return
         prefix = f"program {program!r}, " if program is not None else ""
         super().__init__(
             f"{prefix}{marker.where} is not decoded, and an undecoded marker stands in for it: "

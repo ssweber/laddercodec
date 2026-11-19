@@ -52,6 +52,7 @@ EXPECTED_ROOT_EXPORTS = (
     "CsvLocation",
     "find_v4_only",
     "is_v4_only",
+    "addresses",
     "check",
     "Finding",
     "lay_out",

@@ -213,7 +213,8 @@ def test_a_text_copy_encodes_as_clicks_clip(tmp_path: Path, case: str) -> None:
     [("paste01", ['"HALLO"']), ("paste02", ['"HELLO"', '"HALLO"'])],
 )
 def test_pasted_text_saved_without_its_end_decodes_as_the_copy(case: str, texts: list) -> None:
-    """When CLICK pastes a Copy of text, it saves the text and no destination end.
+    """When CLICK pastes a Copy of text into a project that lacks the end's address, it
+    saves the text and no destination end.
 
     The Copy decodes with no refusal. While it is unchanged, it writes the blob that it was
     decoded from."""

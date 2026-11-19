@@ -35,6 +35,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "Project",
             "find_v4_only",
             "is_v4_only",
+            "addresses",
             "check",
             "Finding",
             "FieldError",
