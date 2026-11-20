@@ -421,7 +421,7 @@ def test_a_later_wrong_type_field_is_among_the_errors_of_an_earlier_refusal() ->
     with pytest.raises(FieldError) as raised:
         Contact(7, immediate=5)  # type: ignore[arg-type]
     error = raised.value
-    assert str(error) == "Contact.immediate: 5 is not True, False, 1 or 0"
+    assert str(error) == "Contact.immediate: 5 is not True, False, 1 or 0. Pass True or False."
     assert [(e.field, e.code) for e in error.errors] == [
         ("Contact.immediate", "not-a-flag"),
         ("Contact.operand", "not-an-address"),
@@ -540,7 +540,9 @@ def test_a_drum_pattern_that_is_not_rows_of_cells_is_refused_as_the_wrong_shape(
 def test_an_unhashable_out_unit_is_refused_as_an_unsupported_unit() -> None:
     with pytest.raises(FieldError) as raised:
         OutVariant("timed", "Y1", on_acc="TD1", on_preset="100", unit=["Tms"])  # type: ignore[arg-type]
-    assert str(raised.value) == "OutVariant.unit: timed does not support unit=['Tms']"
+    assert str(raised.value) == (
+        "OutVariant.unit: timed does not support unit=['Tms']. Set unit to Tms, Ts or Tm."
+    )
     assert (raised.value.code, raised.value.field) == ("coil-time-unit", "OutVariant.unit")
 
 
@@ -615,8 +617,8 @@ def test_a_target_port_with_too_many_digits_is_out_of_range(tmp_path: Path) -> N
     target = 'ModbusTcpTarget(name="plc",ip="192.168.0.1",port={},device_id=1)'
     long = _read_error(tmp_path, _send_token(target=target.format(_LONG)))
     large = _read_error(tmp_path, _send_token(target=target.format("999999")))
-    assert str(large).startswith("ModbusTcpTarget.port: must be 1-65535, got 999999")
-    assert str(long).startswith(f"ModbusTcpTarget.port: must be 1-65535, got {_LONG}")
+    assert str(large).startswith("ModbusTcpTarget.port: 999999 is outside 1-65535. ")
+    assert str(long).startswith(f"ModbusTcpTarget.port: {_LONG} is outside 1-65535. ")
     assert (long.code, long.reason, long.field) == (
         "invalid-modbus-target",
         Reason.RANGE,
@@ -648,8 +650,8 @@ def test_a_slave_id_with_too_many_digits_is_out_of_range(
     field = "ModbusTcpTarget.device_id" if kind == "tcp" else "ModbusRtuTarget.device_id"
     long = _read_error(tmp_path, _send_token(target=target.format(_LONG)))
     large = _read_error(tmp_path, _send_token(target=target.format("999999")))
-    assert str(large).startswith(f"{field}: must be 0-{high} or a DS address, got 999999")
-    assert str(long).startswith(f"{field}: must be 0-{high} or a DS address, got {_LONG}")
+    assert str(large).startswith(f"{field}: 999999 is outside 0-{high}. ")
+    assert str(long).startswith(f"{field}: {_LONG} is outside 0-{high}. ")
     assert (long.code, long.reason, long.field) == ("invalid-modbus-target", Reason.RANGE, field)
     assert (long.code, long.reason, long.field) == (large.code, large.reason, large.field)
 
@@ -658,14 +660,15 @@ def test_a_doubled_minus_sign_in_a_target_is_refused_as_a_number(tmp_path: Path)
     target = 'ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=--5)'
     error = _read_error(tmp_path, _send_token(target=target))
     assert str(error).startswith(
-        "ModbusRtuTarget.device_id: must be a number or a DS address (DS1..DS4500), got '--5'"
+        "ModbusRtuTarget.device_id: '--5' is not an address from DS1 to DS4500. "
+        "Write a number from 0 to 247, or an address from DS1 to DS4500, such as 1."
     )
     assert error.code == "invalid-modbus-target"
 
 
 def test_a_function_code_with_too_many_digits_is_not_a_number(tmp_path: Path) -> None:
     error = _read_error(tmp_path, _send_token(extra=f"function_code={_LONG},"))
-    assert str(error).startswith(f"function_code must be a number, got '{_LONG}'")
+    assert str(error).startswith(f"function_code must be a number, got {_LONG}")
     assert (error.code, error.reason, error.field) == (
         "invalid-choice",
         Reason.FORM,

@@ -157,26 +157,26 @@ def test_check_constant_refuses(value: str, constants: Constants, message: str) 
 REFUSED_EXACT: list[tuple[str, Constants, str]] = [
     # A field of decimal integers only refuses a real beyond float32 with the same message
     # as 1.5.
-    ("1.5", DIGITS, "X.f: '1.5' is a real; X.f takes a decimal integer"),
-    ("3.5E+38", DIGITS, "X.f: '3.5E+38' is a real; X.f takes a decimal integer"),
-    ("123456789h", DIGITS, "X.f: '123456789h' is a hex value; X.f takes a decimal integer"),
+    ("1.5", DIGITS, "X.f: 1.5 is a real; X.f takes a decimal integer"),
+    ("3.5E+38", DIGITS, "X.f: 3.5E+38 is a real; X.f takes a decimal integer"),
+    ("123456789h", DIGITS, "X.f: 123456789h is a hex value; X.f takes a decimal integer"),
     ("$G1", DIGITS, "X.f: '$G1' is refused; X.f takes a decimal integer"),
     ('"A"b"', DIGITS, "X.f: '\"A\"b\"' is quoted text; X.f takes a decimal integer"),
     ("$G1", COUNTER, "X.f: '$G1' is refused; X.f takes a decimal integer"),
     ("$G1", HEX_REMOTE, "X.f: '$G1' is refused; X.f takes a hex value"),
-    ("100000000h", COMPARE, "X.f: '100000000h' is above FFFFh; a hex constant here is 0h to FFFFh (OBJ-005)"),
+    ("100000000h", COMPARE, "X.f: 100000000h is above FFFFh; a hex constant here is 0h to FFFFh (OBJ-005)"),
     ("1 2", DIGITS, "X.f: '1 2' is refused; X.f takes a decimal integer"),
     # A hex field accepts any number of leading zeros on a value within its range. It
     # refuses a sign, and text that is not hex digits then h.
     ("h", HEX_REMOTE, "X.f: 'h' is refused; X.f takes a hex value: hex digits then h"),
-    ("+1h", HEX_REMOTE, "X.f: '+1h' is refused; a hex constant has no sign"),
-    ("-1h", HEX_REMOTE, "X.f: '-1h' is refused; a hex constant has no sign"),
-    ("100000000h", HEX_REMOTE, "X.f: '100000000h' is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)"),
-    ("5", HEX_REMOTE, "X.f: '5' is a decimal integer; X.f takes a hex value"),
+    ("+1h", HEX_REMOTE, "X.f: +1h is refused; a hex constant has no sign"),
+    ("-1h", HEX_REMOTE, "X.f: -1h is refused; a hex constant has no sign"),
+    ("100000000h", HEX_REMOTE, "X.f: 100000000h is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)"),
+    ("5", HEX_REMOTE, "X.f: 5 is a decimal integer; X.f takes a hex value"),
     # a sign the field does not take
-    ("+1", COUNTER, "X.f: '+1' is refused; a constant here takes no plus sign (OBJ-005)"),
-    ("+1", DIGITS, "X.f: '+1' is refused; a constant here takes no sign (OBJ-005)"),
-    ("-1", Constants(frozenset({N}), signs="+"), "X.f: '-1' is refused; a constant here takes no minus sign (OBJ-005)"),
+    ("+1", COUNTER, "X.f: +1 is refused; a constant here takes no plus sign (OBJ-005)"),
+    ("+1", DIGITS, "X.f: +1 is refused; a constant here takes no sign (OBJ-005)"),
+    ("-1", Constants(frozenset({N}), signs="+"), "X.f: -1 is refused; a constant here takes no minus sign (OBJ-005)"),
     # a Fill into TXT takes one character, a Compare text up to 128
     ('"' + "A" * 129 + '"', ONE_CHAR, "X.f: \"" + "A" * 129 + "\" is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"),
 ]  # fmt: skip
@@ -250,12 +250,12 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ('"a"b"', {"constants": ANY}, FieldError, "holds a quote with other characters"),
     # ... and any other text an address. A field of whole numbers names the kind of another
     # constant and says what to write.
-    ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'+1' has a plus sign. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
-    ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'1.5' is not a whole number. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
+    ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "+1 has a plus sign. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
+    ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "1.5 is not a whole number. Write a whole number from 0 to 32767, or a DS address, such as DS1."),
     ("$41", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'$41' is text"),
-    ("FFh", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'FFh' is a hex value. Write a whole number"),
-    ("5.0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'5.0' is a real. Write a whole number"),
-    ("-0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'-0' has a minus sign. Write a whole number"),
+    ("FFh", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "FFh is a hex value. Write a whole number"),
+    ("5.0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "5.0 is a real. Write a whole number"),
+    ("-0", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "-0 has a minus sign. Write a whole number"),
     ('"A"', {"banks": {"DS"}, "constants": DIGITS}, AddressError, '"A" is quoted text. Write a whole number'),
     ("DH", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "'DH' is not a CLICK address"),
     ("-5", {"banks": {"TD", "DD"}, "constants": DIGITS}, AddressError, "or an address in DD or TD, such as DD1."),
@@ -278,7 +278,7 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     # Without constants, every text is an address.
     ("5", {"banks": {"DS"}}, AddressError, "not a CLICK address"),
     # Pointers
-    ("DS[DS1]", {"banks": {"DS"}}, AddressError, "is a pointer; X.f can't be a pointer, and only a single Copy takes one. Write an address, such as DS1."),
+    ("DS[DS1]", {"banks": {"DS"}}, AddressError, "is a pointer; only a single Copy takes one. Write an address, such as DS1."),
     ("DS[DS1]", {"banks": {"TD", "DD"}}, AddressError, "Write an address, such as DD1."),
     ("X[DS1]", {"banks": {"X", "C"}}, AddressError, "Write an address, such as X001."),
     ("Y[DS1]", {"pointer": True}, AddressError, "a pointer in X.f addresses C, DS"),
@@ -399,7 +399,9 @@ def test_check_flag_accepts(value: object, expected: bool) -> None:
 
 @pytest.mark.parametrize("value", [2, -1, "1", "True", None, 1.0, []])
 def test_check_flag_refuses(value: object) -> None:
-    with pytest.raises(FieldError, match=r"^X.f: .* is not True, False, 1 or 0$") as caught:
+    with pytest.raises(
+        FieldError, match=r"^X.f: .* is not True, False, 1 or 0\. Pass True or False\.$"
+    ) as caught:
         check_flag(value, "X.f")
     assert caught.value.field == "X.f"
 

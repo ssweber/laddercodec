@@ -138,7 +138,7 @@ def test_timer_gives_every_refusal() -> None:
         ("Timer.preset", "range", "OBJ-005"),
     ]
     assert all(isinstance(e.obj, Timer) for e in errors)
-    assert str(errors[1]) == "Timer.preset: '40000' is outside 0 to 32767 (OBJ-005)"
+    assert str(errors[1]) == "Timer.preset: 40000 is outside 0 to 32767 (OBJ-005)"
 
 
 def test_timer_accumulator_against_done() -> None:

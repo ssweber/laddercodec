@@ -109,9 +109,18 @@ class TestNormalizeAddress:
         ("typed", "message"),
         [
             ("Q01", r"^Contact\.operand: 'Q01' has no CLICK bank 'Q'"),
-            ("X1 ", r"^Contact\.operand: 'X1 ' is not a CLICK address$"),
-            ("C123456", r"^Contact\.operand: 'C123456' is not a CLICK address$"),
-            ("X١", r"^Contact\.operand: 'X١' is not a CLICK address$"),
+            (
+                "X1 ",
+                r"^Contact\.operand: 'X1 ' is not a CLICK address\. Write an address, such as X001\.$",
+            ),
+            (
+                "C123456",
+                r"^Contact\.operand: 'C123456' is not a CLICK address\. Write an address, such as X001\.$",
+            ),
+            (
+                "X١",
+                r"^Contact\.operand: 'X١' is not a CLICK address\. Write an address, such as X001\.$",
+            ),
             ("X017", r"^Contact\.operand: 'X017' is outside X001-X016"),
             ("x017", r"^Contact\.operand: 'x017' \(X017\) is outside X001-X016"),
             ("x1u", r"^Contact\.operand: 'x1u' \(X001u\) is outside X001-X016"),
@@ -131,7 +140,11 @@ class TestNormalizeAddress:
             ("x0", r"^Copy\.source: 'x0' \(X000\) is outside X001-X016"),
             ("xd1u", r"^Copy\.source: 'xd1u' \(XD1u\) is outside XD0, XD0u, XD1-XD8$"),
             ("yd09", r"^Copy\.source: 'yd09' \(YD9\) is outside YD0, YD0u, YD1-YD8$"),
-            ("ds[ds0]", r"^Copy\.source pointer: 'DS0' is outside DS1-DS4500$"),
+            (
+                "ds[ds0]",
+                r"^Copy\.source pointer: 'DS0' is outside DS1-DS4500\. "
+                r"Write a DS address as the index, such as DS\[DS1\]\.$",
+            ),
         ],
     )
     def test_lowercase_refused_on_a_ds_field(self, typed: str, message: str) -> None:

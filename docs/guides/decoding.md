@@ -102,7 +102,7 @@ for w in caught:
         print(w.message.rung, w.message.instruction.to_csv())
         print(w.message.error)
 # 2 math(SUM ( X001 : X036 ),DS1,mode=decimal)
-# Math.expression: SUM ( X001 : X036 ) is refused: X036 is in the option slot (X021-X036), and CLICK sums the wrong bits for this range.
+# Math.expression: SUM ( X001 : X036 ) is refused: X036 is in the option slot (X021-X036). In the option slot, write a range of one point or of two points next to each other, such as SUM ( X025 : X026 ).
 ```
 
 The warning carries `instruction`, `error` (the `FieldError` that building the

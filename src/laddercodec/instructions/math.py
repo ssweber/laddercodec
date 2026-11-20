@@ -242,12 +242,12 @@ class Math(Instruction):
                     # address in it.
                     says(
                         "{expression!r} holds a <nickname>",
-                        "Math takes addresses, not nicknames (laddercodec cannot resolve a "
-                        "nickname to its address)",
+                        "Math takes addresses, not nicknames",
                         expression=self.expression,
                     ),
                     Reason.ADDRESS,
                     code=Code.MATH_NICKNAME,
+                    then="Write the address of each nickname in its place.",
                 )
             check.normalize("dest")
             # The banks allowed for the result, and how the formula is read, depend on the mode.

@@ -911,7 +911,8 @@ def test_a_flag_other_than_0_or_1_is_refused(tmp_path: Path, token: str, field: 
     """A flag is 1 or 0. read_csv refuses any other value, such as ``oneshot=yes``, instead
     of reading it as off."""
     with pytest.raises(
-        FieldError, match=rf"{re.escape(field)}: '.*' is not 1 or 0 \(at "
+        FieldError,
+        match=rf"{re.escape(field)}: \S+ is not 1 or 0\. Write \w+=1 or \w+=0\. \(at ",
     ) as raised:
         _read_af(tmp_path, token)
     assert raised.value.reason is Reason.FLAG

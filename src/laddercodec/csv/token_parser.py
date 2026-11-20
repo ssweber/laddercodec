@@ -70,7 +70,9 @@ def _split_top_level_csv_like(value: str, name: str = "") -> tuple[str, ...]:
 
     Raise ``CsvReadError`` for a keyword value in quotes in such a call, such as
     ``oneshot="1"``, when the call has no text, or when the text leaves a Copy without its
-    destination or a Search without its ``result=`` and ``found=``.
+    destination or a Search without its ``result=`` and ``found=``.  If the quotes do not
+    pair up, as in ``copy("A"B",TXT1,oneshot="1")``, the error names the last quoted keyword
+    value in the call.
     """
     if name not in _TYPED_QUOTE_CALLS:
         return _split_args(value)
@@ -86,10 +88,22 @@ def _split_top_level_csv_like(value: str, name: str = "") -> tuple[str, ...]:
     if last == first:
         raise CsvReadError("Malformed AF token arguments: unmatched quote")
     parts = _split_args(value, (first, last))
-    if paired is None or _holds_the_rest(name, parts):
+    if _holds_the_rest(name, parts):
+        return parts
+    if paired is None:
+        # The quotes do not pair up, so the text runs to the quote of a quoted keyword
+        # value, such as oneshot="1" in copy("A"B",TXT1,oneshot="1").  Name that value.
+        quoted = list(_QUOTED_KEYWORD.finditer(value, first + 1))
+        if quoted:
+            _refuse_quoted_keyword(name, (quoted[-1].group(1),))
         return parts
     _refuse_quoted_keyword(name, paired)
     return paired
+
+
+#: A keyword argument whose value is in quotes, such as ``,oneshot="1"``, at the end of a
+#: call's arguments or before the next comma.  Group 1 is the argument without its comma.
+_QUOTED_KEYWORD = re.compile(r',\s*([A-Za-z_]\w*\s*=\s*"[^"]*")\s*(?=,|$)')
 
 
 def _opens_text(name: str, before: str) -> bool:

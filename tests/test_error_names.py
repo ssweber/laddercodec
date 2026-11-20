@@ -159,7 +159,8 @@ def test_message_takes_the_later_of_two_keys_for_one_address() -> None:
         pytest.param(
             lambda: Fill(value="1", dest_start="DS1", dest_end="DS[DD1]"),
             {"DD1": "Ptr"},
-            "Fill.dest_end: DS[Ptr] (DS[DD1]) is a pointer; only a single Copy takes one",
+            "Fill.dest_end: DS[Ptr] (DS[DD1]) is a pointer; only a single Copy takes one. "
+            "Write an address, such as DS1.",
             id="pointer-index-named",
         ),
         pytest.param(
@@ -187,7 +188,7 @@ def test_message_names_ranges_pointers_and_typed_text(
 def test_a_constant_is_never_renamed() -> None:
     error = _refusal(lambda: Fill(value="12", dest_start="TXT1", dest_end="TXT2"))
     assert error.message({"TXT1": "Name"}) == str(error)
-    assert str(error).startswith("Fill.value: '12' is 2 characters")
+    assert str(error).startswith("Fill.value: 12 is 2 characters")
 
 
 def test_message_never_names_an_address_in_a_list_of_the_rule() -> None:
@@ -237,8 +238,18 @@ def test_short_and_detail_leave_the_id_and_label_out() -> None:
 
 def test_detail_ends_with_what_to_do() -> None:
     error = _refusal(lambda: Fill(value="12", dest_start="TXT1", dest_end="TXT2"))
-    assert error.short() == "'12' is 2 characters, and a Fill into TXT takes one"
-    assert error.detail() == "Write one character, such as '5', or a real, such as 1.5."
+    assert error.short() == "12 is 2 characters, and a Fill into TXT takes one"
+    assert error.detail() == "Write one character, such as 5, or a real, such as 1.5."
+
+
+@pytest.mark.parametrize(("source", "dest"), [("DF1", "DD1"), ("DD1", "DF1")])
+def test_a_wrong_converter_between_a_real_and_a_32_bit_integer_offers_to_binary(
+    source: str, dest: str
+) -> None:
+    error = _refusal(lambda: Copy(source, dest, convert="to_text"))
+    assert error.code == Code.COPY_CONVERTER_BANK
+    assert error.detail() == "Leave convert out, or write convert=to_binary."
+    Copy(source, dest, convert="to_binary")
 
 
 def test_a_refusal_with_no_explanation_has_an_empty_detail() -> None:
@@ -269,7 +280,10 @@ def test_each_of_several_refusals_renders_its_own_parts() -> None:
     """``str(err)`` is the first refusal's text.  Each item of ``errors`` renders its own."""
     error = _refusal(lambda: Copy(source="DS[DD1]", dest="X1"))
     assert len(error.errors) == 2
-    assert str(error) == "Copy.source pointer: 'DD1' is not allowed; Copy.source pointer takes DS"
+    assert str(error) == (
+        "Copy.source pointer: 'DD1' is not allowed; Copy.source pointer takes DS. "
+        "Write a DS address as the index, such as DS[DS1]."
+    )
     assert error.short({"DD1": "Ptr"}) == "Ptr (DD1) is not allowed"
     second = error.errors[1]
     assert second.short({"X1": "Start"}) == "Start (X001) is not allowed"
@@ -369,7 +383,7 @@ def test_a_refusal_that_read_csv_keeps_shows_names(tmp_path: Path) -> None:
         pytest.param(
             lambda: Copy(source="-FFh", dest="DS1"),
             "OBJ-005",
-            "Copy.source: '-FFh' is refused; a hex constant has no sign (OBJ-005)",
+            "Copy.source: -FFh is refused; a hex constant has no sign (OBJ-005)",
             "a hex constant has no sign",
             id="OBJ-005",
         ),
@@ -675,9 +689,7 @@ def test_a_modbus_target_refusal_keeps_its_parts(build: Callable[[], object]) ->
 
 def test_a_slave_id_in_another_bank_shows_its_name() -> None:
     error = _refusal(lambda: ModbusRtuTarget("r", "cpu2", "DD1"))
-    assert error.short({"DD1": "Id"}) == (
-        "must be a number or a DS address (DS1..DS4500), got Id (DD1)"
-    )
+    assert error.short({"DD1": "Id"}) == "Id (DD1) is not an address from DS1 to DS4500"
 
 
 @pytest.mark.parametrize(
@@ -790,9 +802,9 @@ def test_a_bit_instruction_csv_refusal_keeps_its_parts(tmp_path: Path) -> None:
     with pytest.raises(FieldError) as flag:
         _read_af(tmp_path, "out(C1,oneshot=2)")
     assert parts_of(flag.value) is not None
-    assert flag.value.short() == "'2' is not 1 or 0"
+    assert flag.value.short() == "2 is not 1 or 0"
     assert flag.value.message({"C1": "Valve"}).split(" (at ")[0] == (
-        "Coil.oneshot: '2' is not 1 or 0"
+        "Coil.oneshot: 2 is not 1 or 0. Write oneshot=1 or oneshot=0."
     )
     with pytest.raises(FieldError) as target:
         _read_af(tmp_path, "out(DS1)")
@@ -835,7 +847,7 @@ _MISC_NAMES = {"DS1": "Count", "DS5": "Last", "TXT1": "Text", "DD1": "Ptr"}
         ),
         pytest.param(
             lambda: Search("TXT1", "TXT5", "5", "DS10", "C10", "=="),
-            "'5' is an integer value, which searches CTD, DD, DF, DS, TD, not TXT",
+            "5 is an integer value, which searches CTD, DD, DF, DS, TD, not TXT",
             "a TXT table takes quoted text, a $hh character code or a TXT address",
             id="search-constant-table",
         ),
@@ -847,7 +859,7 @@ _MISC_NAMES = {"DS1": "Count", "DS5": "Last", "TXT1": "Text", "DD1": "Ptr"}
         ),
         pytest.param(
             lambda: Search("DH1", "DH5", "5", "DS10", "C10", "=="),
-            "'5' is an integer value, which searches CTD, DD, DF, DS, TD, not DH",
+            "5 is an integer value, which searches CTD, DD, DF, DS, TD, not DH",
             "a DH table takes a hex value or a DH, XD or YD address",
             id="search-hex-table",
         ),
@@ -1166,7 +1178,8 @@ def test_every_address_that_a_search_refusal_names_takes_a_name() -> None:
     """Name each address in the fields, and no address is left in quotes or bare.
 
     A limit such as ``DS1-DS4500`` is plain on purpose, so a refusal that states one is not
-    checked for the address that the limit holds.
+    checked for the address that the limit holds.  The example in the sentence that says
+    what to write is plain too, so the test removes that sentence before the check.
     """
     plain: dict[str, str] = {}
     count = 0
@@ -1182,7 +1195,8 @@ def test_every_address_that_a_search_refusal_names_takes_a_name() -> None:
                 assert parts is not None, str(error)
                 if re.search(r"\b[A-Z]+\d+-[A-Z]*\d+", str(error)):
                     continue
-                text = _outside_parentheses(error.message(names))
+                # The sentence that says what to do gives an example address, in plain text.
+                text = _outside_parentheses(dataclasses.replace(parts, then="").text(names))
                 for display, typed in addresses.items():
                     bare = re.search(rf"(?<![\w<]){re.escape(display)}(?![\w>])", text)
                     if f"'{display}'" in text or f"'{typed}'" in text or bare:
@@ -1348,6 +1362,13 @@ _DECIMAL_BANKS = (
 _MATH_NAMES = {"C1": "Valve", "DS1": "Count", "DS2": "Two", "DS5": "Last", "DH1": "Word"}
 
 
+#: What an option-slot refusal of a SUM says to write.
+_OPTION_SLOT_THEN = (
+    "In the option slot, write a range of one point or of two points next to each other, "
+    "such as SUM ( X025 : X026 )."
+)
+
+
 @pytest.mark.parametrize(
     ("build", "short", "detail", "named"),
     [
@@ -1409,43 +1430,44 @@ _MATH_NAMES = {"C1": "Valve", "DS1": "Count", "DS2": "Two", "DS5": "Last", "DH1"
         ),
         pytest.param(
             lambda: Math("SUM ( X025 : X027 )", "DS3"),
-            "SUM ( X025 : X027 ) is refused: X025 and X027 are in the option slot (X021-X036), "
-            "and CLICK sums the wrong bits for this range.",
-            "",
+            "SUM ( X025 : X027 ) is refused: X025 and X027 are in the option slot (X021-X036)",
+            _OPTION_SLOT_THEN,
             "Math.expression: SUM ( Left (X025) : X027 ) is refused: Left (X025) and X027 are in "
-            "the option slot (X021-X036), and CLICK sums the wrong bits for this range.",
+            f"the option slot (X021-X036). {_OPTION_SLOT_THEN}",
             id="option-slot",
         ),
         pytest.param(
             lambda: Math("DS1 DS2", "DS3"),
             "'DS2' after 'DS1': two values need an operator between them",
-            "",
+            "Put an operator between them, such as DS1 + DS2.",
             "Math.expression: Two (DS2) after Count (DS1): two values need an operator between "
-            "them (OBJ-1001)",
+            "them (OBJ-1001). Put an operator between them, such as DS1 + DS2.",
             id="order-addresses",
         ),
         pytest.param(
             lambda: Math("DS1 + -5", "DS3"),
             "'-' after '+': a sign right after an operator is refused",
-            "put the signed value in parentheses",
-            "Math.expression: '-' after '+': a sign right after an operator is refused; put the "
-            "signed value in parentheses (OBJ-1001)",
+            "Put the signed value in parentheses, such as DS1 * ( -2 ).",
+            "Math.expression: '-' after '+': a sign right after an operator is refused "
+            "(OBJ-1001). Put the signed value in parentheses, such as DS1 * ( -2 ).",
             id="order-sign",
         ),
         pytest.param(
             lambda: Math("DS1 AND DS2", "DS3"),
             "AND is hex only",
-            "'DS1 AND DS2' is a decimal Math",
-            "Math.expression: AND is hex only; 'DS1 AND DS2' is a decimal Math (OBJ-1006)",
+            "'DS1 AND DS2' is a decimal Math. Take AND out of the formula, or set mode to hex "
+            "and write its registers as DH, XD or YD.",
+            "Math.expression: AND is hex only; 'DS1 AND DS2' is a decimal Math (OBJ-1006). "
+            "Take AND out of the formula, or set mode to hex and write its registers as DH, XD "
+            "or YD.",
             id="key-of-the-other-mode",
         ),
         pytest.param(
             lambda: Math("DS1 + <Foo>", "DS3"),
             "'DS1 + <Foo>' holds a <nickname>",
-            "Math takes addresses, not nicknames (laddercodec cannot resolve a nickname to its "
-            "address)",
+            "Math takes addresses, not nicknames. Write the address of each nickname in its place.",
             "Math.expression: 'DS1 + <Foo>' holds a <nickname>; Math takes addresses, not "
-            "nicknames (laddercodec cannot resolve a nickname to its address)",
+            "nicknames. Write the address of each nickname in its place.",
             id="nickname",
         ),
         pytest.param(
@@ -1509,6 +1531,33 @@ def test_a_math_refusal_keeps_its_parts(
     assert error.message({**_MATH_NAMES, "DF1": "Rate", "X025": "Left"}) == named
 
 
+@pytest.mark.parametrize(
+    ("expression", "dest", "mode", "detail"),
+    [
+        (
+            "DH1 AND DH2",
+            "DS3",
+            "decimal",
+            "'DH1 AND DH2' is a decimal Math. Set mode to hex, or take AND out of the formula.",
+        ),
+        (
+            "SIN ( DH1 )",
+            "DH3",
+            "hex",
+            "'SIN ( DH1 )' is a hex Math. Take SIN out of the formula, or set mode to decimal "
+            "and write its registers as DS, DD, DF, TD, CTD or SD.",
+        ),
+    ],
+)
+def test_a_key_of_the_other_mode_names_its_registers_only_when_they_change(
+    expression: str, dest: str, mode: str, detail: str
+) -> None:
+    """The refusal names the other mode's registers when the formula holds one it refuses."""
+    error = _refusal(lambda: Math(expression, dest, mode=mode))
+    assert error.code == Code.MATH_FUNCTION_MODE
+    assert error.detail() == detail
+
+
 def test_a_math_address_in_a_refused_bank_shows_its_name() -> None:
     error = _refusal(lambda: Math("DS1 + C1", "DS3"))
     assert error.short({"C1": "Valve"}) == "Valve (C1) is refused"
@@ -1521,13 +1570,12 @@ def test_a_math_address_in_a_refused_bank_shows_its_name() -> None:
 def test_a_math_sum_with_one_end_in_the_option_slot_names_that_end() -> None:
     error = _refusal(lambda: Math("SUM ( X001 : X036 )", "DS3"))
     assert error.short({"X036": "Top"}) == (
-        "SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option slot "
-        "(X021-X036), and CLICK sums the wrong bits for this range."
+        "SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option slot (X021-X036)"
     )
-    assert error.detail({"X036": "Top"}) == ""
+    assert error.detail({"X036": "Top"}) == _OPTION_SLOT_THEN
     assert error.message({"X036": "Top"}) == (
         "Math.expression: SUM ( X001 : Top (X036) ) is refused: Top (X036) is in the option "
-        "slot (X021-X036), and CLICK sums the wrong bits for this range."
+        f"slot (X021-X036). {_OPTION_SLOT_THEN}"
     )
 
 
@@ -1537,14 +1585,16 @@ def test_a_math_token_not_in_display_form_shows_its_name_in_an_order_refusal() -
         Math("Y1 DS1", "DS3")
     error = raised.value.errors[1]
     assert str(error) == (
-        "Math.expression: 'DS1' after 'Y1': two values need an operator between them (OBJ-1001)"
+        "Math.expression: 'DS1' after 'Y1': two values need an operator between them "
+        "(OBJ-1001). Put an operator between them, such as DS1 + DS2."
     )
     assert error.short({"Y001": "Out"}) == (
         "DS1 after Out (Y1): two values need an operator between them"
     )
-    assert error.detail({"Y001": "Out"}) == ""
+    assert error.detail({"Y001": "Out"}) == "Put an operator between them, such as DS1 + DS2."
     assert error.message({"Y001": "Out"}) == (
-        "Math.expression: DS1 after Out (Y1): two values need an operator between them (OBJ-1001)"
+        "Math.expression: DS1 after Out (Y1): two values need an operator between them "
+        "(OBJ-1001). Put an operator between them, such as DS1 + DS2."
     )
 
 
@@ -1579,7 +1629,8 @@ def test_each_refusal_of_a_math_formula_keeps_its_parts() -> None:
     ]
     want_detail = [
         "a real constant in Math is at most 3.402823E+38 in size",
-        "'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math",
+        "'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math. Take LSH out of the formula, "
+        "or set mode to hex and write its registers as DH, XD or YD.",
         _DECIMAL_BANKS,
         _DECIMAL_BANKS,
     ]
@@ -1587,7 +1638,8 @@ def test_each_refusal_of_a_math_formula_keeps_its_parts() -> None:
         "Math.expression: 1e50 is outside the float32 range; a real constant in Math is at most "
         "3.402823E+38 in size (OBJ-1009)",
         "Math.expression: LSH is hex only; 'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math "
-        "(OBJ-1006)",
+        "(OBJ-1006). Take LSH out of the formula, or set mode to hex and write its registers "
+        "as DH, XD or YD.",
         f"Math.expression: Valve (C1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
         f"Math.expression: Word (DH1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
     ]
@@ -1604,7 +1656,7 @@ def test_a_math_refusal_that_unchecked_keeps_shows_names() -> None:
     [error] = refusals(math)
     assert error.short({"X027": "Right"}) == (
         "SUM ( X025 : Right (X027) ) is refused: X025 and Right (X027) are in the option slot "
-        "(X021-X036), and CLICK sums the wrong bits for this range."
+        "(X021-X036)"
     )
 
 
@@ -1651,7 +1703,9 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
 
     A refusal that quotes the whole formula leaves it as it is, so a quoted text is not
     checked for the addresses that it holds.  A limit such as ``DS1-DS4500`` or
-    ``X021-X036`` is plain on purpose, so the test removes it before the check.  The test
+    ``X021-X036`` is plain on purpose, so the test removes it before the check.  So is the
+    example in the sentence that says what to write, and the test removes that sentence
+    too.  The test
     skips each refusal of an address or a constant outside its range.  The limits that
     such a refusal lists for an address also hold single addresses such as ``XD0``.
     """
@@ -1665,11 +1719,14 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
             names = {display: f"<{display}>" for display in addresses}
             for error in exc.errors:
                 count += 1
-                assert parts_of(error) is not None, str(error)
+                parts = parts_of(error)
+                assert parts is not None, str(error)
                 if " is outside " in str(error):
                     continue
-                # Remove CLICK's form after each name, then the limits.
-                text = re.sub(r"(?<=>) \([^()]*\)", "", error.message(names))
+                # Remove the sentence that says what to do, whose example address is plain
+                # text, then CLICK's form after each name, then the limits.
+                text = dataclasses.replace(parts, then="").text(names)
+                text = re.sub(r"(?<=>) \([^()]*\)", "", text)
                 text = re.sub(r"\b[A-Z]+\d+-[A-Z]*\d+", "", text)
                 for display, typed in addresses.items():
                     if f"'{display}'" in text or f"'{typed}'" in text:
@@ -1699,9 +1756,10 @@ def test_every_address_that_a_math_refusal_names_takes_a_name() -> None:
         ),
         pytest.param(
             lambda: Copy(source="DS[DD1]", dest="DS2"),
-            "Copy.source pointer: 'DD1' is not allowed; Copy.source pointer takes DS",
+            "Copy.source pointer: 'DD1' is not allowed; Copy.source pointer takes DS. "
+            "Write a DS address as the index, such as DS[DS1].",
             "'DD1' is not allowed",
-            "the pointer takes DS",
+            "the pointer takes DS. Write a DS address as the index, such as DS[DS1].",
             id="pointer",
         ),
         pytest.param(
@@ -1777,14 +1835,11 @@ def test_a_pointer_outside_copy_says_what_to_write() -> None:
     error = _refusal(lambda: ForLoop("DS[DS1]"))
     assert error.code == Code.POINTER_OUTSIDE_COPY
     assert str(error) == (
-        "ForLoop.count: 'DS[DS1]' is a pointer; ForLoop.count can't be a pointer, and only a "
-        "single Copy takes one. Write an address, such as DS1."
+        "ForLoop.count: 'DS[DS1]' is a pointer; only a single Copy takes one. Write an "
+        "address, such as DS1."
     )
     assert error.short() == "'DS[DS1]' is a pointer"
-    assert error.detail() == (
-        "this field can't be a pointer, and only a single Copy takes one. Write an address, "
-        "such as DS1."
-    )
+    assert error.detail() == "only a single Copy takes one. Write an address, such as DS1."
 
 
 def test_bank_of_builds_no_pointer_refusal_for_a_copy_field() -> None:

@@ -190,7 +190,7 @@ class TestForCount:
         assert _read_af(tmp_path, f"for({limit})") == ForLoop(count=limit)
 
     def test_above_2147483647_refused(self, tmp_path: Path) -> None:
-        message = r"^ForLoop.count: '2147483648' is outside 0 to 2147483647 \(OBJ-005\)"
+        message = r"^ForLoop.count: 2147483648 is outside 0 to 2147483647 \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, "for(2147483648)")
         with pytest.raises(FieldError, match=message):
@@ -240,7 +240,9 @@ class TestForCount:
         # A real with a point has OBJ-005, as 1.5 and -1.5 have.
         click_id = "OBJ-005" if count in ("3.5", "0.4", "2.6", "-1.5", "5.0") else None
         assert (exc.code, exc.click_id) == (Code.NOT_AN_ADDRESS, click_id)
-        assert exc.short() == f"{count!r} {rule}"
+        # A message shows a number bare, and other text in its repr quotes.
+        shown = repr(count) if count.startswith("$") else count
+        assert exc.short() == f"{shown} {rule}"
         assert exc.detail() == (
             "Write a whole number from 0 to 2147483647, or an address in DS, DD, TD, CTD or "
             "SD, such as DS1."
@@ -257,7 +259,9 @@ class TestForCount:
 
     @pytest.mark.parametrize("count", ["0x10", "#5", "abc", "DH"])
     def test_a_count_that_is_no_number_is_no_address(self, count: str) -> None:
-        with pytest.raises(AddressError, match="is not a CLICK address$"):
+        with pytest.raises(
+            AddressError, match=r"is not a CLICK address\. Write an address, such as DS1\.$"
+        ):
             ForLoop(count=count)
 
     @pytest.mark.parametrize(
@@ -272,7 +276,7 @@ class TestForCount:
         with pytest.raises(AddressError) as caught:
             ForLoop(count=count)
         assert caught.value.click_id == "OBJ-005"
-        assert str(caught.value).startswith(f"ForLoop.count: '{count}' is ")
+        assert str(caught.value).startswith(f"ForLoop.count: {count} is ")
         assert " (OBJ-005). Write a whole number" in str(caught.value)
 
     @pytest.mark.parametrize(

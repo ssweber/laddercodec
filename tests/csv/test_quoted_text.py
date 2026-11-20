@@ -92,11 +92,25 @@ def test_a_lone_quote_in_the_arguments_is_refused(token: str) -> None:
             'search(DS1..DS10 == 5,result="DS30",found="C1")',
             'search: result="DS30" is in quotes; write result=DS30.',
         ),
+        ('copy("A"B",TXT1,oneshot="1")', 'copy: oneshot="1" is in quotes; write oneshot=1.'),
+        (
+            'search(TXT1..TXT10 == "A"B",result=DS30,found=C1,oneshot="1")',
+            'search: oneshot="1" is in quotes; write oneshot=1.',
+        ),
+        (
+            'search(TXT1..TXT10 == TXT20,oneshot="1",result=DS30,found=C1)',
+            'search: oneshot="1" is in quotes; write oneshot=1.',
+        ),
+        (
+            'search(DS1..DS10 == 5,oneshot="1",result=DS30,found=C1)',
+            'search: oneshot="1" is in quotes; write oneshot=1.',
+        ),
     ],
 )
 def test_a_keyword_value_in_quotes_is_refused(token: str, says: str) -> None:
     """A keyword value in quotes is refused where it leaves a Copy without its destination or
-    a Search without its result and found, and in a call with no text."""
+    a Search without its result and found, and in a call with no text.  If the quotes of
+    the text do not pair up, the refusal names the last quoted keyword value."""
     with pytest.raises(CsvReadError) as info:
         parse_af_token(token)
     assert str(info.value) == says

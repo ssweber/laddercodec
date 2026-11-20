@@ -92,7 +92,10 @@ class TestKind:
     def test_coil_oneshot_text_other_than_0_or_1_is_a_flag_refusal(self, value: str) -> None:
         with pytest.raises(FieldError) as info:
             Coil.from_csv_token(f"out(Y1,oneshot={value})")
-        assert str(info.value) == f"Coil.oneshot: {value!r} is not 1 or 0"
+        shown = repr(value) if value == "true" else value
+        assert str(info.value) == (
+            f"Coil.oneshot: {shown} is not 1 or 0. Write oneshot=1 or oneshot=0."
+        )
         assert info.value.field == "Coil.oneshot"
         assert info.value.reason is Reason.FLAG
 

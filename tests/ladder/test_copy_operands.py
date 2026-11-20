@@ -42,7 +42,7 @@ _REFUSED = [
     ("copy(X001,DS1)", "can't take 'X001'; a bit copies to Y, C"),
     ("copy(DS1,C1)", "can't take 'DS1'; a numeric register copies to"),
     # no constant goes into Y or C. A text constant goes into TXT only.
-    ("copy(5,C1)", "can't take '5'; a number constant copies to"),
+    ("copy(5,C1)", "can't take 5; a number constant copies to"),
     ('copy("A",DS1)', 'can\'t take "A"; a text constant copies to TXT'),
     ("copy($41,DD1)", r"can't take '\$41'; a text constant copies to TXT"),
     # XD is not a destination
@@ -123,9 +123,9 @@ _REFUSED = [
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
     # Single Copy constants. An integer is 32-bit (OBJ-005). A hex constant above FFFFh goes
     # into the 32-bit integer registers only (OBJ-024).
-    ("copy(5000000000,DD1)", "Copy.source: '5000000000' " + INT_RULE),
+    ("copy(5000000000,DD1)", "Copy.source: 5000000000 " + INT_RULE),
     ("copy(-2147483649,DD1)", INT_RULE),
-    ("copy(10000h,DH1)", "can't take '10000h'; a hex constant above FFFFh copies to DD, CTD"),
+    ("copy(10000h,DH1)", "can't take 10000h; a hex constant above FFFFh copies to DD, CTD"),
     ("copy(1FFFFh,DS1)", "a hex constant above FFFFh copies to DD, CTD"),
     ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
     # Block Copy banks. Some banks are refused as a source or a destination (OBJ-004), and

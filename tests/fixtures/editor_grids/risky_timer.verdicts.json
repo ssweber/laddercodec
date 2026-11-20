@@ -4,10 +4,10 @@
   "on_delay T1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" is quoted text. Write a whole number from 0 to 32767, or a DS address, such as DS1."},
   "on_delay T1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" is quoted text. Write a whole number from 0 to 32767, or a DS address, such as DS1."},
   "on_delay T1 preset= unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: is blank; it needs a value"},
-  "on_delay T1 preset=  unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: ' ' is not a CLICK address"},
-  "on_delay T1 preset=\u0663 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: '\u0663' is not a CLICK address"},
-  "on_delay T1 preset= DS1 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: ' DS1' is not a CLICK address"},
-  "on_delay T1 preset=DS1  unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: 'DS1 ' is not a CLICK address"},
-  "on_delay  T1 preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: ' T1' is not a CLICK address"},
-  "on_delay T1  preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: 'T1 ' is not a CLICK address"}
+  "on_delay T1 preset=  unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: ' ' is not a CLICK address. Write an address, such as DS1."},
+  "on_delay T1 preset=\u0663 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: '\u0663' is not a CLICK address. Write an address, such as DS1."},
+  "on_delay T1 preset= DS1 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: ' DS1' is not a CLICK address. Write an address, such as DS1."},
+  "on_delay T1 preset=DS1  unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: 'DS1 ' is not a CLICK address. Write an address, such as DS1."},
+  "on_delay  T1 preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: ' T1' is not a CLICK address. Write an address, such as T1."},
+  "on_delay T1  preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: 'T1 ' is not a CLICK address. Write an address, such as T1."}
 }

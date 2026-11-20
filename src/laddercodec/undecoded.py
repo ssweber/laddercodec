@@ -26,22 +26,25 @@ if TYPE_CHECKING:
 
 
 class UndecodedRungWarning(UserWarning):
-    """Issued when a rung can't be decoded or written.
+    """Issued when a rung can't be decoded or written, or when ``addresses()`` can't read
+    part of the bytes.
 
     ``decode()``, ``decode_program()`` and ``write_csv`` put an undecoded marker in the
-    rung's place. ``addresses()`` leaves out the addresses that it can't read.
+    rung's place. ``addresses()`` puts no marker anywhere. Its list lacks the addresses of
+    a cell whose fields it can't read, or of a row that it can't walk and every row after
+    that row.
 
     Attributes
     ----------
     marker:
-        The :class:`~laddercodec.instructions.Undecoded` marker. It says where the rung is
-        and what went wrong.
+        The :class:`~laddercodec.instructions.Undecoded` marker. It says where the rung,
+        row or cell is and what went wrong.
     program:
         The name of the program when the warning comes from
         :func:`laddercodec.decode_program`, else ``None``.
     text:
         The warning's message when the caller gave one, else ``None``. ``addresses()``
-        gives one, because it puts no marker in the rung's place.
+        passes one.
     """
 
     def __reduce__(self):

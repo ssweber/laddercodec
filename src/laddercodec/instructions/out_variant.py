@@ -37,7 +37,7 @@ from ..operands.checks import (
     is_choice,
 )
 from ..operands.constants import INT16_MAX, Kind
-from ..operands.message import operand, says
+from ..operands.message import Op, operand, says
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -78,6 +78,14 @@ OUT_VARIANT_FUNC_CODES: dict[tuple[OutVariantKind, OutVariantUnit | Literal[""],
 _FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, OutVariantUnit | Literal[""], bool]] = {
     v: k for k, v in OUT_VARIANT_FUNC_CODES.items()
 }
+
+
+def _units_of(kind: str) -> str:
+    """Return the units that *kind* takes, as a refusal of another unit lists them, such as
+    ``Tms, Ts or Tm``."""
+    units = list(dict.fromkeys(unit for k, unit, _ in OUT_VARIANT_FUNC_CODES if k == kind))
+    return " or ".join([", ".join(units[:-1]), units[-1]]) if len(units) > 1 else units[0]
+
 
 _TWO_PHASE = frozenset({"debounce", "flasher"})
 
@@ -189,16 +197,20 @@ class OutVariant(Instruction):
         """Run the checks that need a valid ``kind``."""
         used = _USED_FIELDS[self.kind]
         for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
-            if name not in used and getattr(self, name):
+            if name not in used and (value := getattr(self, name)):
+                # A preset or accumulator is an address or a number, shown as written. The
+                # unit is a choice, and keeps its quotes.
+                number = name != "unit" and isinstance(value, str)
                 check.refuse(
                     (name, "kind"),
                     says(
                         "{value} is not used by {kind}",
-                        value=operand(getattr(self, name)),
+                        value=Op(value) if number else operand(value),
                         kind=self.kind,
                     ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
+                    then=f"Leave {name} blank for {self.kind}.",
                 )
         if self.kind != "toggle" and self.immediate:
             check.refuse(
@@ -206,6 +218,7 @@ class OutVariant(Instruction):
                 says("{kind} has no immediate form", kind=self.kind),
                 Reason.CONFLICT,
                 code=Code.IMMEDIATE_NOT_ALLOWED,
+                then=f"Set immediate to False for {self.kind}.",
             )
         if self.kind != "timed" and self.maintained:
             check.refuse(
@@ -234,6 +247,7 @@ class OutVariant(Instruction):
                 ),  # fmt: skip
                 Reason.CHOICE,
                 code=Code.COIL_TIME_UNIT,
+                then=f"Set unit to {_units_of(self.kind)}.",
             )
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]

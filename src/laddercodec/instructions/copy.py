@@ -63,6 +63,7 @@ from ..operands.checks import (
     choice_operand,
     constant_shape,
     is_choice,
+    pointer_refusal,
 )
 from ..operands.constants import (
     REAL_DIGITS,
@@ -286,6 +287,7 @@ def _ascii_code(code: int) -> str:
             field="Copy.termination_code",
             reason=Reason.RANGE,
             code=Code.INVALID_CHAR_CODE,
+            then="Write a code from $00 to $FF, such as $0D.",
         )
     return f"${code:02X}"
 
@@ -413,14 +415,7 @@ def check_box_operand(
         and bank.isupper()
         and len(bank) <= 3
     ):
-        raise make_refusal(
-            AddressError,
-            name,
-            says("{value} is a pointer", "only a single Copy takes one", value=Op(value)),
-            field=name,
-            reason=Reason.POINTER,
-            code=Code.POINTER_OUTSIDE_COPY,
-        )
+        raise pointer_refusal(value, name, None, banks)
     return check_operand(value, name, banks, constants, bank_id=bank_id)
 
 
@@ -1286,7 +1281,7 @@ def _check_fill_txt_number(value: str, const: Constant) -> None:
             Reason.RANGE,
             error=FieldError,
             code=Code.CONSTANT_OUT_OF_RANGE,
-            then="Write one character, such as '5', or a real, such as 1.5.",
+            then="Write one character, such as 5, or a real, such as 1.5.",
         )
 
 
@@ -1641,6 +1636,7 @@ class Copy(Instruction):
                         ),  # fmt: skip
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
+                        then="Leave termination_code out.",
                     )
             if kind == "txt" and self.suppress_zero is True:
                 # CLICK's dialog greys out Suppress zero for a TXT source, whether the
@@ -1820,6 +1816,7 @@ class Copy(Instruction):
                 ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_CONVERTER_BANK,
+                then="Leave convert out.",
             )
             return
         if convert is None and kind == "txt" and _asks_txt_choice(dest_bank):
@@ -1847,6 +1844,14 @@ class Copy(Instruction):
         else:
             return
         if not ok:
+            if kind in ("word", "number") and dest_bank == "TXT":
+                then = "Write convert=to_text or convert=to_binary."
+            elif kind == "txt" and _asks_txt_choice(dest_bank):
+                then = "Write convert=to_value or convert=to_ascii."
+            elif _saves_type_7(self.source, self.dest):
+                then = "Leave convert out, or write convert=to_binary."
+            else:
+                then = "Leave convert out."
             check.refuse(
                 ("convert", "source", "dest"),
                 says(
@@ -1858,6 +1863,7 @@ class Copy(Instruction):
                 ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_CONVERTER_BANK,
+                then=then,
             )
 
     @classmethod
@@ -2121,6 +2127,7 @@ class BlockCopy(Instruction):
                     ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COPY_CONVERTER_BANK,
+                    then="Leave convert out.",
                 )
             txt_to_txt = (
                 src is not None and src.bank == "TXT" and dest is not None and dest.bank == "TXT"
@@ -2138,6 +2145,7 @@ class BlockCopy(Instruction):
                     ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.COPY_CONVERTER_BANK,
+                    then="Leave convert out.",
                 )
             if (
                 self.convert is None
@@ -2177,6 +2185,7 @@ class BlockCopy(Instruction):
                     ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
+                    then="Leave termination_code out.",
                 )
             _check_termination_form(check, self)
             check.flag("oneshot")

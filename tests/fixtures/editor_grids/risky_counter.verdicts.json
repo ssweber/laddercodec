@@ -7,7 +7,7 @@
   "count_up CT1 preset= ": {"verdict": "refused", "error": "FieldError", "field": "Counter.preset", "message": "Counter.preset: ' ' is refused; Counter.preset takes a decimal integer"},
   "count_up CT1 preset=\u0663": {"verdict": "refused", "error": "FieldError", "field": "Counter.preset", "message": "Counter.preset: '\u0663' is refused; Counter.preset takes a decimal integer"},
   "count_up CT1 preset= DS1": {"verdict": "refused", "error": "FieldError", "field": "Counter.preset", "message": "Counter.preset: ' DS1' is refused; Counter.preset takes a decimal integer"},
-  "count_up CT1 preset=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Counter.preset", "message": "Counter.preset: 'DS1 ' is not a CLICK address"},
-  "count_up  CT1 preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: ' CT1' is not a CLICK address"},
-  "count_up CT1  preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: 'CT1 ' is not a CLICK address"}
+  "count_up CT1 preset=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Counter.preset", "message": "Counter.preset: 'DS1 ' is not a CLICK address. Write an address, such as DS1."},
+  "count_up  CT1 preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: ' CT1' is not a CLICK address. Write an address, such as CT1."},
+  "count_up CT1  preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: 'CT1 ' is not a CLICK address. Write an address, such as CT1."}
 }

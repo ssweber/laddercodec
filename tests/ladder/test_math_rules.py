@@ -208,14 +208,16 @@ _REFUSED = [
         "DS9",
         "decimal",
         "Math.expression: SUM \\( X001 : X036 \\) is refused: X036 is in the "
-        "option slot \\(X021-X036\\), and CLICK sums the wrong bits for this range\\.",
+        "option slot \\(X021-X036\\)\\. In the option slot, write a range of one point or of "
+        "two points next to each other, such as SUM \\( X025 : X026 \\)\\.",
     ),
     (
         "SUM ( Y016 : Y022 )",
         "DS9",
         "decimal",
-        "SUM \\( Y016 : Y022 \\) is refused: Y022 is in the option slot \\(Y021-Y036\\), and "
-        "CLICK sums the wrong bits for this range\\.",
+        "SUM \\( Y016 : Y022 \\) is refused: Y022 is in the option slot \\(Y021-Y036\\)\\. "
+        "In the option slot, write a range of one point or of two points next to each other, "
+        "such as SUM \\( Y025 : Y026 \\)\\.",
     ),
     ("SUM ( Y001 : Y036 )", "DS9", "decimal", "refused: Y036 is in the option slot"),
     ("SUM ( X021 : X116 )", "DS9", "decimal", "refused: X021 is in the option slot"),

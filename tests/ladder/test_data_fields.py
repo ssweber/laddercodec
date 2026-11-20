@@ -345,11 +345,11 @@ class TestTimerPresetRange:
             token = f"on_delay(T1,TD1,preset={value},unit={unit})"
             assert _read_af(tmp_path, token) == timer(preset=value, unit=unit)
         with pytest.raises(
-            FieldError, match=r"^Timer.preset: '32768' is outside 0 to 32767 \(OBJ-005\)"
+            FieldError, match=r"^Timer.preset: 32768 is outside 0 to 32767 \(OBJ-005\)"
         ):
             _read_af(tmp_path, f"on_delay(T1,TD1,preset=32768,unit={unit})")
         with pytest.raises(
-            FieldError, match=r"^Timer.preset: '32768' is outside 0 to 32767 \(OBJ-005\)"
+            FieldError, match=r"^Timer.preset: 32768 is outside 0 to 32767 \(OBJ-005\)"
         ):
             timer(preset="32768", unit=unit)
 
@@ -372,7 +372,7 @@ class TestCounterPresetRange:
 
     @pytest.mark.parametrize("preset", ["2147483648", "-2147483649", "99999999999"])
     def test_out_of_range(self, tmp_path: Path, preset: str) -> None:
-        message = rf"^Counter.preset: '{preset}' is outside -2147483648 to 2147483647 \(OBJ-005\)"
+        message = rf"^Counter.preset: {preset} is outside -2147483648 to 2147483647 \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, f"count_down(CT1,CTD1,preset={preset})")
         with pytest.raises(FieldError, match=message):
@@ -463,18 +463,18 @@ class TestDrumDurations:
         assert drum(kind, presets=["0", "32767"], unit=unit)
         assert drum(kind, presets=["DS1", "5"], unit=unit)
         with pytest.raises(
-            FieldError, match=r"^Drum.presets\[1\]: '32768' is outside 0 to 32767 \(OBJ-005\)"
+            FieldError, match=r"^Drum.presets\[1\]: 32768 is outside 0 to 32767 \(OBJ-005\)"
         ):
             drum(kind, presets=["1", "32768"], unit=unit)
 
     @pytest.mark.parametrize("preset", ["-1", "+5"])
     def test_sign_refused(self, preset: str) -> None:
-        message = rf"^Drum.presets\[0\]: '{re.escape(preset)}' is refused; a constant here takes no sign \(OBJ-005\)"
+        message = rf"^Drum.presets\[0\]: {re.escape(preset)} is refused; a constant here takes no sign \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
             drum("time_drum", presets=[preset, "1"])
 
     def test_fraction_refused(self) -> None:
-        message = r"^Drum.presets\[0\]: '1.5' is a real; Drum.presets\[0\] takes a decimal integer"
+        message = r"^Drum.presets\[0\]: 1.5 is a real; Drum.presets\[0\] takes a decimal integer"
         with pytest.raises(FieldError, match=message):
             drum("time_drum", presets=["1.5", "1"])
 
@@ -488,7 +488,7 @@ class TestDrumDurations:
             "time_drum(outputs=[C1,C2],presets=[32768,1],unit=Ts,pattern=[[1,0],[0,1]],"
             "current_step=DS1,accumulator=TD1,completion_flag=C9)"
         )
-        with pytest.raises(FieldError, match=r"^Drum.presets\[0\]: '32768'"):
+        with pytest.raises(FieldError, match=r"^Drum.presets\[0\]: 32768 "):
             _read_af(tmp_path, token)
         assert isinstance(_read_af(tmp_path, token.replace("32768", "32767")), Drum)
 

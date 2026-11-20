@@ -27,6 +27,7 @@ Not public API.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
@@ -35,7 +36,14 @@ from types import TracebackType
 from typing import Any, NamedTuple, TypedDict, TypeVar
 
 from ..codes import Code
-from .address import ADDRESS_BANKS, Address, check_address, normalize_fields, split_pointer
+from .address import (
+    ADDRESS_BANKS,
+    Address,
+    check_address,
+    example_address,
+    normalize_fields,
+    split_pointer,
+)
 from .banks import BIT_BANKS, REGISTER_BANKS
 from .constants import (
     CHAR_CODE_RULE,
@@ -50,7 +58,7 @@ from .constants import (
     printable,
 )
 from .errors import AddressError, FieldError, Reason
-from .message import Op, Parts, Rule, make_refusal, operand, says, set_parts, shown
+from .message import Op, Parts, Rule, make_refusal, operand, parts_of, says, set_parts, shown
 
 __all__ = [
     "ALL_KINDS",
@@ -73,6 +81,7 @@ __all__ = [
     "check_out_target",
     "check_kept_text",
     "check_writable_sd",
+    "pointer_refusal",
     "constant_shape",
     "choice_operand",
     "is_choice",
@@ -359,13 +368,11 @@ def _quote_refusal(value: str, at: _At, constants: Constants) -> FieldError | No
     if constants.quote or '"' not in inner:
         return None
     if inner != '"' and constants.text_max > 1:
-        said = says(
-            "holds a quote with other characters, which a text constant can't hold",
-            'write the text without it, such as "AB"',
-        )
+        said = says("holds a quote with other characters, which a text constant can't hold")
+        then = "Write the text without the quote."
     else:
-        said = _text_rule(constants)
-    return at.error(value, said, Reason.FORM, code=Code.INVALID_TEXT_CONSTANT)
+        said, then = _text_rule(constants), ""
+    return at.error(value, said, Reason.FORM, code=Code.INVALID_TEXT_CONSTANT, then=then)
 
 
 #: The rule that a refused ``$`` value breaks in a field that takes ``$`` and one hex digit.
@@ -554,16 +561,24 @@ POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD",
 SOURCE_POINTER_BANKS = POINTER_BANKS | {"SD"}
 
 
-def _example_address(bank: str, banks: Collection[str] | None) -> str:
-    """Return an address that a field of ``banks`` takes, for a message that refuses a
-    pointer into ``bank``.
+def pointer_refusal(
+    value: str, field: str, label: str | None, banks: Collection[str] | None
+) -> FieldError:
+    """Return the refusal, an :class:`AddressError`, of the pointer ``value`` in a field that
+    takes no pointer.
 
-    The address is the first of ``bank``, such as DS1 for ``DS[DS1]``, if the field takes
-    that bank.  Otherwise it is the first address of the field's first bank.
+    The example address in its next sentence is in the pointer's bank if the field takes
+    that bank (``DS1`` for ``DS[DS1]``), and in the field's first bank otherwise.
     """
-    if bank not in ADDRESS_BANKS or (banks is not None and bank not in banks):
-        bank = next((b for b in ADDRESS_BANKS if banks is None or b in banks), "DS")
-    return Address(bank, 1, False).display
+    bank = value.partition("[")[0]
+    return _at(field, label).error(
+        value,
+        says("is a pointer", "only a single Copy takes one"),
+        Reason.POINTER,
+        cls=AddressError,
+        code=Code.POINTER_OUTSIDE_COPY,
+        then=f"Write an address, such as {example_address(bank, banks)}.",
+    )
 
 
 #: Every constant that CLICK's shared input check reads, with any sign.
@@ -686,16 +701,7 @@ def check_operand(
     parts = split_pointer(value)
     if parts is not None:
         if not pointer:
-            raise at.error(
-                value,
-                says(
-                    "is a pointer", "{label} can't be a pointer, and only a single Copy takes one"
-                ),
-                Reason.POINTER,
-                cls=AddressError,
-                code=Code.POINTER_OUTSIDE_COPY,
-                then=f"Write an address, such as {_example_address(parts[0], banks)}.",
-            )
+            raise pointer_refusal(value, at.field, at.label, banks)
         bank, index_text = parts
         allowed = set(pointer_banks).intersection(ADDRESS_BANKS if banks is None else banks)
         if bank not in allowed:
@@ -713,6 +719,10 @@ def check_operand(
             # Whatever refused the index, the pointer's index is no DS address.
             exc.reason = Reason.POINTER
             exc.code = Code.POINTER_NOT_DS
+            kept = parts_of(exc)
+            if kept is not None:
+                then = f"Write a DS address as the index, such as {bank}[DS1]."
+                set_parts(exc, dataclasses.replace(kept, then=then))
             raise
         return Operand(bank=bank, index=index)
     address = check_address(value, field, banks, label=label, bank_id=bank_id, bank_code=bank_code)
@@ -872,6 +882,7 @@ def check_flag(value: object, field: str) -> bool:
         field=field,
         reason=Reason.FLAG,
         code=Code.NOT_A_FLAG,
+        then="Pass True or False.",
     )
 
 
@@ -901,6 +912,7 @@ def check_csv_flag(kwargs: Mapping[str, str], name: str, field: str) -> bool:
         field=field,
         reason=Reason.FLAG,
         code=Code.NOT_A_FLAG,
+        then=f"Write {name}=1 or {name}=0.",
     )
 
 

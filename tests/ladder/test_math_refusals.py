@@ -196,7 +196,8 @@ def test_formula_stops_at_the_order() -> None:
         (_EXPR, "form", "OBJ-1001"),
     ]
     assert str(errors[2]) == (
-        "Math.expression: 'DS2' after '007': two values need an operator between them (OBJ-1001)"
+        "Math.expression: 'DS2' after '007': two values need an operator between them "
+        "(OBJ-1001). Put an operator between them, such as DS1 + DS2."
     )
 
 

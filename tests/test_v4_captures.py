@@ -496,15 +496,16 @@ REFUSED_XY_RANGES = frozenset(
 def xy_range_message(formula: str) -> str:
     """Return the text of a refusal that follows the range.
 
-    The text names the ends in 021-036 and says that CLICK sums the wrong bits.
+    The text names the ends in 021-036, then gives a range that the option slot takes.
     """
-    start, end = formula.split()[2], formula.split()[4]
+    function, start, end = formula.split()[0], formula.split()[2], formula.split()[4]
     bank = start[0]
     ends = [e for e in (start, end) if 21 <= int(e[1:]) <= 36]
     named = f"{ends[0]} is" if len(ends) == 1 else f"{ends[0]} and {ends[1]} are"
     return (
-        f"is refused: {named} in the option slot ({bank}021-{bank}036), and CLICK sums the "
-        f"wrong bits for this range."
+        f"is refused: {named} in the option slot ({bank}021-{bank}036). In the option slot, "
+        "write a range of one point or of two points next to each other, such as "
+        f"{function} ( {bank}025 : {bank}026 )."
     )
 
 
