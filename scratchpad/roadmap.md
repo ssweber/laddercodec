@@ -600,13 +600,19 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
   CLICK's saves with the blobs that the encoder writes.
 - **Fill text and a bare number.** For `fill(5,TXT1..TXT2)` with no option touched, what does the dialog
-  default to and save? Does Fill accept quoted text with a character outside space to `~` (`"é"`, a tab)? The
-  code accepts the bare number and refuses both characters. It also accepts a real with more than 7
+  default to and save? CLICK accepts `"é"` and a tab as a Fill into TXT; what a PLC writes for them is not
+  known. The code accepts the bare number and refuses both characters. It also accepts a real with more than 7
   significant digits as typed (`fill(1234567.8,DF1..DF2)`), where a Copy refuses it.
 - **Quoted text with an `E`.** The Copy dialog reads such text as a number. `"HELLO"`, `"E"`, `"e"` and
   `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled). `"HELLO"` into TXT1 is stored 0.0 too, and
   fills TXT1..TXT3 (item 4). The code accepts the text as typed into TXT and encodes it, as ruled (Sam,
   2026-11-17). Open: does Fill do the same?
+- **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
+  a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
+  accepts a tab in a Compare Data B and in a Fill into TXT.
+- **A Fill into SD from a read-only start SD, with the end at or below it** (`SD28..SD1`, `SD148..SD147`):
+  does CLICK refuse the start with OBJ-004 here too? The code does. CLICK refuses `SD1..SD1` and `SD2..SD1`
+  with OBJ-004.
 - **Characters above U+FFFF:** a source `"😀"` (U+1F600) into TXT1. Does CLICK accept it, how does it save it,
   and which TXT is the end? The code refuses it.
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
@@ -733,6 +739,20 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 
 ## Later (nothing unless marked)
 
+- **A refusal's example from the partner field (builder).** A caller who follows the example in some
+  refusals gets another refusal, because the example is chosen from the field alone:
+  - the other end of a range: `Coil("Y001", range_end="$41")` suggests Y001;
+  - the other operand of a Copy, Block Copy, Pack, Unpack, Compare or Search;
+  - a Send's function code: FC06 suggests DD1 or DF1, which FC06 refuses.
+
+  The `_IGNORES_PARTNER` entries in `tests/test_refusal_details.py` list them. The branch `fix/msg-examples`
+  (not pushed, in the main checkout) adds an optional preferred example to `example_address`. Nothing calls
+  it yet.
+- **Math mode advice (builder).** "Set mode to hex" ignores the formula's constants, so the advised formula
+  can still be refused (`DH1 AND 3`). The same holds for "Set mode to decimal" with `SIN ( 2h )`. A SUM range
+  of bits (`C1 : C8`) is told to write "its registers as DH, XD or YD"; the message should say bits.
+- **`quantity=N` in Send and Receive messages (builder).** Some refusals advise `quantity=N`, which a CSV
+  token refuses. The message should name the source range instead.
 - **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
   none or another. Add the ids, with no new codes:
   - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);
