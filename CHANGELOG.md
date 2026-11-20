@@ -13,13 +13,13 @@
   - Instruction fields have the names of their CSV arguments, such as `Timer.preset` and `Math.dest`.
   - Instructions and rungs are frozen. Change one with `laddercodec.replace()`.
 - `decode()` and `decode_program()` no longer raise at a rung that they can't read. They return a marker for it, with an `UndecodedRungWarning`.
-- Building an instruction refuses more of the values that CLICK's dialogs refuse, with a `FieldError`. A program that CLICK saved with such a value now decodes as the instruction, with a `RefusedFieldWarning`. v0.4.0 decoded it as `raw(...)` or an unknown condition.
+- Building an instruction refuses more of the values that CLICK's dialogs refuse. It raises `FieldError` for them. A program that CLICK saved with such a value now decodes as the instruction, with a `RefusedFieldWarning`. v0.4.0 decoded it as `raw(...)` or an unknown condition.
 - This release adds these functions:
   - `lay_out()` returns the rungs that CLICK draws for a circuit that you build.
   - `read_bundle()` and `write_bundle()` read and write a project as a folder of CSV files.
   - `addresses()` lists the addresses that a CLICK project must hold before you paste.
-- Each `FieldError` and each `check()` finding names its rule in `code`, and CLICK's id in `click_id` when CLICK has one. Match on `code`, not on the message text.
-- A `check()` finding now holds its shape in `code` and CLICK's id in `click_id`. v0.4.0 held the shape in `kind` and CLICK's id in `code`, so `finding.code == "C0202"` now matches nothing. Write `finding.click_id == "C0202"`.
+- Each `FieldError` names its rule in `code`, and CLICK's id in `click_id` when CLICK has one. Match on `code`, not on the message text.
+- A `check()` finding now names its shape in `code` and CLICK's id in `click_id`. v0.4.0 held the shape in `kind` and CLICK's id in `code`, so `finding.code == "C0202"` now matches nothing. Write `finding.click_id == "C0202"`.
 
 Read Breaking changes before you upgrade.
 
