@@ -1852,15 +1852,17 @@ class Send(Instruction):
 def _target_to_csv(target: ModbusRtuTarget | ModbusTcpTarget) -> str:
     if target == "":
         return ""  # a blank target is written blank, so that it reads back blank
+    # A quote inside the name is written twice, as in any quoted CSV text.
+    name = str(target.name).replace('"', '""')
     if isinstance(target, ModbusRtuTarget):
         return (
-            f'ModbusRtuTarget(name="{target.name}"'
+            f'ModbusRtuTarget(name="{name}"'
             f',com_port="{target.com_port}"'
             f",device_id={target.device_id})"
         )
     com_port = "" if target.com_port == "ethernet" else f',com_port="{target.com_port}"'
     return (
-        f'ModbusTcpTarget(name="{target.name}"'
+        f'ModbusTcpTarget(name="{name}"'
         f',ip="{target.ip}"'
         f",port={target.port}"
         f",device_id={target.device_id}{com_port})"
@@ -2019,53 +2021,178 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
 _CONSTRUCTOR_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\((.+)\)$", re.DOTALL)
 
 
-def _parse_constructor_kwargs(inner: str) -> dict[str, str]:
-    """Parse comma-separated kwargs from a constructor call body."""
+#: The keywords that each call in a ``send(...)`` or ``receive(...)`` token accepts, in the
+#: order that ``to_csv`` writes them.
+_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "send": (
+        "target",
+        "remote_start",
+        "function_code",
+        "source",
+        "sending",
+        "success",
+        "error",
+        "exception_response",
+        "word_swap",
+    ),
+    "receive": (
+        "target",
+        "remote_start",
+        "function_code",
+        "dest",
+        "receiving",
+        "success",
+        "error",
+        "exception_response",
+        "word_swap",
+    ),
+    "ModbusTcpTarget": ("name", "ip", "port", "device_id", "com_port"),
+    "ModbusRtuTarget": ("name", "com_port", "device_id"),
+    "ModbusAddress": ("address", "register_type"),
+}
+
+#: The call that is paired with each call. A refusal of a keyword that only the paired call
+#: accepts names that call.
+_PAIRED = {
+    "send": "receive",
+    "receive": "send",
+    "ModbusTcpTarget": "ModbusRtuTarget",
+    "ModbusRtuTarget": "ModbusTcpTarget",
+}
+
+#: The keyword that a Send or Receive accepts in place of a keyword of the other class.
+_IN_PLACE_OF = {
+    ("send", "dest"): "source",
+    ("send", "receiving"): "sending",
+    ("receive", "source"): "dest",
+    ("receive", "sending"): "receiving",
+}
+
+#: A token of each call, as a refusal of its arguments shows it.
+_CALL_EXAMPLES = {
+    "send": 'send(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),remote_start="DS1",'
+    "source=DS1)",
+    "receive": 'receive(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),'
+    'remote_start="DS1",dest=DS1)',
+    "ModbusTcpTarget": 'ModbusTcpTarget(name="plc",ip="192.168.1.10",port=502,device_id=1)',
+    "ModbusRtuTarget": 'ModbusRtuTarget(name="plc",com_port="cpu2",device_id=1)',
+    "ModbusAddress": "ModbusAddress(address=400001)",
+}
+
+
+def _call_keywords(call: str, inner: str) -> dict[str, str]:
+    """Return the keyword arguments of the call *call*, whose arguments are *inner*, as they
+    are written.
+
+    Raise ``CsvReadError`` for an argument with no keyword, a keyword that *call* does not
+    accept and a keyword given twice. In a target or a ``ModbusAddress``, also raise it for
+    a value that holds more than one argument, as when a comma is missing.
+    """
+    # The csv package imports this module, so the import waits for the call.
+    from ..csv.token_parser import _kwarg_eq_index, _split_args
+
     kwargs: dict[str, str] = {}
-    depth = 0
-    start = 0
-    for i, ch in enumerate(inner):
-        if ch in ("(", "["):
-            depth += 1
-        elif ch in (")", "]"):
-            depth -= 1
-        elif ch == "," and depth == 0:
-            _add_kwarg(inner[start:i], kwargs)
-            start = i + 1
-    _add_kwarg(inner[start:], kwargs)
+    for seg in _split_args(inner):
+        eq = _kwarg_eq_index(seg)
+        key, value = (seg[:eq].strip(), seg[eq + 1 :].strip()) if eq >= 0 else ("", seg)
+        refused = _argument_refusal(call, seg, key, value, kwargs)
+        if refused is not None:
+            raise CsvReadError(refused)
+        kwargs[key] = value
     return kwargs
 
 
-def _add_kwarg(seg: str, kwargs: dict[str, str]) -> None:
-    seg = seg.strip()
-    if "=" not in seg:
-        return
-    k, v = seg.split("=", 1)
-    kwargs[k.strip()] = v.strip()
+def _argument_refusal(
+    call: str, seg: str, key: str, value: str, kwargs: dict[str, str]
+) -> str | None:
+    """Return the message that refuses the argument *seg* of the call *call*, or None.
+
+    *key* and *value* are the two sides of *seg*, and *key* is blank when *seg* has no
+    keyword. *kwargs* holds the keyword arguments before *seg*.
+    """
+    shown = f"{call}(...)"
+    if not seg:
+        return (
+            f"{shown} has an empty argument. Remove the extra comma, as in {_CALL_EXAMPLES[call]}."
+        )
+    if not key:
+        return (
+            f"{shown} has the argument {seg!r} with no keyword. Write each argument as "
+            f"keyword=value, such as {_CALL_EXAMPLES[call]}."
+        )
+    if key in kwargs:
+        return f"{shown} has {key}= more than once. Keep one, such as {key}={kwargs[key]}."
+    if key not in _KEYWORDS[call]:
+        return _unknown_keyword(call, key, value)
+    # In a send or receive, the AF token parser refuses text after a closing quote, and the
+    # field checks refuse an unquoted value that runs into the next argument.
+    if call not in ("send", "receive") and not _one_value(value):
+        return (
+            f"Could not read {seg!r} in {shown}. Put a comma between two arguments, put text "
+            f'in double quotes, and write a quote inside text as "", such as '
+            f"{_CALL_EXAMPLES[call]}."
+        )
+    return None
+
+
+def _unknown_keyword(call: str, key: str, value: str) -> str:
+    """Return the message that refuses the keyword *key*, which the call *call* does not
+    accept. *value* is the value written after the keyword."""
+    shown = f"{call}(...)"
+    paired = _PAIRED.get(call)
+    if paired is not None and key in _KEYWORDS[paired]:
+        said = f"{shown} has {key}=. Only {paired}(...) accepts it."
+        instead = _IN_PLACE_OF.get((call, key))
+        if instead is not None:
+            return f"{said} Write {instead}={value} instead."
+        return f"{said} Remove {key}=, or write a {paired}(...), such as {_CALL_EXAMPLES[paired]}."
+    said = f"{shown} does not accept {key}=."
+    if key == "quantity" and call in ("send", "receive"):
+        data = "source" if call == "send" else "dest"
+        return f"{said} Write the count as a range, such as {data}=DS1..DS5."
+    accepted = ", ".join(f"{k}=" for k in _KEYWORDS[call])
+    return f"{said} Remove it, or use one of its keywords: {accepted}."
+
+
+def _one_value(value: str) -> bool:
+    """Return whether *value*, the value of one keyword argument of a target or a
+    ``ModbusAddress``, holds one value.
+
+    A value in double quotes ends at its closing quote, and ``""`` inside it is one quote.
+    Any other value holds no ``=`` or ``"``. A missing comma before the next keyword leaves
+    one of the two in the value.
+    """
+    # The csv package imports this module, so the import waits for the call.
+    from ..csv.token_parser import _decode_af_string_literal
+
+    if value.startswith('"'):
+        try:
+            _decode_af_string_literal(value)
+        except CsvReadError:
+            return False
+        return True
+    return "=" not in value and '"' not in value
 
 
 def _strip_quotes(s: str) -> str:
-    """Remove surrounding double-quotes if present."""
+    """Return the text of *s* without its surrounding double quotes, if it has them.
+
+    Each ``""`` inside the quotes is one quote of the text, as :func:`_one_value` reads it.
+    """
     if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
-        return s[1:-1]
+        return s[1:-1].replace('""', '"')
     return s
 
 
 def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     m = _CONSTRUCTOR_RE.fullmatch(raw.strip())
-    if not m:
-        raise make_refusal(
-            FieldError,
-            None,
-            says("Could not read target={raw}", raw=Op(raw, quoted=False)),
-            field=None,  # token syntax, not a field value
-            reason=Reason.FORM,
-            code=Code.INVALID_TOKEN,
-            then="Write ModbusTcpTarget(...) or ModbusRtuTarget(...), such as "
-            'ModbusTcpTarget(name="plc",ip="192.168.1.10",port=502,device_id=1).',
+    if m is None or m.group(1) not in ("ModbusTcpTarget", "ModbusRtuTarget"):
+        raise CsvReadError(
+            f"Could not read target={raw}. Write ModbusTcpTarget(...) or ModbusRtuTarget(...), "
+            f"such as {_CALL_EXAMPLES['ModbusTcpTarget']}."
         )
     cls_name = m.group(1)
-    kw = _parse_constructor_kwargs(m.group(2))
+    kw = _call_keywords(cls_name, m.group(2))
 
     name = _strip_quotes(kw.get("name", ""))
     raw_id = _strip_quotes(kw.get("device_id", "0"))
@@ -2087,36 +2214,26 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     if cls_name == "ModbusRtuTarget":
         com_port = cast("ModbusRtuPort", _strip_quotes(kw.get("com_port", "cpu2")))
         return ModbusRtuTarget(name=name, com_port=com_port, device_id=device_id)
-    if cls_name == "ModbusTcpTarget":
-        ip = _strip_quotes(kw.get("ip", ""))
-        raw_port = kw.get("port", "502")
-        if not raw_port.isascii() or not raw_port.removeprefix("-").isdigit():
-            raise make_refusal(
-                FieldError,
-                "ModbusTcpTarget.port",
-                says("{port} is not a port number", port=Op(raw_port)),
-                field="ModbusTcpTarget.port",
-                reason=Reason.FORM,
-                code=Code.INVALID_MODBUS_TARGET,
-                then="Enter a whole number, such as 502.",
-            )
-        if too_long(raw_port.removeprefix("-")):
-            raise _target_number_refusal(
-                "port", cls_name, says("must be 1-65535, got {port}", port=raw_port)
-            )
-        port_digits = raw_port.removeprefix("-")
-        port = -digits_value(port_digits) if raw_port != port_digits else digits_value(port_digits)
-        com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
-        return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
-    raise make_refusal(
-        FieldError,
-        None,
-        says("{cls_name} is not a target type", cls_name=Op(cls_name)),
-        field=None,  # token syntax, not a field value
-        reason=Reason.FORM,
-        code=Code.INVALID_TOKEN,
-        then="Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
-    )
+    ip = _strip_quotes(kw.get("ip", ""))
+    raw_port = kw.get("port", "502")
+    if not raw_port.isascii() or not raw_port.removeprefix("-").isdigit():
+        raise make_refusal(
+            FieldError,
+            "ModbusTcpTarget.port",
+            says("{port} is not a port number", port=Op(raw_port)),
+            field="ModbusTcpTarget.port",
+            reason=Reason.FORM,
+            code=Code.INVALID_MODBUS_TARGET,
+            then="Enter a whole number, such as 502.",
+        )
+    if too_long(raw_port.removeprefix("-")):
+        raise _target_number_refusal(
+            "port", cls_name, says("must be 1-65535, got {port}", port=raw_port)
+        )
+    port_digits = raw_port.removeprefix("-")
+    port = -digits_value(port_digits) if raw_port != port_digits else digits_value(port_digits)
+    com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
+    return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
 
 
 def _target_number_refusal(field: str, cls_name: str, said: Rule) -> FieldError:
@@ -2142,7 +2259,7 @@ def _parse_remote_start(raw: str) -> str | ModbusAddress:
         return _strip_quotes(raw)
     m = _CONSTRUCTOR_RE.fullmatch(raw)
     if m and m.group(1) == "ModbusAddress":
-        kw = _parse_constructor_kwargs(m.group(2))
+        kw = _call_keywords("ModbusAddress", m.group(2))
         return ModbusAddress(
             address=kw.get("address", ""),
             # The ModbusAddress refuses any other register type.
@@ -2222,6 +2339,10 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
 def parse_af_call(call: AfCall) -> Receive | Send:
     """Parse a CSV AF call node into a Send or Receive instruction."""
     kw = call.kwargs
+    # The node keeps the last of two keywords with one name, so read the arguments as written.
+    written = _CONSTRUCTOR_RE.fullmatch((call.raw or call.to_token()).strip())
+    if written is not None and call.name in ("send", "receive"):
+        _call_keywords(call.name, written.group(2))
     for name in ("target", "remote_start"):
         if name not in kw:
             raise CsvReadError(f"{call.name} needs a {name}= keyword")
@@ -2283,15 +2404,6 @@ def parse_af_call(call: AfCall) -> Receive | Send:
     )
 
 
-#: A token of each kind, as the error of ``from_csv_token`` shows it.
-_TOKEN_EXAMPLES = {
-    "send": 'send(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),remote_start="DS1",'
-    "source=DS1)",
-    "receive": 'receive(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),'
-    'remote_start="DS1",dest=DS1)',
-}
-
-
 def _from_csv_token(token: str, name: Literal["send", "receive"]) -> Receive | Send:
     """Parse *token* as ``read_csv`` parses an AF cell, and build the Send or Receive.
 
@@ -2309,11 +2421,11 @@ def _from_csv_token(token: str, name: Literal["send", "receive"]) -> Receive | S
         raise CsvReadError(
             f"Could not read {token!r} as a {label}, because it is a {other}(...) token. Read it "
             f"with {other.capitalize()}.from_csv_token(), or write a {label} as {shape}, such as "
-            f"{_TOKEN_EXAMPLES[name]}."
+            f"{_CALL_EXAMPLES[name]}."
         )
     raise CsvReadError(
         f"Could not read {token!r} as a {label}. Write it as {shape}, such as "
-        f"{_TOKEN_EXAMPLES[name]}."
+        f"{_CALL_EXAMPLES[name]}."
     )
 
 

@@ -684,16 +684,6 @@ def test_a_slave_id_in_another_bank_shows_its_name() -> None:
     ("af", "short"),
     [
         pytest.param(
-            'send(target=ModbusFooTarget(name="t"),remote_start="DS1",source=DS1)',
-            "'ModbusFooTarget' is not a target type",
-            id="target-type",
-        ),
-        pytest.param(
-            'send(target=garbage,remote_start="DS1",source=DS1)',
-            "Could not read target=garbage",
-            id="target-syntax",
-        ),
-        pytest.param(
             'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=abc,device_id=1),'
             'remote_start="DS1",source=DS1)',
             "'abc' is not a port number",

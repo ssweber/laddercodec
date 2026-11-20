@@ -17,6 +17,7 @@ import pytest
 
 import laddercodec
 from laddercodec import (
+    CsvReadError,
     FieldError,
     ModbusAddress,
     ModbusRtuTarget,
@@ -514,15 +515,18 @@ def test_raw_token_that_does_not_parse_is_form(token: str) -> None:
 
 
 def test_send_receive_token_that_does_not_parse_is_form() -> None:
-    from laddercodec.instructions.send_receive import _parse_target
-
-    for text in ("nonsense", 'Unknown(name="x")'):
-        with pytest.raises(FieldError) as caught:
-            _parse_target(text)
-        assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
     with pytest.raises(FieldError) as caught:
         parse_af_call(_call("poll"))
     assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
+
+
+@pytest.mark.parametrize("text", ["nonsense", 'Unknown(name="x")'])
+def test_target_that_does_not_parse_is_a_read_error(text: str) -> None:
+    from laddercodec.instructions.send_receive import _parse_target
+
+    with pytest.raises(CsvReadError) as caught:
+        _parse_target(text)
+    assert not isinstance(caught.value, FieldError)
 
 
 @pytest.mark.parametrize("token", ["raw(Foo,0x1234,70000)", "raw(Foo,0x1234,300)"])
