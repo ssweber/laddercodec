@@ -6,16 +6,22 @@
 
 ## Unreleased
 
-- This release breaks the API. Most code needs four changes:
+- This release breaks the API. Code that reads, builds or edits rungs in Python needs these changes:
   - `decode()` always returns a list, even for one rung.
-  - `Contact` and `Coil` take the operand first and a `kind`, such as `Contact("X001", kind="nc")`.
-  - Instruction fields have the names of their CSV keywords, such as `Timer.preset` and `Math.dest`.
+  - `Rung` no longer takes a row count first. Write `Rung(rows, instructions, comment)`.
+  - `Contact` and `Coil` accept the operand first, then a `kind`, such as `Contact("X001", kind="nc")`.
+  - Instruction fields have the names of their CSV arguments, such as `Timer.preset` and `Math.dest`.
   - Instructions and rungs are frozen. Change one with `laddercodec.replace()`.
 - `decode()` and `decode_program()` no longer raise at a rung that they can't read. They return a marker for it, with an `UndecodedRungWarning`.
-- The field checks follow CLICK's dialogs, so some values that v0.4.0 accepted now raise `FieldError`. A program that CLICK saved with such a value still decodes, with a `RefusedFieldWarning`.
-- You can now build a rung from its circuit with `lay_out()`, read and write a project as a folder of CSV files with `read_bundle()` and `write_bundle()`, and list the addresses that a project must hold before you paste with `addresses()`.
+- Building an instruction refuses more of the values that CLICK's dialogs refuse, with a `FieldError`. A program that CLICK saved with such a value now decodes as the instruction, with a `RefusedFieldWarning`. v0.4.0 decoded it as `raw(...)` or an unknown condition.
+- This release adds these functions:
+  - `lay_out()` returns the rungs that CLICK draws for a circuit that you build.
+  - `read_bundle()` and `write_bundle()` read and write a project as a folder of CSV files.
+  - `addresses()` lists the addresses that a CLICK project must hold before you paste.
 - Each `FieldError` and each `check()` finding names its rule in `code`, and CLICK's id in `click_id` when CLICK has one. Match on `code`, not on the message text.
-- Read Breaking changes before you upgrade.
+- A `check()` finding now holds its shape in `code` and CLICK's id in `click_id`. v0.4.0 held the shape in `kind` and CLICK's id in `code`, so `finding.code == "C0202"` now matches nothing. Write `finding.click_id == "C0202"`.
+
+Read Breaking changes before you upgrade.
 
 ### Breaking changes
 
@@ -26,7 +32,7 @@
   - `Contact(InstructionType.CONTACT_EDGE, "X001", edge_kind="rise")` → `Contact("X001", kind="rise")`
   - `Coil(InstructionType.COIL_LATCH, "Y001")` → `Coil("Y001", kind="latch")`
   - Pass `immediate`, `range_end` and `oneshot` by keyword. Read `.kind` where you read `.type` or `.edge_kind`. Errors name `Contact.kind` and `Coil.kind`.
-- **Renamed classes, fields and values.** Instruction fields now have the names of their CSV keywords. The CSV text and the encoded bytes do not change, and `FieldError.field` names the new field. Rename each keyword, attribute and import below, and import the new names from `laddercodec`.
+- **Renamed classes, fields and values.** Instruction fields now have the names of their CSV arguments. The CSV text and the encoded bytes do not change, and `FieldError.field` names the new field. Rename each keyword, attribute and import below, and import the new names from `laddercodec`.
   - `laddercodec.instructions.Position` → `PositionMove`, and `Velocity` → `VelocityMove`. The token `raw(Position,...)` does not change.
   - `ConditionInstruction` → `Condition`, and `AfInstruction` → `Instruction`, in `laddercodec.model` and `laddercodec.instructions`.
   - The type alias `AfToken` → `InstructionToken`.
