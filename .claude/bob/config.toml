@@ -19,7 +19,7 @@ targeted_wait = 1800                             # seconds a run waits for a slo
 bash_wrap = ['\bpytest\b', '\bmake\b(?!\s+docs-serve\b)']
 # PowerShell commands that are refused with the fix (run them through run.py, or in Bash).
 powershell_refuse = ['\bpytest\b']
-default_timeout = 600
+default_timeout = 900
 
 # bob-reviewer and bob-investigator are read-only: the hook refuses the builder's and the
 # orchestrator's jobs (writing the work, committing, pushing, changing the environment), and
