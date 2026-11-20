@@ -358,8 +358,9 @@ def read_in_another_form(inst: object) -> None:
     reproduce what CLICK saved.
 
     Two kinds of save need this. In the first, the decoder reads stored text in another
-    form. It drops a space at the start or end of an address, or it reads in display form
-    an address that CLICK saved as typed. In the second, a single Copy keeps the conversion
+    form. It drops a space at the start or end of an address, it reads in display form
+    an address that CLICK saved as typed, or it reads a TCP address without the leading
+    zeros that CLICK saved. In the second, a single Copy keeps the conversion
     type and destination end that CLICK saved. This applies to a type 7 conversion other
     than DD to or from DF, to a number's end in TXT, and to a pair that the encoder would
     write differently for those fields."""

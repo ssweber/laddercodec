@@ -242,8 +242,8 @@ def _check_ip(check: Refusals, target: ModbusTcpTarget) -> None:
     """Refuse an IP address that is not four decimal octets, each from 0 to 255.
 
     0.0.0.0 is accepted. An octet may have leading zeros, as in 010.002.003.004. They are
-    decimal, not octal, and the address is stored without them, as 10.2.3.4. An octet of
-    zeros is 0.
+    decimal, not octal. When the address is accepted, this function sets ``target.ip`` to it
+    without them, as 10.2.3.4. An octet of zeros is 0.
     """
     ip = target.ip
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None

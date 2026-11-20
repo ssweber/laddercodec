@@ -7,6 +7,8 @@ instruction writes the stored blob again while it is unchanged.
 
 from __future__ import annotations
 
+import re
+import sys
 import warnings
 from pathlib import Path
 
@@ -15,18 +17,21 @@ import pytest
 from laddercodec import (
     FieldError,
     RawInstruction,
+    RefusedFieldWarning,
     Rung,
     decode,
+    decode_program,
     encode,
     read_csv,
     replace,
     write_csv,
 )
-from laddercodec.decode_program import _scr_box
-from laddercodec.instructions.raw import _compose_blob, _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.raw import _compose_blob, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusTcpTarget, Receive, Send
+from laddercodec.operands.unchecked import stored_blob
 from tests.ladder.test_send_receive_fields import receive, send
 
+decode_program_module = sys.modules["laddercodec.decode_program"]
 PADDED = "010.002.003.004"
 WRITTEN = "10.2.3.4"
 
@@ -128,27 +133,56 @@ def test_clipboard_padded_address_encodes_decimal_once_changed(make) -> None:
     assert PADDED.encode("utf-16-le") not in blob
 
 
-def _program_box(blob: bytes) -> Send | Receive:
-    name, marker, parts, _extra, fields = _decompose_blob(blob)
-    assert parts == 1
-    tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return _scr_box(name, marker, tags, b"", variant_u16, variant_string, bytes([0, 0]))
+SCR_CAPTURES = Path(__file__).parent.parent / "fixtures" / "scr_captures"
 
 
-@pytest.mark.parametrize("make", [send, receive])
-def test_program_padded_address_decodes_decimal_and_encodes_stored(make) -> None:
-    built = make(target=_target(WRITTEN))
-    box = _program_box(_padded_blob(built))
-    assert isinstance(box, type(built))
-    assert box.target.ip == WRITTEN
-    assert box == built
-    # Only the address differs from the blob of the same entry with a decimal address. The
-    # flag tags are left out, because the entry that this test builds from a clipboard blob
-    # does not store a Receive's flags the way a program file does.
-    stored = _decompose_blob(box.build_blob())[4]
-    plain = _decompose_blob(_program_box(built.build_blob()).build_blob())[4]
-    assert [(t, v) for t, _s, v in stored if t == 0x622B] == [(0x622B, PADDED)]
-    assert [(t, v) for t, _s, v in plain if t == 0x622B] == [(0x622B, WRITTEN)]
-    assert [(t, v) for t, _s, v in stored if t != 0x622B and t >> 8 not in (0x11, 0x12)] == [
-        (t, v) for t, _s, v in plain if t != 0x622B and t >> 8 not in (0x11, 0x12)
+def _tcp_boxes(rungs: list[Rung]) -> list[Send | Receive]:
+    return [
+        inst
+        for rung in rungs
+        for inst in rung.instructions
+        if isinstance(inst, Send | Receive) and isinstance(inst.target, ModbusTcpTarget)
     ]
+
+
+def _fields_with_ip(blob: bytes, ip: str) -> list[tuple[int, str]]:
+    return [(t, ip if t == 0x622B else v) for t, _s, v in _decompose_blob(blob)[4]]
+
+
+def test_program_padded_address_decodes_decimal_and_encodes_stored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pad the address of every TCP Send and Receive in a real program file. Each decodes to
+    the decimal address, and its kept blob is the clipboard's blob of the same box with the
+    address padded and nothing else changed."""
+    scr = (SCR_CAPTURES / "coverage.scr").read_bytes()
+    clipboard = _tcp_boxes(decode((SCR_CAPTURES / "coverage.bin").read_bytes()))
+    plain = _tcp_boxes(decode_program(scr).rungs)
+    assert plain
+    assert len(plain) == len(clipboard)
+
+    real = decode_program_module._parse_scr_tags
+
+    def padded_tags(*args, **kwargs):
+        name, code, tags, variant_u16, variant_string = real(*args, **kwargs)
+        if re.fullmatch(r"\d+(\.\d+){3}", tags.get(0x622B, "")):
+            tags = {**tags, 0x622B: ".".join(f"{int(p):03d}" for p in tags[0x622B].split("."))}
+        return name, code, tags, variant_u16, variant_string
+
+    monkeypatch.setattr(decode_program_module, "_parse_scr_tags", padded_tags)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RefusedFieldWarning)
+        padded = _tcp_boxes(decode_program(scr).rungs)
+    assert len(padded) == len(plain)
+
+    for box, unpadded, native in zip(padded, plain, clipboard, strict=True):
+        written = unpadded.target.ip
+        stored_ip = ".".join(f"{int(p):03d}" for p in written.split("."))
+        assert stored_ip != written
+        assert box.target.ip == written
+        assert box == unpadded
+        kept = stored_blob(box)
+        assert kept is not None
+        assert _fields_with_ip(kept, stored_ip) == _fields_with_ip(native.build_blob(), stored_ip)
+        assert [v for t, _s, v in _decompose_blob(kept)[4] if t == 0x622B] == [stored_ip]
+        assert box.build_blob() == kept

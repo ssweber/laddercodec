@@ -435,8 +435,8 @@ def _scr_box(
         if needs_stored_blob(parsed_af):
             # The instruction holds refusals, or it read a stored address in another form:
             # without a space at its start or end, or in display form where CLICK saved it
-            # as typed. While its fields are unchanged, it writes the blob that a raw box
-            # of this entry would write.
+            # as typed, or a TCP address with leading zeros. While its fields are unchanged, it
+            # writes the blob that a raw box of this entry would write.
             keep_stored_blob(parsed_af, _scr_blob(entry, parsed_af))
             keep_cell_rows(parsed_af, cell_rows[0], cell_rows[1])
         return parsed_af
