@@ -57,8 +57,8 @@ release is the user's, PR text) apply as written. This file adds laddercodec's.
   AGENTS.md: inline no multi-line content in shell commands.
 - Every PR carries its CHANGELOG line (Unreleased) when users see a change. How to write it:
   - State the change against the last release, not against `main`. The last release is the
-    newest tag, `v0.4.0` at the time of writing. Read its code or docs with
-    `git show v0.4.0:<path>`.
+    newest tag, `v0.5.0` at the time of writing. Read its code or docs with
+    `git show v0.5.0:<path>`.
   - When the change revises behaviour that an Unreleased entry already describes, rewrite that
     entry. Do not add one that contradicts it. A rename also rewrites every earlier Unreleased
     entry that names the old field.
