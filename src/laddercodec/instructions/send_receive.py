@@ -1638,6 +1638,16 @@ class Receive(Instruction):
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
 
+    @classmethod
+    def from_csv_token(cls, token: str) -> Receive:
+        """Parse the CSV token of a Receive, such as
+        ``receive(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),remote_start="DS1",dest=DS1)``.
+
+        ``read_csv`` reads the AF cell of a Receive with the same parser. The method raises
+        ``CsvReadError`` or ``FieldError``, as ``read_csv`` does for the same AF cell.
+        """
+        return cast(Receive, _from_csv_token(token, "receive"))
+
     def to_csv(self) -> str:
         parts: list[str] = []
         parts.append(f"target={_target_to_csv(self.target)}")
@@ -1746,6 +1756,16 @@ class Send(Instruction):
                 object.__setattr__(self, "function_code", None if fc == default_fc else fc)
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
+
+    @classmethod
+    def from_csv_token(cls, token: str) -> Send:
+        """Parse the CSV token of a Send, such as
+        ``send(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),remote_start="DS1",source=DS1)``.
+
+        ``read_csv`` reads the AF cell of a Send with the same parser. The method raises
+        ``CsvReadError`` or ``FieldError``, as ``read_csv`` does for the same AF cell.
+        """
+        return cast(Send, _from_csv_token(token, "send"))
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -2260,6 +2280,40 @@ def parse_af_call(call: AfCall) -> Receive | Send:
         field=None,  # token syntax, not a field value
         reason=Reason.FORM,
         code=Code.INVALID_TOKEN,
+    )
+
+
+#: A token of each kind, as the error of ``from_csv_token`` shows it.
+_TOKEN_EXAMPLES = {
+    "send": 'send(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),remote_start="DS1",'
+    "source=DS1)",
+    "receive": 'receive(target=ModbusTcpTarget(name="plc",ip="192.168.1.10"),'
+    'remote_start="DS1",dest=DS1)',
+}
+
+
+def _from_csv_token(token: str, name: Literal["send", "receive"]) -> Receive | Send:
+    """Parse *token* as ``read_csv`` parses an AF cell, and build the Send or Receive.
+
+    Raise ``CsvReadError`` when the token is not a call named *name*."""
+    from ..csv.ast import AfCall
+    from ..csv.token_parser import parse_af_token  # the csv package imports this module
+
+    label = name.capitalize()
+    shape = f"{name}(target=...,remote_start=...,{'source' if name == 'send' else 'dest'}=...)"
+    node = parse_af_token(token)
+    if isinstance(node, AfCall) and node.name == name:
+        return parse_af_call(node)
+    other = "receive" if name == "send" else "send"
+    if isinstance(node, AfCall) and node.name == other:
+        raise CsvReadError(
+            f"Could not read {token!r} as a {label}, because it is a {other}(...) token. Read it "
+            f"with {other.capitalize()}.from_csv_token(), or write a {label} as {shape}, such as "
+            f"{_TOKEN_EXAMPLES[name]}."
+        )
+    raise CsvReadError(
+        f"Could not read {token!r} as a {label}. Write it as {shape}, such as "
+        f"{_TOKEN_EXAMPLES[name]}."
     )
 
 
