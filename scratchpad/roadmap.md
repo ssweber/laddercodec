@@ -225,8 +225,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     (`immediate(Y001..C2)`), and an end outside its bank in another bank (`C1..DS0`, where the rules report the
     end's bank refusal, OBJ-004). `Y001..X[DS1]` is OBJ-005, and the rules give it no id.
 - **A unit on an instruction that has none (nothing).** An event drum and a toggle accept a falsy `unit` other
-  than `""`, such as `None` or `0`. Both should refuse it with `OPTION_NOT_OFFERED`. The annotations `TimeUnit | Literal[""]` on `Drum.unit` and
-  `OutVariantUnit | Literal[""]` on `OutVariant.unit` state that contract.
+  than `""`, such as `None` or `0`. Both should refuse it with `OPTION_NOT_OFFERED`. The annotations
+  `TimeUnit | Literal[""]` on `Drum.unit` and `OutVariantUnit | Literal[""]` on `OutVariant.unit` state that
+  contract.
 
 ## 3. Canonical constants (CLICK)
 
@@ -351,7 +352,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
   they store? The code refuses both.
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the TXT
-  where its text ends. CLICK refuses a Fill of such an integer or hex number, and the rules do too. What CLICK stores for a Fill of a real into TXT is not known.
+  where its text ends. CLICK refuses a Fill of such an integer or hex number, and the rules do too. What CLICK
+  stores for a Fill of a real into TXT is not known.
 - **Termination code with other options.** The code accepts a termination code on a single Copy of a constant
   into TXT with `suppress_zero=0`, such as `copy(5,TXT1,convert=to_text(suppress_zero=0,termination_code=$0D))`,
   and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
