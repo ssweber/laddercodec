@@ -40,11 +40,8 @@ Sam tags laddercodec first, then pyrung. laddercodec makes no release before tha
 from pyrung's feedback until the two release together (Sam, 2026-11-17).
 
 **Before the tag.** Nothing waits on Sam except the tag itself.
-1. The laddercodec session merges `fix/ip-canonical`, which changes how a Modbus TCP address is written
-   (Settled).
-2. The laddercodec session then merges the release tidy (the roadmap, the CHANGELOG layout and the release
-   notes).
-3. Sam tags laddercodec.
+1. The laddercodec session merges the release tidy (the roadmap, the CHANGELOG layout and the release notes).
+2. Sam tags laddercodec.
 
 **After the joint release, in this order:**
 1. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
