@@ -15,17 +15,24 @@ CSV forms:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
 from ..codes import Code
 from ..errors import CsvReadError
-from ..model import FieldError, Instruction, InstructionType, Reason, normalize_address
+from ..model import (
+    AddressError,
+    FieldError,
+    Instruction,
+    InstructionType,
+    Reason,
+    normalize_address,
+)
 from ..operands.address import require_text
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
-from ..operands.message import Op, make_refusal, says
+from ..operands.message import Op, from_parts, make_refusal, parts_of, says
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -46,6 +53,8 @@ _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
 FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
 _FOR_LIMIT_CONSTANTS = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT32_MAX)
+#: The most characters that the For dialog's count takes.
+_COUNT_MAX_TYPED = 16
 
 # Func codes of binary class "Next", in tag 0x3218.  CLICK v3 writes a Next with no func
 # code, and v4 writes 9220.
@@ -91,17 +100,63 @@ def _normalized_count(value: str) -> str:
     return normalize_address(text, "ForLoop.count")
 
 
+def _digits(text: str) -> bool:
+    return text.isascii() and text.isdigit()
+
+
+def _real_with_point(text: str) -> bool:
+    """Return whether *text* is a real with a point that CLICK refuses as a count with
+    OBJ-005.
+
+    The text has at most 16 characters, the most that the For dialog's count takes. It is
+    an optional ``+`` or ``-``, then ASCII digits with a point among them, such as ``1.5``,
+    ``-1.5``, ``+1.5``, ``.5`` or ``1.``. Where the point has digits on both sides, an
+    exponent may follow: ``E`` or ``e``, an optional ``+`` or ``-``, and ASCII digits, such
+    as ``1.5E3`` or ``-1.5E-3``.
+    """
+    if len(text) > _COUNT_MAX_TYPED:
+        return False
+    body = text[1:] if text[:1] in ("+", "-") else text
+    mantissa, letter, exponent = body.upper().partition("E")
+    whole, point, fraction = mantissa.partition(".")
+    if not point or not (whole or fraction):
+        return False
+    if not all(part == "" or _digits(part) for part in (whole, fraction)):
+        return False
+    if not letter:
+        return True
+    power = exponent[1:] if exponent[:1] in ("+", "-") else exponent
+    return bool(whole) and bool(fraction) and _digits(power)
+
+
 def _check_for_count(text: str) -> None:
     """Raise :class:`FieldError` if CLICK's For dialog refuses *text*, a count in display
-    form."""
-    check_operand(
-        text,
-        "ForLoop.count",
-        FOR_LIMIT_BANKS,
-        _FOR_LIMIT_CONSTANTS,
-        bank_id="OBJ-004",
-        bank_code=Code.FOR_COUNT_BANK,
-    )
+    form.
+
+    The refusal of a real that :func:`_real_with_point` accepts has CLICK's id, OBJ-005.
+    The refusal of any other count that is not a whole number has no id here.
+    """
+    try:
+        check_operand(
+            text,
+            "ForLoop.count",
+            FOR_LIMIT_BANKS,
+            _FOR_LIMIT_CONSTANTS,
+            bank_id="OBJ-004",
+            bank_code=Code.FOR_COUNT_BANK,
+        )
+    except AddressError as exc:
+        parts = parts_of(exc)
+        if exc.code is not Code.NOT_AN_ADDRESS or parts is None or not _real_with_point(text):
+            raise
+        raise from_parts(
+            AddressError,
+            replace(parts, click_id="OBJ-005"),
+            field=exc.fields,
+            reason=exc.reason,
+            code=exc.code,
+            click_id="OBJ-005",
+        ) from None
 
 
 @dataclass(frozen=True)

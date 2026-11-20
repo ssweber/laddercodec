@@ -227,7 +227,7 @@ class Code(StrEnum):
 
 CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.NOT_AN_ADDRESS: ("OBJ-002", "OBJ-003", "OBJ-004", "OBJ-005"),
-    Code.ADDRESS_OUT_OF_RANGE: ("OBJ-003",),
+    Code.ADDRESS_OUT_OF_RANGE: ("OBJ-002", "OBJ-003"),
     Code.BANK_NOT_ALLOWED: ("OBJ-003", "OBJ-004"),
     Code.NOT_WRITABLE: ("OBJ-003", "OBJ-004", "OBJ-018"),
     Code.POINTER_BANK_NOT_ALLOWED: ("OBJ-004",),

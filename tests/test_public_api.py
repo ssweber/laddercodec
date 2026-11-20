@@ -207,7 +207,7 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     codes = importlib.import_module("laddercodec.codes")
     assert laddercodec.Code is codes.Code
     assert laddercodec.CLICK_IDS is codes.CLICK_IDS
-    assert laddercodec.CLICK_IDS[laddercodec.Code.ADDRESS_OUT_OF_RANGE] == ("OBJ-003",)
+    assert laddercodec.CLICK_IDS[laddercodec.Code.ADDRESS_OUT_OF_RANGE] == ("OBJ-002", "OBJ-003")
     unchecked = importlib.import_module("laddercodec.operands.unchecked")
     assert laddercodec.replace is unchecked.replace
     circuit = importlib.import_module("laddercodec.circuit")

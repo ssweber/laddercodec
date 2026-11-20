@@ -95,6 +95,7 @@ ANSWER_FILES = (
     "ip_field",
     "ip_field_per_field",
     "ip_field_neg",
+    "drum_events_exprs",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -789,7 +790,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4880
+CODES_COMPARED = 4925
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
@@ -1409,6 +1410,7 @@ RUNNER_ANSWERS = {
     "ip_field": ("ip_field",),
     "ip_field_per_field": ("ip_field",),
     "ip_field_neg": ("ip_field_neg",),
+    "drum_events_exprs": ("drum_events_exprs",),
 }
 
 

@@ -33,7 +33,7 @@ These rules are the same in every instruction. `field` names the field.
 |---|---|---|
 | `blank-field` | A field that needs a value is blank. |  |
 | `not-an-address` | Text that is no CLICK address or names no bank, or a value that is not text. | OBJ-002, OBJ-003, OBJ-004, OBJ-005 |
-| `address-out-of-range` | A number outside its bank (`DS5000`, `X017`). | OBJ-003 |
+| `address-out-of-range` | A number outside its bank (`DS5000`, `X017`). | OBJ-002, OBJ-003 |
 | `bank-not-allowed` | An address in a bank the field doesn't take. | OBJ-003, OBJ-004 |
 | `upper-byte-not-allowed` | `XD0u` or `YD0u` in a field that takes no upper byte. |  |
 | `not-click-form` | A stored value in a form that CLICK never writes. It is an address, a Math keypad name or a Math hex constant that is not in display form (`x1`, `sqrt`), or a numeric tag that holds no number. A decoder keeps such a blob raw. |  |

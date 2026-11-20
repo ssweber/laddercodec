@@ -36,6 +36,7 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `drum_events_names.json` | an event drum whose first event is `X001`, text that names no bank (`Q1`, `ABC`, `1`, `C1A`), or a bank name alone (`DS`, `X`) |
 | `drum_events_shapes.json` | an event drum and a time and event drum whose first event is `X001`, an address with a space (` DS1`, `DS 1`), a range, an address after `-` or `NOT `, `$41`, `X99999999`, a pointer, or `Y001,`; and a time and event drum whose first event is `~X001`, `rise(X001)`, `Q1`, `X`, `DS` or `DS1` |
 | `drum_events_padded.json`, `drum_events_padded2.json` | an event drum whose first event is `X001`, `C000001`, `X0000001`, `X00000100`, `SC0000000001` or `C0002001`; and again `X100`, `C000001` and `SC0000000001` |
+| `drum_events_exprs.json` | an event drum whose first event is `C1`, `DS5>3`, `X1==1`, `C1<>C2`, `[C1,C2]`, `(C1)` or `C1 C2` |
 | `coil_sc.json` | Set and Reset of each SC address that Out writes, and of SC49 and SC163 |
 | `coil_sc_ranges.json` | Out, Set and Reset of the SC ranges SC50..SC60, SC50..SC53 and SC162..SC165, each of which holds a read-only SC between writable ends, and of SC50..SC51 and SC60..SC61 |
 | `compare_const.json` | Compare with constants: two texts, two numbers, a text against a number, `"A"=="B"` against `"C"`, and `"A"` against TXT1 |
@@ -46,15 +47,15 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
 `drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
 `drum_events_padded2.json`, `coil_sc.json`, `coil_sc_ranges.json`, `compare_const.json`,
-`coil_sc_ranges2.json`, `ip_field.json` and `ip_field_neg.json`.
+`coil_sc_ranges2.json`, `ip_field.json`, `ip_field_neg.json` and `drum_events_exprs.json`.
 The files hold ClickNick's text as it wrote it. The generator does not write them. It reads
 them and writes their verdicts files. A Receive case types `slave_address`, `master_address`,
 `count`, `receiving`, `success`, `error` and `exception`, and picks an item in the `function`
 and `addressing` lists. It types no Slave ID and picks no port, except in `ip_field.json`
 and `ip_field_neg.json`. A case there picks CPU Port1 and types the Slave ID, `server_port`
-and `ip`, as a Send case does. A case that types no `ip` leaves the IP control blank. A Set or Reset case types
-`address` and `address_end` as an Out case does. A time and event drum case types the fields
-of a time drum and the events of an event drum.
+and `ip`, as a Send case does. A case that types no `ip` leaves the IP control blank. A Set
+or Reset case types `address` and `address_end` as an Out case does. A time and event drum
+case types the fields of a time drum and the events of an event drum.
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
 case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
@@ -203,9 +204,9 @@ A Receive case is built as `Receive` with the function code that the case picks,
 on CPU Port2. If the case picks a port, the Receive is on that port. If the case types a Slave
 ID, the Receive reads from that Slave ID. On `CPU Port1` or `WLAN Port`, the target is a
 `ModbusTcpTarget` with the case's IP and server port, as for a Send. A Send or Receive case
-that types no IP is built with the IP `""`. With CLICK addressing, the slave address is the address text. With
-any other addressing, or with none picked, it is a `ModbusAddress` of the text. A case
-without `count` is built with a count of 1.
+that types no IP is built with the IP `""`. With CLICK addressing, the slave address is the
+address text. With any other addressing, or with none picked, it is a `ModbusAddress` of the
+text. A case without `count` is built with a count of 1.
 
 laddercodec reads a slave address that ends in `h` as hex, and an address of digits only as
 MODBUS 984. It would read `1h` typed in 984 addressing as hex, and `10` typed in hex addressing
@@ -242,6 +243,7 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `drum_events_names.answers.json` | the answers to `drum_events_names.json` (7 cases) |
 | `drum_events_shapes.answers.json` | the answers to `drum_events_shapes.json` (28 cases) |
 | `drum_events_padded.answers.json` | the answers to `drum_events_padded.json` and then to `drum_events_padded2.json` (6 and 3 cases, two runs) |
+| `drum_events_exprs.answers.json` | the answers to `drum_events_exprs.json` (7 cases) |
 | `coil_sc.answers.json` | the answers to `coil_sc.json` (54 cases) |
 | `coil_sc_ranges.answers.json` | the answers to `coil_sc_ranges.json` (15 cases) |
 | `compare_const.answers.json` | the answers to `compare_const.json` (7 cases) |
