@@ -6,7 +6,7 @@ tags that the decoders read.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
 
@@ -306,6 +306,16 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
     result = from_tags_condition(class_name, type_marker, tags, variant_u16, variant_string)
     if isinstance(result, (Contact, CompareContact)):
+        raw = _noting_empty_flags(
+            result,
+            result,
+            fields,
+            tags,
+            lambda cleared: from_tags_condition(
+                class_name, type_marker, cleared, variant_u16, variant_string
+            ),
+            raw,
+        )
         return _keeping_blob(result, raw)
     return None
 
@@ -321,9 +331,78 @@ def parse_af_blob(raw: bytes) -> Instruction | None:
     except (ValueError, struct.error):
         return None
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    parsed = from_tags_af(class_name, type_marker, tags, variant_u16, variant_string)
-    parsed = _with_pin_rows(parsed, extra)
-    return None if parsed is None else _keeping_blob(parsed, raw)
+    built = from_tags_af(class_name, type_marker, tags, variant_u16, variant_string)
+    parsed = _with_pin_rows(built, extra)
+    if parsed is None:
+        return None
+    raw = _noting_empty_flags(
+        parsed,
+        built,
+        fields,
+        tags,
+        lambda cleared: from_tags_af(class_name, type_marker, cleared, variant_u16, variant_string),
+        raw,
+    )
+    return _keeping_blob(parsed, raw)
+
+
+def _noting_empty_flags(
+    parsed: Condition | Instruction,
+    built: object,
+    fields: list[tuple[int, bytes, str]],
+    tags: dict[int, str],
+    parse: Callable[[dict[int, str]], object | None],
+    raw: bytes,
+) -> bytes:
+    """Record a legacy finding on *parsed* for each field that an empty flag sets.
+
+    laddercodec reads a flag that is stored empty as set. An empty flag also gets a finding
+    if laddercodec does not read it but encoding *parsed* writes it set. Return the blob
+    that *parsed* keeps if it needs a stored blob. In that blob, each flag with a finding is
+    written set, as the encoder writes it. If *raw* has no such flag, the function returns
+    *raw*. *built* is the instruction that *parse* built from *tags*, before the decoder set
+    its pin rows. *fields* are the fields of the blob at the start of *raw*.
+    """
+    from ..binary_helpers import _STANDARD_SENTINEL, _set_flag, _tag_wire_type
+    from ..legacy import (  # the legacy module imports this package
+        empty_flag_findings,
+        written_flag_finding,
+        written_flags,
+    )
+    from .raw import _compose_blob, _decompose_blob
+
+    empty = [
+        tag
+        for tag, sentinel, value in fields
+        if sentinel == _STANDARD_SENTINEL and value == "" and _tag_wire_type(tag) == "flag"
+    ]
+    if not empty:
+        return raw
+    written = written_flags(parsed)
+    findings: list[tuple[str, str, str]] = []
+    read: set[int] = set()
+    for tag in empty:
+        found = empty_flag_findings(built, tag, tags, parse)
+        if not found and written.get(tag, "0") not in ("", "0"):
+            found = [written_flag_finding(parsed, tag)]
+        if found:
+            findings += found
+            read.add(tag)
+    if not read:
+        return raw
+    held = tuple(getattr(parsed, "_legacy_findings", ()))
+    object.__setattr__(parsed, "_legacy_findings", (*held, *findings))
+    class_name, type_marker, part_count, extra, _fields = _decompose_blob(raw)
+
+    def set_value(tag: int) -> str:
+        value = written.get(tag, "0")
+        return _set_flag(class_name) if value in ("", "0") else value
+
+    stored = [
+        (tag, sentinel, set_value(tag) if tag in read and value == "" else value)
+        for tag, sentinel, value in fields
+    ]
+    return _compose_blob(class_name, type_marker, part_count, extra, stored)
 
 
 def _keeping_blob(parsed: _Parsed, raw: bytes) -> _Parsed:
