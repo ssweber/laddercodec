@@ -146,7 +146,7 @@ def test_message_takes_the_later_of_two_keys_for_one_address() -> None:
             lambda: BlockCopy(source_start="C2", source_end="C1", dest_start="DS1", dest_end="DS2"),
             {"C1": "Valve1", "C2": "Valve2"},
             "BlockCopy.source_end: Valve2..Valve1 (C2..C1) runs backwards; a range ends after "
-            "its start (OBJ-009)",
+            "its start (OBJ-009). Write an end above C2, and move the destination end to match.",
             id="range-both-ends-named",
         ),
         pytest.param(

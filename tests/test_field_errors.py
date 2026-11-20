@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import pickle
+import re
 from typing import Any
 
 import pytest
@@ -201,18 +202,22 @@ def test_coil_gives_every_refusal() -> None:
 
 @pytest.mark.parametrize("kind", ["out", "latch", "reset"])
 @pytest.mark.parametrize(
-    ("start", "end", "click_id"),
-    [("C5", "Y5", "OBJ-008"), ("C9", "C1", "OBJ-009"), ("C5", "C5", "OBJ-012")],
+    ("start", "end", "code", "click_id"),
+    [
+        ("C5", "Y5", Code.RANGE_MIXED_BANKS, "OBJ-008"),
+        ("C9", "C1", Code.RANGE_NOT_ASCENDING, "OBJ-009"),
+        ("C5", "C5", Code.DUPLICATE_ADDRESS, "OBJ-012"),
+    ],
 )
-def test_coil_range(kind: CoilKind, start: str, end: str, click_id: str) -> None:
-    """Out, Set and Reset refuse a bad range end with the same CLICK ids.
+def test_coil_range(kind: CoilKind, start: str, end: str, code: Code, click_id: str) -> None:
+    """Out, Set and Reset refuse a bad range end with the same codes and CLICK ids.
 
     The ids are OBJ-008 for another bank, OBJ-009 for an end below the start, and OBJ-012
-    for the same address."""
+    for the same address at both ends."""
     (error,) = _refusals(lambda: Coil(start, kind=kind, range_end=end))
     assert error.fields == ("Coil.range_end", "Coil.operand")
-    assert (error.reason, error.click_id) == (Reason.CONFLICT, click_id)
-    assert str(error).endswith(f" ({click_id})")
+    assert (error.code, error.reason, error.click_id) == (code, Reason.CONFLICT, click_id)
+    assert re.search(rf" \({click_id}\)(\. [^()]*)?$", str(error))
 
 
 @pytest.mark.parametrize("kind", ["out", "latch", "reset"])
@@ -600,13 +605,33 @@ def test_immediate_names_the_immediate_field() -> None:
 def test_click_id_where_the_dialog_is_known(build: Any, field: str, click_id: str) -> None:
     (error,) = _refusals(build)
     assert (error.field, error.click_id) == (field, click_id)
-    assert str(error).endswith(f"({click_id})")
+    assert re.search(rf" \({click_id}\)(\. [^()]*)?$", str(error))
 
 
-def test_shift_same_ends_is_a_conflict() -> None:
-    (error,) = _refusals(lambda: Shift("C1", "C1"))
+@pytest.mark.parametrize(("bit", "other"), [("C1", "C2"), ("C2000", "C1999")])
+def test_shift_same_ends_is_a_conflict(bit: str, other: str) -> None:
+    (error,) = _refusals(lambda: Shift(bit, bit))
     assert error.fields == ("Shift.end_bit", "Shift.start_bit")
-    assert error.reason == Reason.CONFLICT
+    assert (error.code, error.reason) == (Code.DUPLICATE_ADDRESS, Reason.CONFLICT)
+    assert str(error).endswith(f"Write another C bit as the end, such as {other}.")
+
+
+@pytest.mark.parametrize(
+    ("start", "then"),
+    [
+        ("C1", "Write an end above C1, such as C2."),
+        ("Y016", "Write an end above Y016, such as Y021."),
+        ("SC51", "Write an end above SC51, such as SC53."),
+        ("C2000", "Write a start below C2000."),
+    ],
+)
+def test_coil_range_message_names_an_end_to_write(start: str, then: str) -> None:
+    """The end that the message names is one that the coil's range takes."""
+    (error,) = _refusals(lambda: Coil(start, range_end=start))
+    assert error.code == Code.DUPLICATE_ADDRESS
+    assert str(error).endswith(then)
+    if "such as" in then:
+        Coil(start, range_end=then.removesuffix(".").rpartition(" ")[2])
 
 
 def test_every_reason_has_a_docstring() -> None:

@@ -1132,6 +1132,16 @@ def _validate_send(send: Send) -> tuple[int, int]:
     return found
 
 
+def _odd_txt_start(start: int, quantity: int | None) -> int:
+    """Return an odd TXT address below the even ``start`` from which ``quantity`` characters
+    end by TXT1000. With no ``quantity``, return the address just below ``start``."""
+    odd = start - 1
+    if quantity is not None and quantity > 0:
+        odd = min(odd, 1001 - quantity)
+    odd -= 1 - odd % 2
+    return max(odd, 1)
+
+
 def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     """Check every field of *send*, and record each refusal in *check*.
 
@@ -1200,6 +1210,24 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     else:
         banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
     local = check("source", check_address, banks, label=f"{who} source", bank_id=_BANK_ID)
+    even_txt = False
+    if local is not None and local.bank == "TXT" and local.number % 2 == 0:
+        # A TXT source starts at an odd address. An even start is refused before the count
+        # is checked.
+        even_txt = True
+        check.refuse(
+            "source",
+            says(
+                "{source} is an even TXT address",
+                "a Send of TXT starts at an odd address",
+                source=Op(local.display, quoted=False),
+            ),
+            Reason.RANGE,
+            "OBJ-028",
+            code=Code.TXT_START_NOT_ODD,
+            then="Start at an odd TXT address, such as "
+            f'source="TXT{_odd_txt_start(local.number, quantity if counted else None)}".',
+        )
     remote_bank = remote_addr.bank if remote_addr is not None else None
     default_fc = None
     if bit is not None and local is not None:
@@ -1255,7 +1283,9 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     if remote_addr is not None and bit is False and local is not None:
         _check_send_pair(check, remote_addr, local, fc)
 
-    if bit is not None and local is not None and counted:
+    # The count of a TXT source that starts at an even address is not checked.
+    checks_count = counted and not even_txt
+    if bit is not None and local is not None and checks_count:
         xy_room = None
         if local.bank in XY_BANKS and remote_addr is not None:
             xy_room = _remote_xy_room(local, remote_addr)
@@ -1265,7 +1295,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
             _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
-    elif counted:
+    elif checks_count:
         _check_quantity_bounds(check, quantity, _SEND_CAPS, bit)
 
     if isinstance(remote, ModbusAddress) and remote.is_hex and local is not None:

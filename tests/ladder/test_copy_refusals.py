@@ -8,11 +8,12 @@ known. ``tests/conftest.py`` checks that every refusal of these classes has a re
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
 
-from laddercodec import AddressError, BlockCopy, Copy, FieldError, Fill, Pack, Search, Unpack
+from laddercodec import AddressError, BlockCopy, Code, Copy, FieldError, Fill, Pack, Search, Unpack
 
 
 def _errors(build: Any) -> tuple[FieldError, ...]:
@@ -263,7 +264,7 @@ def test_pair_refusals_name_both_fields_with_the_id(
 ) -> None:
     (error,) = _errors(build)
     assert (error.fields, error.reason, error.click_id) == (fields, "conflict", click_id)
-    assert str(error).endswith(f" ({click_id})") == (click_id is not None)
+    assert bool(re.search(rf" \({click_id}\)(\. [^()]*)?$", str(error))) == (click_id is not None)
 
 
 def test_blockcopy_bank_and_ends() -> None:
@@ -600,8 +601,6 @@ def test_fill_into_writable_sd(value: str, start: str, end: str) -> None:
         ("0FFFFFFFFh", "SD1", "SD2"),
         ("100000000h", "SD1", "SD2"),
         ("5", "SD1000", "SD1001"),
-        ("5", "SD2", "SD1"),
-        ("5", "SD1", "SD1"),
         ("5", "SD1", "SD0"),
         ("5", "SD1", "SD1001"),
         ("5", "SD1", "X001"),
@@ -642,11 +641,10 @@ def test_fill_reasons() -> None:
         "conflict",
         None,
     )
-    # Neither a backwards range nor a one-address range has an id for Fill.
-    for end in ("DS5", "DS1"):
+    # A one-address range is OBJ-012 for Fill, and a backwards range is OBJ-009.
+    for end, click_id in (("DS5", "OBJ-012"), ("DS1", "OBJ-009")):
         (error,) = _errors(lambda end=end: Fill("0", "DS5", end))
-        assert (error.reason, error.click_id) == ("conflict", None)
-        assert "OBJ-" not in str(error)
+        assert (error.reason, error.click_id) == ("conflict", click_id)
 
 
 def test_fill_into_txt_takes_one_character_with_no_id() -> None:
@@ -820,19 +818,107 @@ def test_pack_and_unpack_shared_refusals(build: Any, field: str, reason: str) ->
 
 
 @pytest.mark.parametrize(
-    ("start", "end", "click_id"),
-    [("DS1", "DD5", "OBJ-008"), ("DS9", "DS1", "OBJ-009"), ("DS5", "DS5", "OBJ-012")],
+    ("start", "end", "code", "click_id"),
+    [
+        ("DS1", "DD5", Code.RANGE_MIXED_BANKS, "OBJ-008"),
+        ("DS9", "DS1", Code.RANGE_NOT_ASCENDING, "OBJ-009"),
+        ("DS5", "DS5", Code.DUPLICATE_ADDRESS, "OBJ-012"),
+    ],
 )
 def test_search_table_range_refusals_carry_reason_and_id(
-    start: str, end: str, click_id: str
+    start: str, end: str, code: Code, click_id: str
 ) -> None:
     """Search checks its table with ``check_range``.
 
-    The refusal names both ends of the table and has a reason and CLICK's id."""
+    The refusal names both ends of the table and has a code, a reason and CLICK's id."""
     (error,) = _errors(lambda: Search(start, end, "5", "DS20", "C1", "=="))
     assert error.fields == ("Search.table_end", "Search.table_start")
-    assert (error.reason, error.click_id) == ("conflict", click_id)
-    assert str(error).endswith(f" ({click_id})")
+    assert (error.code, error.reason, error.click_id) == (code, "conflict", click_id)
+    assert re.search(rf" \({click_id}\)(\. [^()]*)?$", str(error))
+
+
+_SAME = Code.DUPLICATE_ADDRESS
+_BELOW = Code.RANGE_NOT_ASCENDING
+
+
+@pytest.mark.parametrize(
+    ("build", "code", "click_id", "then"),
+    [
+        (lambda: Pack("C1", "C1", "DS1"), _SAME, "OBJ-012", "such as C2."),
+        (lambda: Pack("C5", "C1", "DS1"), _BELOW, "OBJ-009", "such as C6."),
+        (lambda: Pack("X016", "X016", "DH1"), _SAME, "OBJ-012", "Write a start below X016."),
+        (lambda: Unpack("DH1", "Y001", "Y001"), _SAME, "OBJ-012", "such as Y002."),
+        (lambda: Search("TXT1000", "TXT1000", '"A"', "DS20", "C1", "=="), _SAME, "OBJ-012",
+         "Write a start below TXT1000."),
+        (lambda: BlockCopy("DS1", "DS1", "DS10", "DS10"), _SAME, "OBJ-012",
+         "Write an end above DS1, and move the destination end to match."),
+        (lambda: Fill("5", "DS1", "DS1"), _SAME, "OBJ-012", "such as DS2."),
+        (lambda: Fill("5", "DS2", "DS1"), _BELOW, "OBJ-009", "such as DS3."),
+        (lambda: Fill("5", "YD0", "YD0"), _SAME, "OBJ-012", "such as YD1."),
+        (lambda: Fill('"A"', "TXT1", "TXT1"), _SAME, "OBJ-012", "such as TXT2."),
+        # A Fill into SD from a writable start checks the order of the ends first, and
+        # that refusal has no id. The message names writable SD to fill.
+        (lambda: Fill("5", "SD141", "SD140"), _BELOW, None, "such as SD140..SD141."),
+        (lambda: Fill("5", "SD32", "SD31"), _BELOW, None, "such as SD31..SD32."),
+        (lambda: Fill("5", "SD147", "SD140"), _BELOW, None, "such as SD140..SD147."),
+        (lambda: Fill("5", "SD31", "SD29"), _BELOW, None, "Write an end above SD31, such as SD32."),
+        (lambda: Fill("5", "SD141", "SD29"), _BELOW, None, "such as SD142."),
+        (lambda: Fill("5", "SD215", "SD140"), _BELOW, None, "such as SD214..SD215."),
+        (lambda: Fill("5", "SD31", "SD31"), _SAME, None, "such as SD32."),
+        (lambda: Fill("5", "SD29", "SD29"), _SAME, None,
+         "Write a range of writable SD registers, such as SD31..SD32."),
+        (lambda: Fill("5", "SD215", "SD215"), _SAME, None,
+         "Write a range of writable SD registers, such as SD214..SD215."),
+    ],
+)  # fmt: skip
+def test_a_range_that_does_not_end_above_its_start(
+    build: Any, code: Code, click_id: str | None, then: str
+) -> None:
+    """A range with one address at both ends is ``duplicate-address``, and a range whose end
+    is below its start is ``range-not-ascending``. The message ends with an end to write."""
+    (error,) = _errors(build)
+    assert (error.code, error.click_id) == (code, click_id)
+    assert str(error).endswith(then)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "example"),
+    [
+        ("SD1", "SD1", "SD31..SD32"),
+        ("SD2", "SD1", "SD31..SD32"),
+        ("SD140", "SD149", "SD140..SD141"),
+    ],
+)
+def test_fill_sd_writability_comes_before_the_order(start: str, end: str, example: str) -> None:
+    """A Fill into an SD range that holds a read-only SD is refused with OBJ-004. A range
+    whose start SD is read-only is refused so even when it does not end above its start.
+    The message names writable SD to fill."""
+    (error,) = _errors(lambda: Fill("5", start, end))
+    assert (error.code, error.click_id) == (Code.NOT_WRITABLE, "OBJ-004")
+    assert str(error).endswith(f"Write a range of writable SD registers, such as {example}.")
+    first, _, last = example.partition("..")
+    Fill("5", first, last)
+
+
+@pytest.mark.parametrize(
+    ("value", "start", "end", "codes"),
+    [
+        ("TXT1", "SD31", "SD31", ["duplicate-address", "copy-bank-incompatible"]),
+        ('"A"', "SD32", "SD31", ["range-not-ascending", "copy-bank-incompatible"]),
+        ("TXT1", "SD1", "SD1", ["copy-bank-incompatible"]),
+        ("TXT1", "SD1", "SD2", ["copy-bank-incompatible"]),
+    ],
+)
+def test_fill_sd_order_and_pairing(value: str, start: str, end: str, codes: list[str]) -> None:
+    """From a writable start SD, the order of the ends is refused before the pairing, as in
+    the other banks. From a read-only start SD, the pairing is refused first, and the range
+    is not checked after it."""
+    assert [error.code for error in _errors(lambda: Fill(value, start, end))] == codes
+
+
+def test_a_fill_range_in_two_banks_has_no_id() -> None:
+    (error,) = _errors(lambda: Fill("5", "DS1", "TXT1"))
+    assert (error.code, error.click_id) == (Code.RANGE_MIXED_BANKS, None)
 
 
 # ---------------------------------------------------------------------------

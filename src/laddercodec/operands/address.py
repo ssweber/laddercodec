@@ -344,6 +344,50 @@ def xy_room(number: int) -> int:
     return 17 - number % 100
 
 
+def address_above(
+    address: Address, *, one_module: bool = False, among: Collection[int] | None = None
+) -> Address | None:
+    """Return the first address above ``address`` in its bank, or None if there is none.
+
+    In X and Y the address is a point of a slot, and with ``one_module`` it is in the slot of
+    ``address``. Above ``XD0`` and ``XD0u`` is ``XD1``. ``among`` holds the numbers that the
+    field takes, such as the writable SC bits.
+    """
+    slot = xy_slot(address.number) if address.bank in XY_BANKS else None
+    for number in range(address.number + 1, ADDRESS_BANKS[address.bank][1] + 1):
+        if address.bank in XY_BANKS:
+            if xy_slot(number) is None:
+                continue
+            if one_module and xy_slot(number) != slot:
+                return None
+        if among is None or number in among:
+            return Address(address.bank, number)
+    return None
+
+
+def range_then(
+    first: Address,
+    *,
+    one_module: bool = False,
+    among: Collection[int] | None = None,
+    moves: str = "",
+) -> str:
+    """Return the sentence that tells the user how to fix a range that does not end above
+    its start ``first``.
+
+    The sentence gives the address above the start (:func:`address_above`) as an example.
+    It gives none when ``moves`` names a field that must change with the end. When no
+    address is above the start, it says to lower the start.
+    """
+    start = first.display
+    above = address_above(first, one_module=one_module, among=among)
+    if above is None:
+        return f"Write a start below {start}."
+    if moves:
+        return f"Write an end above {start}, and move {moves} to match."
+    return f"Write an end above {start}, such as {above.display}."
+
+
 # ---------------------------------------------------------------------------
 # Reading address text without a refusal
 # ---------------------------------------------------------------------------
