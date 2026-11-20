@@ -19,7 +19,13 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type, flag_set, tag_default
+from .binary_helpers import (
+    _STANDARD_SENTINEL,
+    _set_flag,
+    _tag_wire_type,
+    flag_set,
+    tag_default,
+)
 from .decode import AF_DOWN_WIRE, Rung, _drop_tall_span_nops, _fits_stored_span
 from .errors import DecodeError
 from .instructions import (
@@ -447,16 +453,6 @@ class _ScrEntry:
     part_rows: bytes
     variant_u16_tags: _ScrVariantU16Tags
     variant_string_tags: _ScrVariantStringTags
-
-
-#: The classes whose clipboard blob writes a set flag as ``-1``. Every other class writes
-#: it as ``1``. A clear flag is ``0`` in every class.
-_MINUS_ONE_FLAG_CLASSES = frozenset({"Copy", "Drum", "Math", "Search"})
-
-
-def _set_flag(class_name: str) -> str:
-    """Return the value that the clipboard writes for a set flag of *class_name*."""
-    return "-1" if class_name in _MINUS_ONE_FLAG_CLASSES else "1"
 
 
 def _scr_blob(entry: _ScrEntry, form: Condition | Instruction | None) -> bytes:

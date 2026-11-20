@@ -54,12 +54,23 @@ CLICK's Email, Home, Position and Velocity instructions decode as `Email`, `Home
 A rung that an older laddercodec saved can hold bytes that decode to the same text
 as today's bytes, but that CLICK runs differently. `decode()` and
 `decode_program()` still return the rungs, and they emit a `LegacyEncodingWarning`.
-The only case today is a Math decimal constant outside -32768..32767 that was
-stored as 16-bit (`H70000`). CLICK runs it as its low 16 bits, so `70000` runs as
-4464. Re-paste the rung to store it as 32-bit.
+There are two cases:
+
+- A Math decimal constant outside -32768..32767 that was stored as 16-bit
+  (`H70000`). CLICK runs it as its low 16 bits, so `70000` runs as 4464.
+- A flag field that was stored empty and that encoding the rung again writes set,
+  such as a Coil's one-shot or a Math's hex mode. laddercodec reads the flag as
+  set, and CLICK runs it as clear. Only `decode()` warns for it. A program file
+  writes a flag as a tag with no value. That is CLICK's own form, so
+  `decode_program()` does not warn for it.
+
+To store the rung as CLICK does, encode it again with this laddercodec and paste it.
 
 The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or
-`None`) and `program` (for `decode_program()`). To collect them:
+`None`) and `program` (for `decode_program()`). For a flag field that was stored
+empty, `instruction` names the field, such as `"Coil.oneshot"`, and `token` is
+`""`. If no field can be named, `instruction` is the class and `token` names the
+tag, such as `"1246="`. To collect the warnings:
 
 ```python
 import warnings

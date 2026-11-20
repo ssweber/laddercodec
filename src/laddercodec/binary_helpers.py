@@ -215,6 +215,16 @@ def flag_set(tags: dict[int, str], tag: int, class_name: str = "") -> bool:
     return (tag in tags) != ((class_name, tag) in _CLASS_FLAG_DEFAULTS)
 
 
+#: The classes whose clipboard blob writes a set flag as ``-1``. Every other class writes
+#: it as ``1``. A clear flag is ``0`` in every class.
+_MINUS_ONE_FLAG_CLASSES = frozenset({"Copy", "Drum", "Math", "Search"})
+
+
+def _set_flag(class_name: str) -> str:
+    """Return the value that the clipboard writes for a set flag of *class_name*."""
+    return "-1" if class_name in _MINUS_ONE_FLAG_CLASSES else "1"
+
+
 def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
     """Read a value tag, or its default when it is absent or is a blank byte or u16 tag."""
     value = tags.get(tag)

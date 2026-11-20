@@ -55,8 +55,9 @@ if TYPE_CHECKING:
 class Condition:
     """Base class for condition-side instructions (Contact, CompareContact)."""
 
-    # A plain class attribute and not a dataclass field, so that it takes no part in
-    # equality. Instruction._refusal says what it holds.
+    # Plain class attributes and not dataclass fields, so that they take no part in
+    # equality. Instruction._legacy_findings and Instruction._refusal say what they hold.
+    _legacy_findings: Collection[tuple[str, str, str]] = ()
     _refusal: FieldError | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
