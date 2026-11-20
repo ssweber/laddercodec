@@ -242,11 +242,44 @@ _EVENT_PREFIXES = ("~", "!", "/", "-", "NC ", "NOT ")
 #: The edge calls that CLICK refuses as an event, such as ``rise(X001)``.
 _EVENT_EDGES = ("rise(", "fall(")
 _HEX_DIGITS = frozenset("0123456789ABCDEFabcdef")
+#: The comparison operators of the event expressions that have OBJ-005, such as ``DS5>3``.
+_EVENT_COMPARISONS = ("==", "<>", ">")
 _ONE_ADDRESS = "Write one bit address, such as X001."
+#: The refusal codes to which :func:`_check_event` adds the id from :func:`_event_id`.
+_EVENT_ID_CODES = (Code.NOT_AN_ADDRESS, Code.ADDRESS_OUT_OF_RANGE)
 
 
 def _one_address(text: str) -> bool:
     return parse_address(text.upper()) is not None
+
+
+def _bit_address(text: str) -> bool:
+    """Return whether ``text`` is an X, Y, C, T, CT or SC address written in uppercase."""
+    address = parse_address(text)
+    return address is not None and address.bank in BIT_BANKS
+
+
+def _expression(text: str) -> bool:
+    """Return whether ``text`` is one of the expressions that CLICK refuses with OBJ-005."""
+    for operator in _EVENT_COMPARISONS:
+        sides = text.split(operator)
+        if len(sides) == 2:
+            left, right = sides
+            digits = right.isascii() and right.isdigit()
+            return parse_address(left) is not None and (digits or _bit_address(right))
+    inner = text[1:-1]
+    items = inner.split(",")
+    words = text.split(" ")
+    return (
+        (text.startswith("(") and text.endswith(")") and _bit_address(inner))
+        or (
+            text.startswith("[")
+            and text.endswith("]")
+            and len(items) >= 2
+            and all(_bit_address(item) for item in items)
+        )
+        or (len(words) == 2 and all(_bit_address(word) for word in words))
+    )
 
 
 def _not_one_address(text: str) -> bool:
@@ -261,8 +294,9 @@ def _not_one_address(text: str) -> bool:
         or (edge is not None and _one_address(text[len(edge) : -1]))
         or (len(ends) == 2 and all(_one_address(end) for end in ends))
         or ("," in text and bool(items) and all(_one_address(item) for item in items))
-        or is_pointer(text)
+        or is_pointer(text.upper())
         or (text.startswith("$") and len(text) > 1 and set(text[1:]) <= _HEX_DIGITS)
+        or _expression(text)
         or (
             text.isascii()
             and text.isalnum()
@@ -273,7 +307,8 @@ def _not_one_address(text: str) -> bool:
 
 
 def _event_id(text: object) -> tuple[str, str] | None:
-    """Return the CLICK id and the advice for an event that is not an address, or None.
+    """Return the CLICK id and the advice for an event that is not a bit address in its
+    bank's range, or None.
 
     CLICK refuses these events with OBJ-005:
 
@@ -285,15 +320,24 @@ def _event_id(text: object) -> tuple[str, str] | None:
     - a pointer, such as ``X[DS1]``;
     - ``$`` and hex digits, such as ``$41``;
     - ASCII letters and digits that are neither a bank and a number nor a bank alone, such
-      as ``Q1``, ``ABC``, ``1`` or ``C1A``.
+      as ``Q1``, ``ABC``, ``1`` or ``C1A``;
+    - an uppercase address, then ``>``, ``==`` or ``<>``, then digits or an uppercase bit
+      address, such as ``DS5>3``, ``X1==1`` or ``C1<>C2``;
+    - one uppercase bit address in parentheses, such as ``(C1)``;
+    - two or more uppercase bit addresses in brackets, with a comma between each two, such
+      as ``[C1,C2]``;
+    - two uppercase bit addresses with one space between them, such as ``C1 C2``.
 
     It refuses a bank name alone with OBJ-002 for a bank that an event takes, such as ``X``,
     and with OBJ-004 for any other bank, such as ``DS``.  It reads the number after a bit
     bank by its value, so ``C000001`` is C1.  It refuses a number above the bank's highest
-    address with OBJ-003, such as ``X99999999`` or ``C0002001``.  It refuses an X or Y number
-    of more than five digits that no X or Y point has with OBJ-002, such as
-    ``X00000100``.  CLICK ignores spaces in an event.  It refuses ``DS 1`` and `` DS1`` with
-    OBJ-004, as it refuses ``DS1``.  Any other text has no id here.
+    address with OBJ-003, such as ``C2001``, ``X817``, ``X99999999`` or ``C0002001``.  It
+    refuses an X or Y number that no X or Y point has with OBJ-002, such as ``X017``,
+    ``X100`` or ``X00000100``.  It refuses ``X000``, ``Y000``, ``C0``, ``T0``, ``CT0`` and
+    ``SC0`` with OBJ-003.  Another spelling of 0, such as ``X0`` or ``X0000000``, gets no
+    id here.  CLICK ignores
+    spaces in an event.  It refuses ``DS 1`` and `` DS1`` with OBJ-004, as it refuses
+    ``DS1``.  Any other text has no id here.
     """
     if not isinstance(text, str):
         return None
@@ -313,28 +357,35 @@ def _event_id(text: object) -> tuple[str, str] | None:
     if shape is not None and shape[0] in BIT_BANKS:
         bank, digits = shape
         value = digits_value(digits)
-        if value > ADDRESS_BANKS[bank][1]:
+        if value > ADDRESS_BANKS[bank][1] or text == Address(bank, 0, False).display:
             return "OBJ-003", _ONE_ADDRESS
         if bank in XY_BANKS and value > 0 and parse_address(f"{bank}{value:03d}") is None:
             return "OBJ-002", _ONE_ADDRESS
     return None
 
 
-def _check_event(value: str, field: str, *, label: str) -> Address:
+def _check_event(value: str, field: str, *, label: str, typed: object = None) -> Address:
     """Check a step's event and return its address, or raise :class:`AddressError`.
 
     An event is one bit address in X, Y, C, T, CT or SC.  It has no NC or edge form.  An
-    address in another bank has OBJ-004, and text that is not an address has the id that
-    :func:`_event_id` gives it.
+    address in another bank has OBJ-004.  Text that is not an address, and an address
+    outside its bank's range, have the id that :func:`_event_id` gives them.  The refusal of
+    text that is not an address also gets the advice of :func:`_event_id`.
+
+    ``value`` is the event in display form.  ``typed`` is the text that the caller gave for
+    it, if that is known.  The id is the one for ``typed``, because CLICK keeps an event as
+    it is typed.  For example, ``X0`` has no id, and ``X000`` has OBJ-003.
     """
     try:
         return check_address(value, field, BIT_BANKS, label=label, bank_id="OBJ-004")
     except AddressError as exc:
         parts = parts_of(exc)
-        found = _event_id(value)
-        if exc.code is not Code.NOT_AN_ADDRESS or parts is None or found is None:
+        found = _event_id(value if typed is None else typed)
+        if exc.code not in _EVENT_ID_CODES or parts is None or found is None:
             raise
         click_id, then = found
+        if exc.code is not Code.NOT_AN_ADDRESS:
+            then = parts.then
         raise from_parts(
             AddressError,
             replace(parts, click_id=click_id, then=then),
@@ -466,6 +517,8 @@ class Drum(PinnedInstruction):
             # A blank list that the kind uses stays "", so that it is refused as missing.
             uses = _KIND_LISTS[self.kind] if self.kind in _DRUM_KINDS else ()
             blank = [name for name in uses if _is_blank(getattr(self, name))]
+            # The events as given, before they are written in display form.
+            typed = tuple(self.events) if isinstance(self.events, (list, tuple)) else ()
             for name in _LISTS:
                 if name not in blank:
                     check.run(normalize_items, self, name)
@@ -553,7 +606,12 @@ class Drum(PinnedInstruction):
             if not check.refused("kind"):
                 for i, event in enumerate(self.events):
                     if event:
-                        check(f"events[{i}]", _check_event, label=f"Drum.events[{i}]")
+                        check(
+                            f"events[{i}]",
+                            _check_event,
+                            label=f"Drum.events[{i}]",
+                            typed=typed[i] if i < len(typed) else None,
+                        )
                 for i, preset in enumerate(self.presets):
                     if preset:
                         check(

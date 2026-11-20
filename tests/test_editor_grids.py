@@ -115,7 +115,7 @@ UNDRIVEN_FILES = {
 }
 #: ClickNick's grids of drum events hold Drum cases too.
 UNDRIVEN_FILES["drum"] |= {
-    f"drum_events{name}.json" for name in ("", "_names", "_shapes", "_padded", "_padded2")
+    f"drum_events{name}.json" for name in ("", "_names", "_shapes", "_padded", "_padded2", "_exprs")
 }
 #: The grids that ClickNick wrote with the cases of one dialog in UNDRIVEN and of dialogs in
 #: DIALOGS, each mapped to its dialog in UNDRIVEN. ``ip_field.json`` and ``ip_field_neg.json``

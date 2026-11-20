@@ -2319,6 +2319,7 @@ RUNNER_GRIDS = (
     "coil_sc_ranges2",
     "ip_field",
     "ip_field_neg",
+    "drum_events_exprs",
 )
 
 

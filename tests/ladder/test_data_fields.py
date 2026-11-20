@@ -520,6 +520,9 @@ class TestDrumEventsAndOutputs:
             *[(e, "OBJ-005") for e in ("NOT X001", "rise(X001)", "X001..X002", "C1..C2")],
             *[(e, "OBJ-005") for e in ("X001,X002", "Y001,", "X[DS1]", "DS[DS1]", "$41")],
             *[(e, "OBJ-005") for e in ("Q1", "ABC", "1", "C1A")],
+            # A pointer has the id in any letter case.
+            *[(e, "OBJ-005") for e in ("x[DS1]", "x[ds1]", "ds[ds1]")],
+            *[(e, "OBJ-005") for e in ("DS5>3", "X1==1", "C1<>C2", "[C1,C2]", "(C1)", "C1 C2")],
             ("X", "OBJ-002"),
             ("DS", "OBJ-004"),
             (" DS1", "OBJ-004"),
@@ -543,7 +546,41 @@ class TestDrumEventsAndOutputs:
             assert f" ({click_id}). " in str(error)
 
     @pytest.mark.parametrize(
-        "event", [" X001", "X 001", "X001 ", "C1:C2", "~", ",", "C000001", "X0000001"]
+        ("event", "click_id"),
+        [
+            *[(e, "OBJ-002") for e in ("X017", "X020", "X037", "X100", "X117")],
+            *[(e, "OBJ-002") for e in ("Y017", "Y020", "Y037", "Y100", "Y117")],
+            *[(e, "OBJ-003") for e in ("X000", "Y000", "C0", "T0", "CT0", "SC0")],
+            *[(e, "OBJ-003") for e in ("X817", "Y817", "C2001", "T501", "CT251", "SC1001")],
+        ],
+    )
+    def test_event_outside_its_bank_refused(self, event: str, click_id: str) -> None:
+        for kind in ("event_drum", "time_event_drum"):
+            with pytest.raises(AddressError) as caught:
+                drum(kind, events=[event, "C10"])
+            error = caught.value
+            assert (error.field, error.code, error.click_id) == (
+                "Drum.events[0]",
+                Code.ADDRESS_OUT_OF_RANGE,
+                click_id,
+            )
+            assert str(error).endswith(f" ({click_id})")
+
+    @pytest.mark.parametrize("event", ["X0", "X00", "C00", "C000", "x000", "c0", "x017", "c2001"])
+    def test_another_spelling_outside_its_bank_has_no_id(self, event: str) -> None:
+        """The id is the one for the event as typed, not for its display form. No id is
+        given to 0 in a spelling other than the bank's display form, or to lowercase."""
+        for kind in ("event_drum", "time_event_drum"):
+            with pytest.raises(AddressError) as caught:
+                drum(kind, events=[event, "C10"])
+            assert (caught.value.code, caught.value.click_id) == (Code.ADDRESS_OUT_OF_RANGE, None)
+
+    @pytest.mark.parametrize(
+        "event",
+        [
+            *(" X001", "X 001", "X001 ", "C1:C2", "~", ",", "C000001", "X0000001", "X0000000"),
+            *("(DS1)", "[C1]", "[C1,]", "c1 c2", "C1  C2", "x1==1", "X1<3", "3>DS5", "C1>DS2"),
+        ],
     )
     def test_event_of_another_shape_has_no_id(self, event: str) -> None:
         for kind in ("event_drum", "time_event_drum"):

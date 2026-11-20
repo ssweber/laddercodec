@@ -237,7 +237,9 @@ class TestForCount:
         with pytest.raises(AddressError) as caught:
             ForLoop(count=count)
         exc = caught.value
-        assert (exc.code, exc.click_id) == (Code.NOT_AN_ADDRESS, None)
+        # A real with a point has OBJ-005, as 1.5 and -1.5 have.
+        click_id = "OBJ-005" if count in ("3.5", "0.4", "2.6", "-1.5", "5.0") else None
+        assert (exc.code, exc.click_id) == (Code.NOT_AN_ADDRESS, click_id)
         assert exc.short() == f"{count!r} {rule}"
         assert exc.detail() == (
             "Write a whole number from 0 to 2147483647, or an address in DS, DD, TD, CTD or "
@@ -257,6 +259,31 @@ class TestForCount:
     def test_a_count_that_is_no_number_is_no_address(self, count: str) -> None:
         with pytest.raises(AddressError, match="is not a CLICK address$"):
             ForLoop(count=count)
+
+    @pytest.mark.parametrize(
+        "count",
+        [
+            *("1.5", "1.50", "01.5", "-1.5", "+1.5", ".5", "-.5", "1."),
+            *("1.5E+3", "1.5E3", "1.5e-3", "-1.5E-3", "3.4028235E+38", "3.5E+38", "-3.5E+38"),
+            "0" * 13 + "1.5",
+        ],
+    )
+    def test_a_real_with_a_point_has_obj_005(self, count: str) -> None:
+        with pytest.raises(AddressError) as caught:
+            ForLoop(count=count)
+        assert caught.value.click_id == "OBJ-005"
+        assert str(caught.value).startswith(f"ForLoop.count: '{count}' is ")
+        assert " (OBJ-005). Write a whole number" in str(caught.value)
+
+    @pytest.mark.parametrize(
+        "count", ["0" * 14 + "1.5", "0000000000000001.5", ".5E3", "1.E3", "1.5E", "+-1.5"]
+    )
+    def test_a_count_outside_the_real_rule_has_no_id(self, count: str) -> None:
+        """A count of more than 16 characters has no id, because the For dialog's count
+        takes 16. An exponent has no id after a point with digits on one side only."""
+        with pytest.raises(AddressError) as caught:
+            ForLoop(count=count)
+        assert caught.value.click_id is None
 
     @pytest.mark.parametrize("count", ["-0", "-00", " -0 "])
     def test_minus_zero_is_zero(self, count: str) -> None:
