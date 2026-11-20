@@ -644,12 +644,17 @@ Producer may emit:
 - `shift(bit_range)`
 - `event_drum(outputs=[...],events=[...],pattern=[[...],...],current_step=X,completion_flag=X)`
 - `time_drum(outputs=[...],presets=[...],unit=Tms,pattern=[[...],...],current_step=X,accumulator=X,completion_flag=X)`
-- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,function_code=N)`
-- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,function_code=N)`
+- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,function_code=N,word_swap=1)`
+- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,function_code=N,word_swap=1)`
+  - Write each argument once, with its keyword. The same rule applies inside
+    `ModbusTcpTarget(...)`, `ModbusRtuTarget(...)` and `ModbusAddress(...)`. `read_csv`
+    raises `CsvReadError` for an argument with no keyword, a keyword that the call doesn't
+    accept, a keyword written twice, an empty argument, or a missing comma.
   - `target` is `ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=1)` (ports `cpu2`,
     `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
+  - Write a quote inside a name twice: `name="a""b"` names the target `a"b`.
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
   - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
   - Hex `remote_start` runs `0h`-`FFFEh` (`0h`-`FFFDh` for a DD, DF, CTD or TXT source); a

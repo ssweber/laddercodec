@@ -676,12 +676,17 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("send_receive.py", "CsvReadError(f('{call.name} needs a {name}= keyword'))"): 1,
     (
         "send_receive.py",
-        "CsvReadError(f('Could not read {token!r} as a {label}, because it is a {other}(...) token. Read it with {other.capitalize()}.from_csv_token(), or write a {label} as {shape}, such as {_TOKEN_EXAMPLES[name]}.'))",
+        "CsvReadError(f('Could not read {token!r} as a {label}, because it is a {other}(...) token. Read it with {other.capitalize()}.from_csv_token(), or write a {label} as {shape}, such as {_CALL_EXAMPLES[name]}.'))",
     ): 1,
     (
         "send_receive.py",
-        "CsvReadError(f('Could not read {token!r} as a {label}. Write it as {shape}, such as {_TOKEN_EXAMPLES[name]}.'))",
+        "CsvReadError(f('Could not read {token!r} as a {label}. Write it as {shape}, such as {_CALL_EXAMPLES[name]}.'))",
     ): 1,
+    (
+        "send_receive.py",
+        "CsvReadError(f(\"Could not read target={raw}. Write ModbusTcpTarget(...) or ModbusRtuTarget(...), such as {_CALL_EXAMPLES['ModbusTcpTarget']}.\"))",
+    ): 1,
+    ("send_receive.py", "CsvReadError(refused)"): 1,
     (
         "search.py",
         "CsvReadError(f('search expects 1 positional arg (expression), got {len(call.args)}'))",
