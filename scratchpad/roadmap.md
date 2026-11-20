@@ -71,9 +71,9 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
   with a refusal, or with a Compare's Data B that CLICK saved as typed, keeps the clipboard blob built from its
   tags, as an output box does. While it is unchanged, it encodes as that blob.
 
-- **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
-  proposal is `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed. It
-  is new public API.
+- **Where in a formula (Sam, 2026-11-19).** Two identical refusals in one formula
+  (`DS0 + DS0`) can't be told apart. The proposal is `FieldError.span`, a half-open `(start, end)` character
+  offset into the expression as typed. It is new public API, and it comes after the joint release.
   - It is None where no single stretch is at fault: an empty formula, the length, a `(` left open, the mode
     conflict.
   - A range refusal spans its `A : B`.
@@ -394,7 +394,7 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
   - OBJ-004 for a bank;
   - OBJ-008 for a range across banks;
   - OBJ-009 for an end below the start;
-  - OBJ-012 for the same address at both ends.
+  - OBJ-012 for the same address at both ends, with the code `duplicate-address` (Settled).
 
   An end in another bank is OBJ-008, and that comes before the end's own checks. It holds where the field
   refuses that bank (`C1..DS1`) and where the end is a pointer that CLICK reads (`Y001..DS[DS1]`).
@@ -410,7 +410,8 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog. An
   id that can't be backed stays None. Open:
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?). For a Fill into TXT of an
-    integer or hex constant of more than one character, CLICK shows OBJ-023. The rules refuse it with no id.
+    integer or hex constant of more than one character, CLICK shows OBJ-023. The rules refuse it with no id
+    today. Ruled: it reports OBJ-023 for the answered shapes (Settled).
   - Block Copy, a source range spanning two X/Y modules. CLICK's answer for Pack is OBJ-033 (set). No recorded
     answer covers Block Copy's, so it stays None. What OBJ-035 is for is still unknown.
   - Receive, one C bit for two status fields (Send's is OBJ-014).
@@ -520,9 +521,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   `010.2.3.4` and `001.002.003.004` as pasted, and its Edit > Copy of the rung holds them the same. The dialog
   shows each part as a decimal number, so it shows `010.2.3.4` as `10.2.3.4`. It does not read `010` as octal.
   laddercodec 0.4.0 and every earlier release accepted a padded IP and wrote it as given, and the code still
-  does. Open: which address a Send with a padded IP connects to on the PLC. The check needs a project written
-  to a PLC, and Sam must approve that. Sam then decides whether laddercodec writes the IP as the dialog saves
-  it.
+  does. Open: which address a Send with a padded IP connects to on the PLC. Sam has approved the PLC run
+  (2026-11-19). He then decides whether laddercodec writes the IP as the dialog saves it.
 - **Which X point is the 17th element from X001** in a Send or Receive. CLICK stores only the start and the
   count, so this needs a PLC.
 - **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?
@@ -676,6 +676,18 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 
 ## Settled (don't reopen)
 
+- **Refusal strings (Sam, 2026-11-19):** the `.code` names and the `.field` and `.fields` strings
+  (`Copy.src`, `Send.ip`, `Class.field[i]`) are frozen for the release. pyrung is the consumer, so a later
+  change goes to both repos together.
+- **Same address at both ends (Sam, 2026-11-19):** a range with the same address at both ends (`C1..C1`) is
+  `duplicate-address` in every field, with OBJ-012 where CLICK answered it. `range-not-ascending` means only
+  an end below the start (`C5..C1`).
+- **OBJ-028 and OBJ-023 (Sam, 2026-11-19):** a Send of TXT that starts at an even address, such as TXT1000, is
+  refused with the new code `txt-start-not-odd` and OBJ-028. A Fill into TXT of a number of more than one
+  character keeps its code and reports OBJ-023 for the shapes CLICK answered.
+- **An empty flag field (Sam, 2026-11-19):** `decode()` reads it as set, and issues a `LegacyEncodingWarning`.
+- **Command limit (Sam, 2026-11-19):** a `make` or `pytest` command run through the bob wrapper stops after
+  900 s.
 - **Public class names (Sam, 2026-11-18):** `Instruction`, `InstructionToken`, `Condition`, `CsvReadError`,
   `CsvWriteError`, `PositionMove` and `VelocityMove` are the names, with no alias for the names that they
   replaced. The CSV tokens, the binary class names and the `Code` names do not change. `laddercodec` exports
@@ -716,7 +728,8 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   - `$100`, `$G1`, `$` and `$ 41` in Compare's Data B and in a Search value: OBJ-005;
   - a Search table in a bank that Search doesn't take: OBJ-004, and OBJ-005 for an XD0u or YD0u start;
   - a Search table whose end is in another bank than its start (`DH1..DS1`, `DH1..TXT1`, `TXT1..DS1`) and a
-    one-register TXT table (`TXT1..TXT1`): OBJ-004, where the code says OBJ-008 or OBJ-012.
+    one-register TXT table (`TXT1..TXT1`): OBJ-004, where the code says OBJ-008 or OBJ-012. The code for
+    the same address at both ends is ruled (Settled); the id here follows CLICK's answer.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
