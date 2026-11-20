@@ -265,11 +265,6 @@ START_984_ID = (
     "kept: both refuse a 984 start of a kind that the function code does not write. CLICK "
     "refuses the slave address with OBJ-010. laddercodec refuses the source with OBJ-004"
 )
-SEND_TXT_ODD_START = (
-    "to do: CLICK refuses a Send from an even TXT address with OBJ-028, before it checks "
-    "the count. The rules have no code for this refusal yet. They accept the start. With FC16 "
-    "they refuse the count with OBJ-010, and with FC06 they accept the Send"
-)
 
 IP_UNTYPED = (
     "deliberate: CLICK accepts this IP when each part is set as text, and saves 256.0.0.1 "
@@ -715,21 +710,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (PRESET_EDGE, "risky_counter", "outcome", ("count_up CT1 preset= DS1",)),
     (PRESET_EDGE, "risky_timer", "outcome", ("on_delay T1 preset=DS1  unit=ms",)),
     (
-        SEND_TXT_ODD_START,
-        "send",
-        "code",
-        (
-            "send fc16 984 400001 <- TXT1000 x1",
-            "send fc16 984 400001 <- TXT1000 x2",
-        ),
-    ),
-    (
-        SEND_TXT_ODD_START,
-        "send",
-        "outcome",
-        ("send fc06 984 400001 <- TXT1000",),
-    ),
-    (
         SERVER_PORT,
         "send",
         "outcome",
@@ -790,7 +770,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4925
+CODES_COMPARED = 4959
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no

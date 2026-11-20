@@ -66,11 +66,11 @@ class Code(StrEnum):
     RANGE_MIXED_BANKS = "range-mixed-banks"
     """A range whose two ends are in two banks."""
     RANGE_NOT_ASCENDING = "range-not-ascending"
-    """A range that ends at or before its start."""
+    """A range that ends below its start, such as ``C5..C1``."""
     RANGE_CROSSES_SLOT = "range-crosses-slot"
     """An X or Y range that crosses a 16-point slot."""
     DUPLICATE_ADDRESS = "duplicate-address"
-    """Two fields that must differ name one address."""
+    """Two fields that must differ name one address, such as the two ends of the range ``C1..C1``."""
     TIMER_PAIR_MISMATCH = "timer-pair-mismatch"
     """A timer's or counter's done bit and accumulator with different numbers, such as ``T1`` with ``TD2``."""
     IMMEDIATE_CONTACT_NOT_X = "immediate-contact-not-x"
@@ -167,6 +167,8 @@ class Code(StrEnum):
     """A Modbus function code that doesn't fit the remote type or the count."""
     COUNT_OUT_OF_RANGE = "count-out-of-range"
     """A Send or Receive count past its cap or room, or an odd TXT count."""
+    TXT_START_NOT_ODD = "txt-start-not-odd"
+    """A Send of TXT that starts at an even address, such as ``TXT1000``."""
     REMOTE_ADDRESS_OUT_OF_RANGE = "remote-address-out-of-range"
     """A remote start outside the MODBUS 984 ranges, or past FFFDh."""
     INVALID_MODBUS_TARGET = "invalid-modbus-target"
@@ -231,11 +233,11 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.BANK_NOT_ALLOWED: ("OBJ-003", "OBJ-004"),
     Code.NOT_WRITABLE: ("OBJ-003", "OBJ-004", "OBJ-018"),
     Code.POINTER_BANK_NOT_ALLOWED: ("OBJ-004",),
-    Code.CONSTANT_OUT_OF_RANGE: ("OBJ-005",),
+    Code.CONSTANT_OUT_OF_RANGE: ("OBJ-005", "OBJ-023"),
     Code.INVALID_CONSTANT: ("OBJ-005",),
     Code.INVALID_CHAR_CODE: ("OBJ-036",),
     Code.RANGE_MIXED_BANKS: ("OBJ-008",),
-    Code.RANGE_NOT_ASCENDING: ("OBJ-009", "OBJ-012"),
+    Code.RANGE_NOT_ASCENDING: ("OBJ-009",),
     Code.RANGE_CROSSES_SLOT: ("OBJ-033", "OBJ-1009"),
     Code.DUPLICATE_ADDRESS: ("OBJ-012", "OBJ-014"),
     Code.INVALID_SUBROUTINE_NAME: ("GUI-040",),
@@ -272,6 +274,7 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.DRUM_STEP_EMPTY: ("OBJ-021", "OBJ-022", "OBJ-1019"),
     Code.FUNCTION_CODE_MISMATCH: ("OBJ-004",),
     Code.COUNT_OUT_OF_RANGE: ("OBJ-010", "OBJ-029"),
+    Code.TXT_START_NOT_ODD: ("OBJ-028",),
     Code.REMOTE_ADDRESS_OUT_OF_RANGE: ("OBJ-010",),
     Code.FOR_COUNT_BANK: ("OBJ-004",),
     Code.COMPARE_MIXED_TYPES: ("OBJ-007",),

@@ -409,9 +409,20 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
   refusal (OBJ-004).
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog. An
   id that can't be backed stays None. Open:
-  - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?). For a Fill into TXT of an
-    integer or hex constant of more than one character, CLICK shows OBJ-023. The rules refuse it with no id
-    today. Ruled: it reports OBJ-023 for the answered shapes (Settled).
+  - Fill: its pairing (Copy's OBJ-024) and a range in two banks. Set and open:
+    - A Fill range that ends at or below its start reports OBJ-012 or OBJ-009 outside SD (set).
+    - A Fill into SD from a read-only start SD is refused as not writable (OBJ-004) after the pairing,
+      whatever the order of its ends, so `SD1..SD1` and `SD2..SD1` are OBJ-004 (set).
+    - A Fill into SD from a writable start SD that does not end above it, such as `SD31..SD31` or
+      `SD32..SD31`, has no answer and no id.
+    - CLICK answers OBJ-008 for a range in two banks (`DS1..TXT1`) and for an end in a bank that Fill
+      refuses (`DS1..C1`). It answers OBJ-004 when the range starts in SD and OBJ-024 when it starts in
+      TXT. The rules give a range in two banks no id.
+  - Fill into TXT of a number of more than one character: a negative integer, or an integer or hex
+    constant of several digits, reports OBJ-023. A `+`, a leading zero, `-0` and a one-digit hex constant
+    have no answer, and get no id. Quoted text of several characters is answered OBJ-023 and has no id.
+  - A Receive into TXT that starts at an even address. A Send refuses such a start with OBJ-028. No answer
+    covers Receive, so the rules accept it.
   - Block Copy, a source range spanning two X/Y modules. CLICK's answer for Pack is OBJ-033 (set). No recorded
     answer covers Block Copy's, so it stays None. What OBJ-035 is for is still unknown.
   - Receive, one C bit for two status fields (Send's is OBJ-014).

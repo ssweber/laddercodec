@@ -460,12 +460,15 @@ _FILL_VALUE_REFUSED = [
     ('"AB"', "TXT2", "TXT5", "takes one character"),
     (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),
-    # an integer or hex constant of more than one character
-    ("-5", "TXT2", "TXT5", r"takes one. Write one character"),
-    ("123", "TXT2", "TXT5", r"takes one. Write one character"),
-    ("10h", "TXT2", "TXT5", r"takes one. Write one character"),
-    ("5h", "TXT2", "TXT5", r"takes one. Write one character"),
-    ("FFFFh", "TXT2", "TXT5", r"takes one. Write one character"),
+    # an integer or hex constant of more than one character. A negative integer and an
+    # integer or hex constant of several digits are OBJ-023.
+    ("-5", "TXT2", "TXT5", r"takes one \(OBJ-023\)\. Write one character"),
+    ("123", "TXT2", "TXT5", r"takes one \(OBJ-023\)\. Write one character"),
+    ("10h", "TXT2", "TXT5", r"takes one \(OBJ-023\)\. Write one character"),
+    ("5h", "TXT2", "TXT5", r"takes one\. Write one character"),
+    ("+5", "TXT2", "TXT5", r"takes one\. Write one character"),
+    ("05", "TXT2", "TXT5", r"takes one\. Write one character"),
+    ("FFFFh", "TXT2", "TXT5", r"takes one \(OBJ-023\)\. Write one character"),
 ]
 
 

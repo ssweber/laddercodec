@@ -342,6 +342,8 @@ def test_the_codes_without_a_detail_still_have_a_refusal_without_one() -> None:
 _EXAMPLE = re.compile(r"such as (.+?)(?=, or |; |\. | \([A-Z]+-\d+\)|\.?$)")
 #: An example written as a keyword argument, such as ``quantity=1`` or ``source="TXT999"``.
 _KEYWORD = re.compile(r"([a-z_]\w*)=(.+)")
+#: An example of a whole range, such as ``SD31..SD32``.
+_RANGE = re.compile(r"([A-Z]{1,3}\d+)\.\.([A-Z]{1,3}\d+)")
 #: A field name, split into its class, its attribute and the index of an item.
 _FIELD_PARTS = re.compile(r"([A-Z]\w*)\.([a-z_]\w*)(?:\[(\d+)\])?")
 
@@ -420,7 +422,6 @@ EXAMPLE_NOT_SUBSTITUTED: dict[tuple[Code, str, str], str] = {
     (_C.POINTER_OUTSIDE_COPY, "Search.value", "TXT1"): _SEARCH_TABLE,
     (_C.POINTER_OUTSIDE_COPY, "Search.value", "XD1"): _SEARCH_TABLE,
     (_C.POINTER_OUTSIDE_COPY, "Search.value", "YD1"): _SEARCH_TABLE,
-    (_C.COUNT_OUT_OF_RANGE, "Send.quantity", "quantity=2"): _SEND_FC,
     (_C.NOT_WRITABLE, "Send.remote_start", 'remote_start="DD1"'): _SEND_FC,
     (_C.NOT_WRITABLE, "Send.remote_start", 'remote_start="DF1"'): _SEND_FC,
 }
@@ -440,6 +441,17 @@ def _with_example(error: FieldError, example: str) -> tuple[Callable[[], object]
     if obj is None or type(obj).__name__ != cls_name:
         return f"the refusal holds no {cls_name}"
     keyword = _KEYWORD.fullmatch(example)
+    ends = _RANGE.fullmatch(example)
+    attrs = [_FIELD_PARTS.fullmatch(field) for field in error.fields]
+    pair = sorted(m.group(2) for m in attrs if m is not None and m.group(3) is None)
+    if ends and len(pair) == 2 and pair[0].endswith("_end") and pair[1].endswith("_start"):
+        # A range example such as SD31..SD32 fills the start and the end that the refusal
+        # names.
+        end_attr, start_attr = pair
+        build = functools.partial(
+            dataclasses.replace, obj, **{start_attr: ends.group(1), end_attr: ends.group(2)}
+        )
+        return build, f"{cls_name}.{attr}"
     if keyword is not None:
         # A keyword example such as source="TXT999" names its field and quotes text.
         attr, index = keyword.group(1), None

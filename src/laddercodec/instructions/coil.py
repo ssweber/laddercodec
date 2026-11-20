@@ -19,7 +19,14 @@ from ..model import (
     InstructionType,
     Reason,
 )
-from ..operands.checks import Refusals, bank_of, check_csv_flag, check_out_target
+from ..operands.address import range_then
+from ..operands.checks import (
+    WRITABLE_SC,
+    Refusals,
+    bank_of,
+    check_csv_flag,
+    check_out_target,
+)
 from ..operands.message import operand, says
 from .family import AfInstructionFamilySpec
 
@@ -155,8 +162,9 @@ class Coil(Instruction):
             if start is None or end is None:
                 return
             if end.number <= start.number:
-                # An end below the start is refused with OBJ-009. An end at the same address
-                # as the start is refused with OBJ-012.
+                # An end at the same address as the start is refused with OBJ-012, and an
+                # end below the start with OBJ-009.
+                same = end.number == start.number
                 check.refuse(
                     ("range_end", "operand"),
                     says(
@@ -166,8 +174,9 @@ class Coil(Instruction):
                         start=operand(self.operand),
                     ),  # fmt: skip
                     Reason.CONFLICT,
-                    "OBJ-009" if end.number < start.number else "OBJ-012",
-                    code=Code.RANGE_NOT_ASCENDING,
+                    "OBJ-012" if same else "OBJ-009",
+                    code=Code.DUPLICATE_ADDRESS if same else Code.RANGE_NOT_ASCENDING,
+                    then=range_then(start, among=WRITABLE_SC if start.bank == "SC" else None),
                 )
 
     @classmethod

@@ -127,6 +127,8 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - Do: Write to DS or TD from DS, TD or SD, to DD or CTD from DD or CTD, to DF from DF, to DH or YD from DH, XD or YD, and to TXT from TXT.
 - **A Send from TXT counts characters.** A `Send` from TXT with FC16 now accepts an even count of 2 to 246 characters, or fewer after a hex start, and raises `FieldError` with `OBJ-010` outside that range or `OBJ-029` for an odd count. v0.4.0 counted TXT in registers and accepted 1 to 123.
   - Do: Send an even number of TXT characters, such as `source=TXT1..TXT20`. Send one TXT register with FC06.
+- **A Send of TXT starts at an odd address.** A `Send` from an even TXT address, such as `source=TXT1000`, now raises `FieldError` with code `txt-start-not-odd` and `OBJ-028`. v0.4.0 accepted it.
+  - Do: Start a TXT source at an odd address, such as `TXT999`.
 - **A Send to a hex address checks its count.** A `Send` to a hex `remote_start` now raises `FieldError` with `OBJ-010` when its count runs past `FFFDh` from DD, DF or CTD, or past `FFFEh` from any other register bank. Each element, and each TXT character, counts as one address. v0.4.0 checked this only for a DD source.
   - Do: Lower the count or the start address.
 - **Word Swap only where a Send offers it.** `word_swap=True` on a `Send` now raises `FieldError` with reason `conflict` and code `option-not-offered` unless the Send uses FC16. It raises the same error for a TXT source, and for a count of 1 from DS, DH, TD or SD. v0.4.0 accepted it.

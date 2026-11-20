@@ -43,7 +43,7 @@ These rules are the same in every instruction. `field` names the field.
 | `pointer-not-ds` | A pointer whose index is no DS address. |  |
 | `constant-kind-not-allowed` | A constant of a kind the field doesn't take, or a Python value of the wrong type, such as `2.5` for a Send or Receive `quantity`. |  |
 | `not-a-constant` | Text read as neither an address nor a constant. |  |
-| `constant-out-of-range` | A constant outside the field's limits (its value, hex digits, float32, text length or typed length), or a minus sign where the field's lowest value is 0 or more. | OBJ-005 |
+| `constant-out-of-range` | A constant outside the field's limits (its value, hex digits, float32, text length or typed length), or a minus sign where the field's lowest value is 0 or more. | OBJ-005, OBJ-023 |
 | `invalid-constant` | A constant in a form the field refuses: a `+` where no sign is taken, a sign before hex, a space in a count, a real with more significant digits than CLICK keeps, or a hex constant that spells a bank name (`DH`) in Compare's Data B opposite a hex Data A. | OBJ-005 |
 | `invalid-char-code` | A `$hh` or a termination code that is no character code. | OBJ-036 |
 | `invalid-text-constant` | Quoted text holding a quote or a character CLICK doesn't keep. |  |
@@ -58,9 +58,9 @@ These rules apply to several instructions. `invalid-subroutine-name` and `duplic
 |---|---|---|
 | `option-not-offered` | A field or option CLICK's dialog greys out for the other fields' values. |  |
 | `range-mixed-banks` | A range whose two ends are in two banks. | OBJ-008 |
-| `range-not-ascending` | A range that ends at or before its start. | OBJ-009, OBJ-012 |
+| `range-not-ascending` | A range that ends below its start, such as `C5..C1`. | OBJ-009 |
 | `range-crosses-slot` | An X or Y range that crosses a 16-point slot. | OBJ-033, OBJ-1009 |
-| `duplicate-address` | Two fields that must differ name one address. | OBJ-012, OBJ-014 |
+| `duplicate-address` | Two fields that must differ name one address, such as the two ends of the range `C1..C1`. | OBJ-012, OBJ-014 |
 | `timer-pair-mismatch` | A timer's or counter's done bit and accumulator with different numbers, such as `T1` with `TD2`. |  |
 | `immediate-contact-not-x` | An immediate contact outside X. |  |
 | `immediate-coil-not-y` | An immediate coil outside Y. |  |
@@ -127,6 +127,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `drum-step-empty` | A drum step with no event or duration. | OBJ-021, OBJ-022, OBJ-1019 |
 | `function-code-mismatch` | A Modbus function code that doesn't fit the remote type or the count. | OBJ-004 |
 | `count-out-of-range` | A Send or Receive count past its cap or room, or an odd TXT count. | OBJ-010, OBJ-029 |
+| `txt-start-not-odd` | A Send of TXT that starts at an even address, such as `TXT1000`. | OBJ-028 |
 | `remote-address-out-of-range` | A remote start outside the MODBUS 984 ranges, or past FFFDh. | OBJ-010 |
 | `invalid-modbus-target` | A Modbus target with a bad device_id, IP or port, or a Send or Receive target that is no Modbus target. |  |
 | `for-count-bank` | A For loop count in a bank the count doesn't take. | OBJ-004 |

@@ -39,7 +39,14 @@ from ..model import (
     Reason,
     xy_slot,
 )
-from ..operands.address import address_shape, bank_prefix, is_pointer, parse_address, read_as_typed
+from ..operands.address import (
+    address_shape,
+    bank_prefix,
+    is_pointer,
+    parse_address,
+    range_then,
+    read_as_typed,
+)
 from ..operands.banks import (
     BIT_BANKS,
     REGISTER_BANKS,
@@ -607,13 +614,22 @@ def _check_relation(
     one_module: bool,
     ordered: bool,
     module_id: str | None,
-    ids: bool,
+    mixed_id: str | None = "OBJ-008",
+    order_ids: bool = True,
+    moves: str = "",
+    then: str | None = None,
 ) -> None:
     """Refuse an end that does not fit its start.
 
-    The end must be in the bank of the start. With ``ordered`` it must come after the
-    start, and with ``one_module`` it must be in the same X or Y slot. The refusal names
-    both fields, the end's field first."""
+    The end must be in the bank of the start, and ``mixed_id`` is CLICK's id for an end in
+    another bank. With ``ordered`` the end must come after the start, and with
+    ``one_module`` it must be in the same X or Y slot. The refusal names both fields, the
+    end's field first.
+
+    An end at the start is ``duplicate-address`` (OBJ-012), and an end below it is
+    ``range-not-ascending`` (OBJ-009). With ``order_ids=False`` these two refusals have no
+    id. Their message ends with ``then``, or else with :func:`range_then`, where ``moves``
+    names a field that must change with the end."""
     pair = (end_field, start_field)
     if first.bank != last.bank:
         raise _refusal(
@@ -626,7 +642,7 @@ def _check_relation(
                 start=Op(start),
             ),  # fmt: skip
             Reason.CONFLICT,
-            "OBJ-008" if ids else None,
+            mixed_id,
             code=Code.RANGE_MIXED_BANKS,
         )
     if ordered and _position(last) <= _position(first):
@@ -641,8 +657,9 @@ def _check_relation(
                 what="is one address" if same else "runs backwards",
             ),  # fmt: skip
             Reason.CONFLICT,
-            ("OBJ-012" if same else "OBJ-009") if ids else None,
-            code=Code.RANGE_NOT_ASCENDING,
+            ("OBJ-012" if same else "OBJ-009") if order_ids else None,
+            code=Code.DUPLICATE_ADDRESS if same else Code.RANGE_NOT_ASCENDING,
+            then=then or range_then(first, one_module=one_module, moves=moves),
         )
     if one_module and first.bank in XY_BANKS and xy_slot(first.number) != xy_slot(last.number):
         raise _refusal(
@@ -672,13 +689,13 @@ def check_range(
     ordered: bool = True,
     bank_id: str | None = None,
     module_id: str | None = None,
-    ids: bool = True,
 ) -> tuple[Address, Address]:
     """Check a ``start..end`` range and return its two ends.
 
     Both ends must be addresses in one bank (OBJ-008), and neither may be a pointer. With
-    ``ordered``, the end must come after the start. An end before the start is OBJ-009,
-    and an end at the start is OBJ-012. The Search instruction uses the same range check.
+    ``ordered``, the end must come after the start. An end before the start is
+    ``range-not-ascending`` (OBJ-009), and an end at the start is ``duplicate-address``
+    (OBJ-012). The Search instruction uses the same range check.
 
     With ``one_module``, an X or Y range must stay inside one 16-point slot of
     :data:`~laddercodec.model.XY_SLOTS`. ``module_id`` is CLICK's id for that refusal. The
@@ -686,15 +703,13 @@ def check_range(
     source and the Unpack destination use this check.
 
     ``bank_id`` is CLICK's id for an end in a bank that the field does not accept. When the
-    ends do not fit each other, the refusal names both fields, the end's field first. With
-    ``ids=False`` the refusals leave out OBJ-008, OBJ-009 and OBJ-012. Use it for a dialog
-    whose ids are not known.
+    ends do not fit each other, the refusal names both fields, the end's field first.
     """
     first = _range_end(start, f"{cls}.{start_field}", banks, bank_id)
     last = _range_end(end, f"{cls}.{end_field}", banks, bank_id)
     _check_relation(
         cls, start_field, start, end_field, end, first, last,
-        one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
+        one_module=one_module, ordered=ordered, module_id=module_id,
     )  # fmt: skip
     return first, last
 
@@ -711,7 +726,7 @@ def _check_range(
     ordered: bool = True,
     bank_id: str | None = None,
     module_id: str | None = None,
-    ids: bool = True,
+    moves: str = "",
 ) -> tuple[Address | None, Address | None]:
     """Do the checks of :func:`check_range` through ``check`` and keep every refusal. Check
     each end on its own, and then the two ends together. Two ends that the bank rule
@@ -720,14 +735,14 @@ def _check_range(
 
     Return both ends, with None for an end that was refused. The ends are returned even
     when the check of the two together refused them. That refusal names the end's field
-    first.
+    first. ``moves`` names a field that must change with the end (:func:`range_then`).
     """
     cls = check.field(start_attr).partition(".")[0]
     first, last = check_range_ends(check, start_attr, start, end_attr, end, banks, bank_id)
     if first is not None and last is not None:
         check.run(
             _check_relation, cls, start_attr, start, end_attr, end, first, last,
-            one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
+            one_module=one_module, ordered=ordered, module_id=module_id, moves=moves,
         )  # fmt: skip
     return first, last
 
@@ -1279,10 +1294,54 @@ def _check_fill_txt_number(value: str, const: Constant) -> None:
                 count=len(value),
             ),  # fmt: skip
             Reason.RANGE,
+            _fill_txt_number_id(value, const),
             error=FieldError,
             code=Code.CONSTANT_OUT_OF_RANGE,
             then="Write one character, such as 5, or a real, such as 1.5.",
         )
+
+
+def _fill_txt_number_id(value: str, const: Constant) -> str | None:
+    """Return CLICK's id for a Fill into TXT of the number ``value``, which is longer than
+    one character, or None if no id is known.
+
+    CLICK refuses three shapes with OBJ-023: a negative integer (``-5``), an integer of
+    several digits (``123``) and a hex constant of several digits (``FFh``). A ``+``, a
+    leading zero, ``-0`` and a one-digit hex constant (``Fh``) get no id.
+    """
+    digits = value.removeprefix("-")
+    if const.kind is Kind.HEX:
+        digits = digits[:-1]
+        several = len(digits) > 1
+    else:
+        several = len(digits) > 1 or value.startswith("-")
+    if value.startswith("+") or digits.startswith("0") or not several:
+        return None
+    return "OBJ-023"
+
+
+#: The first SD of each two writable SD registers next to each other, such as 31 for
+#: SD31..SD32.
+_WRITABLE_SD_PAIRS = tuple(n for n in sorted(WRITABLE_SD) if n + 1 in WRITABLE_SD)
+
+
+def _writable_sd_range(number: int) -> str:
+    """Return the range of two writable SD registers next to each other that is nearest to
+    SD ``number``, the lower one on a tie."""
+    first = min(_WRITABLE_SD_PAIRS, key=lambda n: (abs(n - number), n))
+    return f"SD{first}..SD{first + 1}"
+
+
+def _fill_sd_then(first: Address, last: Address) -> str:
+    """Return the sentence that tells the user how to fix a Fill into the SD range
+    ``first..last``, which does not end above its writable start."""
+    if last.number < first.number and all(
+        n in WRITABLE_SD for n in range(last.number, first.number + 1)
+    ):
+        return f"Write a range of writable SD registers, such as {last.display}..{first.display}."
+    if first.number + 1 in WRITABLE_SD:
+        return f"Write an end above {first.display}, such as SD{first.number + 1}."
+    return f"Write a range of writable SD registers, such as {_writable_sd_range(first.number)}."
 
 
 def _check_fill_sd(first: Address, last: Address) -> None:
@@ -1290,11 +1349,12 @@ def _check_fill_sd(first: Address, last: Address) -> None:
 
     CLICK checks every SD from ``first`` to ``last`` and refuses the range with OBJ-004,
     whichever SD in the range is read-only: SD140..SD147 is accepted, and SD140..SD149,
-    SD29..SD38 and SD1..SD2 are refused. The refusal names both ends of the range.
+    SD29..SD38 and SD1..SD2 are refused. A range that does not end above its start is
+    checked at its start only, so SD1..SD1 and SD2..SD1 are refused. The refusal names
+    both ends of the range.
     """
-    if first.bank != "SD" or last.bank != "SD":
-        return
-    unwritable = [n for n in range(first.number, last.number + 1) if n not in WRITABLE_SD]
+    numbers = range(first.number, max(first.number, last.number) + 1)
+    unwritable = [n for n in numbers if n not in WRITABLE_SD]
     if not unwritable:
         return
     span = f"{first.display}..{last.display}"
@@ -1311,6 +1371,9 @@ def _check_fill_sd(first: Address, last: Address) -> None:
         Reason.NOT_WRITABLE,
         "OBJ-004",
         code=Code.NOT_WRITABLE,
+        then=(
+            f"Write a range of writable SD registers, such as {_writable_sd_range(first.number)}."
+        ),
     )
 
 
@@ -2052,6 +2115,7 @@ class BlockCopy(Instruction):
             src, src_last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
                 _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004",
+                moves="the destination end",
             )  # fmt: skip
             # CLICK fills in the destination end itself, so the order of the ends is not
             # checked here. A destination whose end is its start is refused below, as an
@@ -2272,10 +2336,22 @@ class Fill(Instruction):
         with Refusals(self) as check:
             check.normalize("value", "dest_start", "dest_end", values=("value",))
             kind = check("value", _source_kind, REGISTER_BANKS)
-            dest, last = _check_range(
+            dest, last = check_range_ends(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
-                _REGISTER_DEST_BANKS, ids=False,
+                _REGISTER_DEST_BANKS,
             )  # fmt: skip
+            sd = dest is not None and dest.bank == "SD"
+            if dest is not None and last is not None:
+                # A range whose start SD is read-only is refused below, after the pairing,
+                # whatever the order of its ends. A range of writable SD that does not end
+                # above its start has no id.
+                check.run(
+                    _check_relation, "Fill", "dest_start", self.dest_start, "dest_end",
+                    self.dest_end, dest, last, one_module=False,
+                    ordered=not sd or dest.number in WRITABLE_SD, module_id=None,
+                    mixed_id=None, order_ids=not sd,
+                    then=_fill_sd_then(dest, last) if sd else None,
+                )  # fmt: skip
             if kind is not None and dest is not None:
                 check.run(
                     _check_pair, "Fill", "value", self.value, kind,
@@ -2290,10 +2366,11 @@ class Fill(Instruction):
                     const = check("value", check_constant, constants)
                     if const is not None and dest.bank == "TXT":
                         check.run(_check_fill_txt_number, self.value, const)
-            if dest is not None and last is not None and not check.refused("dest_end"):
+            if sd and dest is not None and last is not None and not check.refused("dest_end"):
                 # A Fill into SD needs every SD in its range to be writable (OBJ-004).
                 # CLICK checks this after the pairing of the value with the range. It
-                # refuses TXT1 into SD1..SD2 with OBJ-024.
+                # refuses TXT1 into SD1..SD2 with OBJ-024, and SD1..SD1 and SD2..SD1 with
+                # OBJ-004.
                 check.run(_check_fill_sd, dest, last)
             check.flag("oneshot")
 
@@ -2606,7 +2683,7 @@ class Unpack(Instruction):
                 check.run(
                     _check_relation, "Unpack", "dest_start", self.dest_start, "dest_end",
                     self.dest_end, first, last, one_module=True, ordered=True,
-                    module_id="OBJ-1009", ids=True,
+                    module_id="OBJ-1009",
                 )  # fmt: skip
             if first is not None and not check.refused("kind"):
                 check.run(

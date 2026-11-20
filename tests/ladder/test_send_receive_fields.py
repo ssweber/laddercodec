@@ -1333,7 +1333,7 @@ def _suggested(error: FieldError) -> dict[str, Any]:
         {"remote_start": ModbusAddress("FFF0h", "holding"), "source": "TXT1", "quantity": 1001},
         {"remote_start": ModbusAddress("400001"), "source": "TXT1", "quantity": 250},
         {"remote_start": ModbusAddress("400001"), "source": "TXT1", "quantity": 3},
-        {"remote_start": ModbusAddress("400001"), "source": "TXT700", "quantity": 302},
+        {"remote_start": ModbusAddress("400001"), "source": "TXT701", "quantity": 302},
         {"remote_start": ModbusAddress("400001"), "source": "TXT999", "quantity": 3},
     ],
 )
@@ -1382,7 +1382,7 @@ def test_send_text_count_refused(source, quantity, click_id, message) -> None:
 
 @pytest.mark.parametrize(
     ("source", "quantity", "suggested"),
-    [("TXT1", 1, 2), ("TXT1", 250, 246), ("TXT1", 3, 4), ("TXT998", 3, 2), ("TXT999", 3, 2)],
+    [("TXT1", 1, 2), ("TXT1", 250, 246), ("TXT1", 3, 4), ("TXT999", 3, 2)],
 )
 def test_send_text_count_message_suggests_a_count_that_fits(source, quantity, suggested) -> None:
     with pytest.raises(FieldError) as caught:
@@ -1390,6 +1390,50 @@ def test_send_text_count_message_suggests_a_count_that_fits(source, quantity, su
             remote_start=ModbusAddress("400001"), source=source, quantity=quantity, function_code=16
         )
     assert str(caught.value).endswith(f"such as quantity={suggested}.")
+
+
+@pytest.mark.parametrize(
+    ("source", "quantity", "function_code", "odd"),
+    [
+        ("TXT1000", 1, 6, "TXT999"),
+        ("TXT1000", 1, 16, "TXT999"),
+        ("TXT1000", 2, 16, "TXT999"),
+        ("TXT1000", 4, 16, "TXT997"),
+        ("TXT1000", 246, 16, "TXT755"),
+        ("TXT998", 3, 16, "TXT997"),
+        ("TXT2", 2, 16, "TXT1"),
+        ("TXT2", 246, 16, "TXT1"),
+    ],
+)
+def test_send_text_from_an_even_address_is_refused(
+    source: str, quantity: int, function_code: int, odd: str
+) -> None:
+    """A Send of TXT starts at an odd address. An even start is refused with OBJ-028, and the
+    count is not checked against it. The message names an odd start from which the count
+    ends by TXT1000."""
+    with pytest.raises(FieldError) as caught:
+        send(
+            remote_start=ModbusAddress("400001"),
+            source=source,
+            quantity=quantity,
+            function_code=function_code,
+        )
+    error = caught.value
+    assert len(error.errors) == 1
+    assert (error.field, error.code, error.reason, error.click_id) == (
+        "Send.source",
+        Code.TXT_START_NOT_ODD,
+        Reason.RANGE,
+        "OBJ-028",
+    )
+    assert str(error).endswith(f'(OBJ-028). Start at an odd TXT address, such as source="{odd}".')
+    if quantity % 2 == 0 or function_code == 6:
+        send(
+            remote_start=ModbusAddress("400001"),
+            source=odd,
+            quantity=quantity,
+            function_code=function_code,
+        )
 
 
 def test_send_one_text_register_with_fc06() -> None:

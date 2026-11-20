@@ -75,6 +75,7 @@ src/laddercodec/
 │   ├── address.py        # ADDRESS_BANKS, Address, check_address, require_text (refuses a value that is
 │   │                     #   not text), normalize_address, normalize_fields, normalize_items, display form,
 │   │                     #   read_as_typed, X/Y slots, xy_points, xy_room;
+│   │                     #   address_above, range_then (the end a range refusal suggests);
 │   │                     #   readers that never raise: parse_address, split_pointer, is_pointer, bank_prefix, address_shape;
 │   │                     #   too_long and digits_value (read a number that int() can't convert)
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names);

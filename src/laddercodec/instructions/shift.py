@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, cast
 from ..binary_helpers import tag_value
 from ..codes import Code
 from ..errors import CsvReadError
-from ..model import InstructionType, PinnedInstruction, Reason, check_address
+from ..model import Address, InstructionType, PinnedInstruction, Reason, check_address
+from ..operands.address import address_above
 from ..operands.checks import Refusals
 from ..operands.message import Op, says
 from .family import AfInstructionFamilySpec
@@ -81,6 +82,8 @@ class Shift(PinnedInstruction):
                     Reason.CONFLICT,
                     "OBJ-012",
                     code=Code.DUPLICATE_ADDRESS,
+                    then="Write another C bit as the end, such as "
+                    f"{(address_above(start) or Address('C', start.number - 1)).display}.",
                 )
             check.run(self._check_pin_rows)
 
