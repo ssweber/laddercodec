@@ -4,7 +4,7 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
-## Unreleased
+## 0.5.0 (2026-11-20)
 
 - This release breaks the API. Code that reads, builds or edits rungs in Python needs these changes:
   - `decode()` always returns a list, even for one rung.
