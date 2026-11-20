@@ -67,8 +67,8 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("DS1..DS10 > TXT20", "result=DS20,found=C1", "'>' is not offered for text"),
         # a hex value above FFFFh is 32-bit and is refused (OBJ-005). CLICK's shared input
         # check decides by the value, not by the number of digits.
-        ("DH1..DH10 == 10000h", "result=DS20,found=C1", "'10000h' is above FFFFh"),
-        ("DH1..DH10 == 001FFFFh", "result=DS20,found=C1", "'001FFFFh' is above FFFFh"),
+        ("DH1..DH10 == 10000h", "result=DS20,found=C1", "10000h is above FFFFh"),
+        ("DH1..DH10 == 001FFFFh", "result=DS20,found=C1", "001FFFFh is above FFFFh"),
     ],
 )
 def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:

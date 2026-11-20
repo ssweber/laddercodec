@@ -925,7 +925,7 @@ def test_ends_refused_for_different_reasons_stay_two_refusals(
     [
         (
             lambda: Fill("1", "5", "6"),
-            ["Fill.dest_start: '5' is not", "Fill.dest_end: '6' is not"],
+            ["Fill.dest_start: 5 is not", "Fill.dest_end: 6 is not"],
         ),
         (
             lambda: Fill("1", "QQ1", "QQ2"),
@@ -937,7 +937,7 @@ def test_ends_refused_for_different_reasons_stay_two_refusals(
         ),
         (
             lambda: Search("5", "6", "5", "DS20", "C1", "=="),
-            ["Search.table_start: '5' is not", "Search.table_end: '6' is not"],
+            ["Search.table_start: 5 is not", "Search.table_end: 6 is not"],
         ),
     ],
 )
@@ -991,3 +991,17 @@ def test_a_refused_pack_kind_is_not_counted() -> None:
     assert _shape(_errors(lambda: Pack("C1", "C40", "DS1", kind="bits"))) == [
         ("Pack.kind", "choice", None)
     ]
+
+
+def test_a_fill_of_quoted_text_into_a_number_register_refuses_a_stray_quote() -> None:
+    """A Fill of quoted text into DS refuses the pair, and a quote inside the text too.
+
+    This is the one instruction whose check reaches the refusal of a stray quote: a Copy
+    keeps the quote as typed, and a Fill into TXT takes one character."""
+    pair, value = _errors(lambda: Fill('"A"B"', "DS1", "DS2"))
+    assert (pair.field, pair.code) == ("Fill.dest_start", "copy-bank-incompatible")
+    assert (value.field, value.code) == ("Fill.value", "invalid-text-constant")
+    assert value.short() == (
+        "'\"A\"B\"' holds a quote with other characters, which a text constant can't hold"
+    )
+    assert value.detail() == "Write the text without the quote."

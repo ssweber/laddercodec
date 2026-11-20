@@ -444,6 +444,25 @@ def address_shape(text: str) -> tuple[str, str] | None:
     return None if match is None else (match.group(1), match.group(2))
 
 
+def example_address(bank: str | None, banks: Collection[str] | None) -> str:
+    """Return an address that a field of ``banks`` takes, as the example in a refusal.
+
+    The address is in ``bank`` if the field takes that bank. Otherwise it is in the field's
+    first bank in :data:`ADDRESS_BANKS`. ``banks`` None means that the field takes every
+    bank. The address is the first of its bank, such as DS1, except in SC and SD. There it
+    is the lowest address in :data:`~laddercodec.operands.checks.WRITABLE_SC` or
+    :data:`~laddercodec.operands.checks.WRITABLE_SD`, SC50 or SD29, so that a field that
+    writes the bank takes it too.
+    """
+    # Imported here because the checks module imports this one.
+    from .checks import WRITABLE_SC, WRITABLE_SD
+
+    if bank not in ADDRESS_BANKS or (banks is not None and bank not in banks):
+        bank = next((b for b in ADDRESS_BANKS if banks is None or b in banks), "DS")
+    number = {"SC": min(WRITABLE_SC), "SD": min(WRITABLE_SD)}.get(bank, 1)
+    return Address(bank, number, False).display
+
+
 def check_address(
     value: str,
     field: str,
@@ -493,6 +512,8 @@ def check_address(
         )
     parts = _address_parts(value)
     if parts is None:
+        pointer = split_pointer(value)
+        example = example_address(None if pointer is None else pointer[0], banks)
         raise make_refusal(
             AddressError,
             name,
@@ -500,6 +521,7 @@ def check_address(
             field=field,
             reason=Reason.ADDRESS,
             code=Code.NOT_AN_ADDRESS,
+            then=f"Write an address, such as {example}.",
         )
     bank, digits, upper = parts
     if bank not in ADDRESS_BANKS:

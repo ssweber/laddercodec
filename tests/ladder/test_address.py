@@ -37,6 +37,8 @@ from laddercodec.model import (
 )
 from laddercodec.operands.unchecked import refusals
 
+#: The end of the message that refuses text that is not a CLICK address.
+_NOT_AN_ADDRESS = r"is not a CLICK address\. Write an address, such as \w+\.$"
 # (bank, lowest, highest) for every bank without module or slot numbering.
 _LINEAR_BANKS = [
     ("C", 1, 2000),
@@ -123,7 +125,7 @@ class TestCheckAddress:
 
     @pytest.mark.parametrize("value", ["X١", "DS١٠", "C１"])
     def test_ascii_digits_only(self, value: str) -> None:
-        with pytest.raises(AddressError, match="is not a CLICK address$"):
+        with pytest.raises(AddressError, match=_NOT_AN_ADDRESS):
             check_address(value, "f")
 
     def test_error_classes(self) -> None:
@@ -145,7 +147,7 @@ class TestCheckAddress:
         "value", ["X", "1", "x1", "ds1", " X1", "X1 ", "DS[DS1]", "C123456", "TXTA1", "C-1"]
     )
     def test_not_an_address(self, value: str) -> None:
-        with pytest.raises(ValueError, match="is not a CLICK address$"):
+        with pytest.raises(ValueError, match=_NOT_AN_ADDRESS):
             check_address(value, "f")
 
     def test_allowed_banks(self) -> None:

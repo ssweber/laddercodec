@@ -64,7 +64,9 @@ class Op(NamedTuple):
 
     ``text`` is the value in CLICK's form, as the message shows it.  A range is two ends
     joined by ``..`` (``C1..C2``).  With ``quoted``, ``str(err)`` shows the value in repr
-    quotes (``'C1'``).  Without it, the value is shown bare (``C1..C2 spans two slots``).
+    quotes (``'C1'``).  A number (``5``) and a text constant in its own double quotes
+    (``"AB"``) are shown as written, with no repr quotes.  Without ``quoted``, the value is
+    shown bare (``C1..C2 spans two slots``).
     ``typed`` is the text that the caller typed, when it is not CLICK's form.  A quoted
     value with ``typed`` is shown as ``'x1' (X001)``.  The decorator in
     :mod:`~laddercodec.operands.address` sets ``typed``.  A check leaves it None.
@@ -80,9 +82,12 @@ def operand(value: object) -> Op | str:
 
     Use it for a field that may hold a value that is not text, such as ``2`` in a flag.
     ``str(err)`` shows both forms as ``repr(value)``.  A value that is not text is never an
-    address.
+    address.  Text spelled as a number, such as ``'1'``, keeps its repr quotes too, so that
+    a reader can tell it from the number 1.
     """
-    return Op(value) if isinstance(value, str) else _repr(value)
+    if isinstance(value, str) and not _is_number(value):
+        return Op(value)
+    return _repr(value)
 
 
 def _repr(value: object) -> str:
@@ -365,7 +370,8 @@ def _shown(op: Op, named: Mapping[str, str] | None) -> str:
     shown as it is with ``named`` None.
 
     A text constant such as ``"AB"`` is shown in its own double quotes, with no repr
-    quotes around them.
+    quotes around them.  A number such as ``5``, ``-1.5`` or ``FFh`` is shown bare, as the
+    caller wrote it.
     """
     # A caller can pass a field a value that is not text.  Such a value names no address.
     if (
@@ -384,7 +390,7 @@ def _shown(op: Op, named: Mapping[str, str] | None) -> str:
             if own and _renamed(base, {**named, **own}, loose=loose) == op.text:
                 return shown
             return f"{shown} ({op.text})"
-    if not op.quoted or _is_text_constant(op.text):
+    if not op.quoted or _is_text_constant(op.text) or _is_number(op.text):
         return op.text
     if op.typed is not None and op.typed != op.text:
         return f"{op.typed!r} ({op.text})"
@@ -405,6 +411,28 @@ def _is_text_constant(text: object) -> bool:
         and '"' not in text[1:-1]
         and text.isprintable()
     )
+
+
+#: A decimal integer or a real with any sign (``-5``, ``1.5``, ``1e3``), or hex digits then
+#: ``h`` (``0FFh``, ``FFh``).  The possessive ``++`` and ``*+`` keep a check of text with
+#: thousands of digits linear.
+_NUMBER = re.compile(
+    r"[+-]?(?:[0-9]++(?:\.[0-9]*+)?|\.[0-9]++)(?:[eE][+-]?[0-9]++)?|[+-]?[0-9A-Fa-f]++[hH]",
+    re.ASCII,
+)
+
+
+def _is_number(text: object) -> bool:
+    """Return whether ``text`` is spelled as a number, such as ``5``, ``-1.5`` or ``FFh``.
+
+    Text with a space in it, such as `` 5``, is not one here, and neither is a bank name
+    such as ``DH``.  The repr quotes show where such text starts and ends.
+    """
+    if not isinstance(text, str) or _NUMBER.fullmatch(text) is None:
+        return False
+    from .address import ADDRESS_BANKS
+
+    return text.upper() not in ADDRESS_BANKS
 
 
 def _display(text: str, *, loose: bool) -> str | None:

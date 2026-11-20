@@ -146,10 +146,22 @@ class ModbusTcpTarget:
             elif not 1 <= self.port <= 65535:
                 check.refuse(
                     "port",
-                    says("must be 1-65535, got {port}", port=self.port),
+                    says(_PORT_RANGE, port=self.port),
                     Reason.RANGE,
                     code=Code.INVALID_MODBUS_TARGET,
+                    then=_PORT_THEN,
                 )
+
+
+#: The refusal of a port outside 1-65535, and the sentence that follows it.
+_PORT_RANGE = "{port} is outside 1-65535"
+_PORT_THEN = "Write a port from 1 to 65535, such as port=502."
+
+
+def _device_id_then(high: int) -> str:
+    """Return the sentence that follows the refusal of a Slave ID, for a target whose
+    highest Slave ID is *high*."""
+    return f"Write a number from 0 to {high}, or an address from DS1 to DS4500, such as 1."
 
 
 def _choice_reason(value: object) -> Reason:
@@ -181,28 +193,31 @@ def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget,
         if not ds or len(shape[1]) > 4 or int(shape[1]) > 4500:
             check.refuse(
                 "device_id",
-                says(
-                    "must be a number or a DS address (DS1..DS4500), got {typed}", typed=Op(typed)
-                ),
+                says("{typed} is not an address from DS1 to DS4500", typed=Op(typed)),
                 _device_id_reason(typed, check.field("device_id")),
                 code=Code.INVALID_MODBUS_TARGET,
+                then=_device_id_then(high),
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
         check.refuse(
             "device_id",
-            says("must be a number or a DS address, got {device_id}", device_id=operand(device_id)),
+            says("{device_id} is not a number or a DS address", device_id=operand(device_id)),
             Reason.FORM,
             code=Code.INVALID_MODBUS_TARGET,
+            then=_device_id_then(high),
         )
     elif not 0 <= device_id <= high:
         check.refuse(
             "device_id",
-            says(
-                "must be 0-{high} or a DS address, got {device_id}", high=high, device_id=device_id
-            ),
+            says(_DEVICE_ID_RANGE, high=high, device_id=device_id),
             Reason.RANGE,
             code=Code.INVALID_MODBUS_TARGET,
+            then=_device_id_then(high),
         )
+
+
+#: The refusal of a Slave ID number outside the target's range.
+_DEVICE_ID_RANGE = "{device_id} is outside 0-{high}"
 
 
 def _device_id_reason(device_id: str, field: str) -> Reason:
@@ -230,11 +245,14 @@ def _check_ip(check: Refusals, ip: str) -> None:
     stored as it was given.
     """
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
-    rule = says("must be four octets, each 0-255 (a.b.c.d), got {ip}", ip=operand(ip))
+    rule = says("{ip} is not an IP address", ip=operand(ip))
+    then = "Write four numbers from 0 to 255 joined by dots, such as 192.168.0.10."
     if m is None:
-        check.refuse("ip", rule, Reason.FORM, _ip_click_id(ip), code=Code.INVALID_MODBUS_TARGET)
+        check.refuse(
+            "ip", rule, Reason.FORM, _ip_click_id(ip), code=Code.INVALID_MODBUS_TARGET, then=then
+        )
     elif any(int(octet) > 255 for octet in m.groups()):
-        check.refuse("ip", rule, Reason.RANGE, code=Code.INVALID_MODBUS_TARGET)
+        check.refuse("ip", rule, Reason.RANGE, code=Code.INVALID_MODBUS_TARGET, then=then)
 
 
 def _ip_click_id(ip: object) -> str | None:
@@ -315,11 +333,12 @@ class ModbusAddress:
                 check.refuse(
                     "address",
                     says(
-                        "must be a MODBUS 984 number or hex (0h-FFFEh), got {address}",
+                        "{address} is not a MODBUS 984 number or hex address",
                         address=Op(self.address),
                     ),
                     Reason.KIND,
                     code=Code.NOT_AN_ADDRESS,
+                    then="Write a MODBUS 984 number, such as 400001, or hex from 0h to FFFEh.",
                 )
 
     @property
@@ -692,6 +711,7 @@ def _check_target(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rt
             ),
             Reason.RANGE,
             code=Code.INVALID_MODBUS_TARGET,
+            then=f"Give the target a device_id from {rtu_low} to 247, such as device_id=1.",
         )
 
 
@@ -753,9 +773,20 @@ def _check_status_bits(
                 Reason.CONFLICT,
                 click_id,
                 code=Code.DUPLICATE_ADDRESS,
+                then=f"Give {name} a C bit of its own, such as {_free_c_bit(inst, names)}.",
             )
         else:
             seen[key] = name
+
+
+def _free_c_bit(inst: Send | Receive, names: tuple[str, ...]) -> str:
+    """Return the first C bit that none of the status fields *names* of *inst* holds, such
+    as C2."""
+    values = [getattr(inst, name) for name in names]
+    held = [parse_address(value) for value in values if isinstance(value, str)]
+    numbers = {a.number for a in held if a is not None and a.bank == "C"}
+    number = next(n for n in range(1, len(names) + 2) if n not in numbers)
+    return Address("C", number, False).display
 
 
 def _check_984(check: Refusals, address: str, kinds: dict[str, tuple[int, int]]) -> str | None:
@@ -788,6 +819,7 @@ def _check_int_quantity(check: Refusals, quantity: object) -> None:
             says("{quantity} is not an integer", quantity=operand(quantity)),
             Reason.FORM,
             code=Code.CONSTANT_KIND_NOT_ALLOWED,
+            then="Pass the quantity as a whole number, such as quantity=1.",
         )
 
 
@@ -1178,20 +1210,27 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
 
     # The function code must suit the remote kind, and FC05/FC06 carry one element.
     if fc is not None and bit is not None:
-        if fc not in ((5, 15) if bit else (6, 16)):
+        codes = (5, 15) if bit else (6, 16)
+        if fc not in codes:
             kind = "a coil" if bit else "a register"
             check.refuse(
                 ("function_code", "remote_start"),
                 says("FC{fc:02d} cannot write {kind}", fc=fc, kind=kind),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
+                then=(
+                    f"Write {kind} with FC{codes[0]:02d} or FC{codes[1]:02d}, "
+                    f"such as function_code={codes[1]}."
+                ),
             )
         if fc in (5, 6) and counted and quantity != 1:
+            many = fc + 10
             check.refuse(
                 ("function_code", "quantity"),
                 says("FC{fc:02d} writes one element, not {quantity}", fc=fc, quantity=quantity),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
+                then=f"Set quantity=1, or write with FC{many:02d}, such as function_code={many}.",
             )
         if not bit and local is not None and not check.refused("function_code"):
             fc06 = fc == 6
@@ -1344,6 +1383,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 ),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
+                then=f"Set function_code={default_fc}, or leave it None.",
             )
 
     if bit is None:
@@ -1424,9 +1464,10 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         elif why:
             check.refuse(
                 ("word_swap", partner),
-                says("CLICK turns Word Swap off for {why}", why=why),
+                says("Word Swap is not offered for {why}", why=why),
                 Reason.CONFLICT,
                 code=Code.OPTION_NOT_OFFERED,
+                then="Drop word_swap=True.",
             )
 
     # Receive: one C bit can't serve two status fields.
@@ -2204,9 +2245,8 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
             raise _target_number_refusal(
                 "device_id",
                 cls_name,
-                says(
-                    "must be 0-{high} or a DS address, got {device_id}", high=high, device_id=raw_id
-                ),
+                says(_DEVICE_ID_RANGE, high=high, device_id=raw_id),
+                _device_id_then(high),
             )
         device_id = -digits_value(digits) if raw_id != digits else digits_value(digits)
 
@@ -2227,20 +2267,18 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
             then="Enter a whole number, such as 502.",
         )
     if too_long(raw_port.removeprefix("-")):
-        raise _target_number_refusal(
-            "port", cls_name, says("must be 1-65535, got {port}", port=raw_port)
-        )
+        raise _target_number_refusal("port", cls_name, says(_PORT_RANGE, port=raw_port), _PORT_THEN)
     port_digits = raw_port.removeprefix("-")
     port = -digits_value(port_digits) if raw_port != port_digits else digits_value(port_digits)
     com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
     return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
 
 
-def _target_number_refusal(field: str, cls_name: str, said: Rule) -> FieldError:
+def _target_number_refusal(field: str, cls_name: str, said: Rule, then: str) -> FieldError:
     """Return the refusal of a number in a target token that is too long for ``int()``.
 
-    ``said`` is the refusal that the target gives a number outside its range, with the text
-    of the number in it."""
+    ``said`` and ``then`` are the refusal that the target gives a number outside its range,
+    with the text of the number in it."""
     name = f"{cls_name}.{field}"
     return make_refusal(
         FieldError,
@@ -2249,6 +2287,7 @@ def _target_number_refusal(field: str, cls_name: str, said: Rule) -> FieldError:
         field=name,
         reason=Reason.RANGE,
         code=Code.INVALID_MODBUS_TARGET,
+        then=then,
     )
 
 
@@ -2266,6 +2305,10 @@ def _parse_remote_start(raw: str) -> str | ModbusAddress:
             register_type=cast("ModbusRegisterType | None", kw.get("register_type")),
         )
     return raw
+
+
+#: The sentence that follows the refusal of a range that is not two addresses of one bank.
+_RANGE_THEN = "Write two addresses of one bank joined by '..', such as DS1..DS10."
 
 
 def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
@@ -2288,6 +2331,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 field=field,
                 reason=Reason.FORM,
                 code=Code.NOT_AN_ADDRESS,
+                then=_RANGE_THEN,
             )
         prefix = m_start[0]
         if m_end[0] != prefix:
@@ -2303,6 +2347,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 field=field,
                 reason=Reason.FORM,
                 code=Code.RANGE_MIXED_BANKS,
+                then=_RANGE_THEN,
             )
         check_address(end, field, {prefix}, label=f"range end of {raw!r}")
         first, last = digits_value(m_start[1]), digits_value(m_end[1])
@@ -2314,6 +2359,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 field=field,
                 reason=Reason.FORM,
                 code=Code.RANGE_NOT_ASCENDING,
+                then="Write the lower address first, such as DS1..DS10.",
             )
         qty = xy_points(first, last) if prefix in XY_BANKS else last - first + 1
         return start, qty

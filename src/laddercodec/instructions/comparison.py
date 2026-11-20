@@ -20,7 +20,7 @@ from ..model import (
 from ..operands.address import ADDRESS_BANKS, read_typed_address
 from ..operands.checks import ALL_KINDS, Constants, Refusals, check_kept_text, check_operand
 from ..operands.constants import HEX16_MAX, Kind
-from ..operands.message import operand, says
+from ..operands.message import Op, operand, says
 from ..operands.unchecked import read_in_another_form
 from .contact import refuse_down_prefix
 from .family import ConditionInstructionFamilySpec
@@ -257,9 +257,9 @@ class CompareContact(Condition):
                         "{left} ({left_group}) and {right} ({right_group}) "
                         "are not in one compare group",
                         "hex, numeric and text operands do not mix",
-                        left=operand(self.left),
+                        left=Op(self.left),
                         left_group=left,
-                        right=operand(self.right),
+                        right=Op(self.right),
                         right_group=right,
                     ),  # fmt: skip
                     Reason.CONFLICT,
@@ -272,7 +272,7 @@ class CompareContact(Condition):
                     "right",
                     says(
                         "{right} is the bank name {bank}, not a hex constant",
-                        right=operand(self.right),
+                        right=Op(self.right),
                         bank=self.right.upper(),
                     ),  # fmt: skip
                     Reason.FORM,
@@ -286,7 +286,7 @@ class CompareContact(Condition):
                         "{op} is not offered when Data A is text ({left})",
                         "a text compare takes == or !=",
                         op=operand(self.op),
-                        left=operand(self.left),
+                        left=Op(self.left),
                     ),  # fmt: skip
                     Reason.CONFLICT,
                     code=Code.TEXT_ORDER_COMPARE,

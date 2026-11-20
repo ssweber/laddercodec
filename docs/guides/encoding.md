@@ -337,8 +337,10 @@ except FieldError as exc:
 `names` maps an address to your name for it. `message(names)` returns the text of
 `str(exc)` with each named address replaced by its name. CLICK's form of the value
 follows in parentheses. `short(names)` returns only the refused value and its rule.
-`detail(names)` returns only the explanation. It returns an empty string when the
-refusal has none.
+`detail(names)` returns the explanation and what to write, as in
+`Write an address, such as DS1.` It is empty when the refusal has neither.
+A number constant is shown without quotes:
+`Copy.source: 5000000000 is outside -2147483648 to 2147483647 (OBJ-005)`.
 
 `short()` and `detail()` are for text that you show next to the field, so they do not
 name the field. Where `str(exc)` says `Fill.value takes one character`, `detail()`

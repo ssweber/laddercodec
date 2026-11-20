@@ -359,6 +359,7 @@ def _lex(text: str) -> list[_Raw]:
                 says("{ch!r} in {text!r} is no part of a Math formula", ch=ch, text=text),
                 Reason.FORM,
                 code=Code.MATH_INVALID_TOKEN,
+                then=f"Remove the {ch!r}.",
             )
         end = i
         while end < n and _is_word_char(text[end]):
@@ -440,6 +441,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 says("{word!r} has a digit outside 0-9", word=word),
                 Reason.FORM,
                 code=Code.MATH_INVALID_TOKEN,
+                then="Write its digits as 0-9.",
             ),
             None,
         )
@@ -555,8 +557,30 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
 # ---------------------------------------------------------------------------
 
 
-def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None:
-    """Return the first refusal of the parentheses (grammar step 3), or ``None``."""
+def _example(formula: str, mode: str) -> str:
+    """Return ``formula``, an example written for a decimal Math, as a Math of ``mode``
+    writes it.
+
+    In a hex Math, each DS address becomes the DH address of the same number, and each
+    integer constant gets an ``h``. So ``DS1 * ( -2 )`` becomes ``DH1 * ( -2h )``. The
+    tokens of ``formula`` are separated by single spaces.
+    """
+    if mode != "hex":
+        return formula
+    words = []
+    for word in formula.split(" "):
+        if word.startswith("DS"):
+            word = f"DH{word[2:]}"
+        elif word.lstrip("+-").isdigit():
+            word = f"{word}h"
+        words.append(word)
+    return " ".join(words)
+
+
+def _check_parentheses(tokens: Sequence[Token], shown: str, mode: str) -> FieldError | None:
+    """Return the first refusal of the parentheses (grammar step 3), or ``None``.
+
+    ``mode`` is the Math's mode, which the example in a refusal is written for."""
     depth = 0
     for token in tokens:
         if token.kind == "(":
@@ -573,6 +597,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None
                     Reason.RANGE,
                     "OBJ-1010",
                     code=Code.MATH_NESTING_DEPTH,
+                    then="Take out the extra pairs of parentheses.",
                 )
         elif token.kind == ")":
             depth -= 1
@@ -582,6 +607,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None
                     Reason.FORM,
                     "OBJ-1004",
                     code=Code.MATH_UNBALANCED_PARENS,
+                    then="Add the '(' that opens it, or remove the ')'.",
                 )
     if depth > 0:
         return _error(
@@ -589,6 +615,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None
             Reason.FORM,
             "OBJ-1005",
             code=Code.MATH_UNBALANCED_PARENS,
+            then=f"Add the ')' that closes it, such as {_example('( DS1 + 2 )', mode)}.",
         )
     return None
 
@@ -661,10 +688,12 @@ def _decimal_internal(text: str) -> str | MathReal | FieldError:
                     instead=real.instead,
                 )
             else:
-                said = says(
-                    "{text} may have more digits than CLICK keeps in Math: write {instead}",
-                    text=text,
-                    instead=real.instead,
+                said = says("{text} may have more digits than CLICK keeps in Math", text=text)
+                return _error(
+                    said,
+                    Reason.FORM,
+                    code=Code.MATH_CONSTANT_OUT_OF_RANGE,
+                    then=f"Write {real.instead}.",
                 )
             return _error(said, Reason.FORM, code=Code.MATH_CONSTANT_OUT_OF_RANGE)
         return real
@@ -740,10 +769,28 @@ def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldErr
     """Return a refusal for each key of the other mode's keypad in ``tokens`` (grammar step 8).
 
     Each refusal names ``Math.mode`` as well, because a Math of the other mode accepts the
-    key.
+    key. If the formula holds a register that the other mode refuses, the refusal names the
+    registers that the other mode takes.
     """
     other = HEX_ONLY if mode == "decimal" else DECIMAL_ONLY
     other_mode = "hex" if mode == "decimal" else "decimal"
+    takes = _OPERANDS[other_mode].anywhere
+    foreign = any(
+        (parts := address_parts(token.text)) is not None and parts[0] not in takes
+        for token in tokens
+        if token.kind == "addr"
+    )
+    registers = [bank for bank in ADDRESS_BANKS if bank in takes]
+    named = f"{', '.join(registers[:-1])} or {registers[-1]}"
+
+    def then(key: str) -> str:
+        if foreign:
+            return (
+                f"Take {key} out of the formula, or set mode to {other_mode} and write its "
+                f"registers as {named}."
+            )
+        return f"Set mode to {other_mode}, or take {key} out of the formula."
+
     return [
         make_refusal(
             FieldError,
@@ -760,6 +807,7 @@ def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldErr
             reason=Reason.CONFLICT,
             click_id="OBJ-1006",
             code=Code.MATH_FUNCTION_MODE,
+            then=then(token.text),
         )
         for token in tokens
         if token.kind in ("op", "func", "pi") and token.text in other
@@ -769,61 +817,110 @@ def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldErr
 _VALUES = ("func", "pi", "const", "addr")
 
 
-def _follow_refusal(a: Token, b: Token) -> Rule | None:
-    """Return why ``b`` may not follow ``a``, or ``None`` if it may (the table in step 9).
+def _follow_refusal(a: Token, b: Token, mode: str) -> tuple[Rule, str] | None:
+    """Return why ``b`` may not follow ``a`` and what to write instead, or ``None`` if it
+    may (the table in step 9).
 
     The rule starts with the two tokens: ``'+' after '(': it needs a value before it``. A
-    token that is an address is an :class:`Op`.
+    token that is an address is an :class:`Op`. The example is written for a Math of
+    ``mode``.
     """
-    why = _follow_rule(a, b)
+    why = _follow_rule(a, b, mode)
     if why is None:
         return None
-    short, detail = why
-    return says(
-        "{after} after {before}: {short}",
-        "{detail}" if detail else "",
-        after=_quoted(b),
-        before=_quoted(a),
-        short=short,
-        detail=detail,
-    )
+    short, then = why
+    said = says("{after} after {before}: {short}", after=_quoted(b), before=_quoted(a), short=short)
+    return said, then
 
 
-def _follow_rule(a: Token, b: Token) -> tuple[str, str] | None:
-    """Return why ``b`` may not follow ``a``: a short rule and an explanation.
+def _follow_rule(a: Token, b: Token, mode: str) -> tuple[str, str] | None:
+    """Return why ``b`` may not follow ``a``: a short rule, and a sentence that says what to
+    write instead.
 
-    The explanation is empty for most rules. Return ``None`` if ``b`` may follow ``a``."""
+    The sentence's example is a formula that a Math of ``mode`` accepts. Return ``None`` if
+    ``b`` may follow ``a``."""
+
+    def such_as(formula: str) -> str:
+        return _example(formula, mode)
+
     if a.kind == "(":
         if b.kind == ")":
-            return "the parentheses hold nothing", ""
+            return (
+                "the parentheses hold nothing",
+                f"Put a value in them, such as {such_as('( DS1 )')}.",
+            )
         if b.kind in (",", ":") or (b.kind == "op" and b.text not in _SIGNS):
-            return "it needs a value before it", ""
+            return (
+                "it needs a value before it",
+                f"Put a value before it, such as {such_as('( DS1 * 2 )')}.",
+            )
     elif a.kind == ")":
         if b.kind == "(" or b.kind in _VALUES:
-            return "a value after ')' needs an operator between them", ""
+            return (
+                "a value after ')' needs an operator between them",
+                f"Put an operator after the ')', such as {such_as('( DS1 + 1 ) * DS2')}.",
+            )
     elif a.kind == "op":
         if b.kind == "op" and b.text in _SIGNS:
             return (
                 "a sign right after an operator is refused",
-                "put the signed value in parentheses",
+                f"Put the signed value in parentheses, such as {such_as('DS1 * ( -2 )')}.",
             )
         if b.kind in (")", ",", ":", "op"):
-            return "an operator needs a value after it", ""
+            return (
+                "an operator needs a value after it",
+                f"Put a value after it, such as {such_as('DS1 + 2')}.",
+            )
     elif a.kind in ("const", "addr", "pi"):
         # PI may be followed by '(': typed PI ( 2 ) is stored PI#(#H2#).
         if (b.kind == "(" and a.kind != "pi") or b.kind in _VALUES:
-            return "two values need an operator between them", ""
+            return (
+                "two values need an operator between them",
+                f"Put an operator between them, such as {such_as('DS1 + DS2')}.",
+            )
         if a.kind == "pi" and b.kind in (",", ":"):
-            return "PI may not stand before ',' or ':'", ""
+            return "PI may not stand before ',' or ':'", "Write an address or a number there."
     elif a.kind == "func":
         if b.kind != "(":
-            return f"{a.text} takes its argument in parentheses, {a.text} ( ... )", ""
+            return (
+                f"{a.text} takes its argument in parentheses, {a.text} ( ... )",
+                f"Write it as {_call_example(a.text, mode)}.",
+            )
     elif a.kind in (",", ":"):
         if b.kind in (")", ",", ":", "op"):
-            return "it needs a value after it", ""
+            return (
+                "it needs a value after it",
+                f"Put an address after it, such as {such_as('DS10')}.",
+            )
         if b.kind == "func" and b.text in SHIFT:
-            return f"{b.text} may not stand right after ',' or ':'", ""
+            return (
+                f"{b.text} may not stand right after ',' or ':'",
+                f"Write an address there, such as {such_as('DS1')}.",
+            )
     return None
+
+
+def _call_example(function: str, mode: str) -> str:
+    """Return a call of the Math function ``function`` to show in a refusal, such as
+    ``SUM ( DS1 : DS10 )``.
+
+    A Math of ``mode`` accepts the call if its keypad has ``function``. A function that only
+    the other mode's keypad has gets a call that a Math of that mode accepts, such as
+    ``LSH ( DH1 , 1h )`` in a decimal Math.
+    """
+    if function in DECIMAL_ONLY:
+        mode = "decimal"
+    elif function in HEX_ONLY:
+        mode = "hex"
+    if function in SHIFT:
+        call = f"{function} ( DS1 , 1 )"
+    elif function in COMMA_FUNCTIONS:
+        call = f"{function} ( 1 , 10 )"
+    elif function in RANGE_FUNCTIONS:
+        call = f"{function} ( DS1 : DS10 )"
+    else:
+        call = f"{function} ( DS1 )"
+    return _example(call, mode)
 
 
 def _closing(tokens: Sequence[Token], i: int) -> int:
@@ -839,19 +936,20 @@ def _closing(tokens: Sequence[Token], i: int) -> int:
     return len(tokens) - 1
 
 
-def _check_order(tokens: Sequence[Token]) -> FieldError | None:
+def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
     """Return the first refusal of the token order (grammar step 9), or ``None``.
 
     The check reads the tokens in order. It checks the form of each function call when it
-    reaches the function's name.
+    reaches the function's name. The example in a refusal is written for a Math of ``mode``.
     """
     call_separators: set[int] = set()
     for i, token in enumerate(tokens):
         nxt = tokens[i + 1] if i + 1 < len(tokens) else None
         if nxt is not None:
-            said = _follow_refusal(token, nxt)
-            if said is not None:
-                return _error(said, Reason.FORM, "OBJ-1001", code=Code.MATH_SYNTAX_ERROR)
+            found = _follow_refusal(token, nxt, mode)
+            if found is not None:
+                said, then = found
+                return _error(said, Reason.FORM, "OBJ-1001", code=Code.MATH_SYNTAX_ERROR, then=then)
         if token.kind == "," and i not in call_separators:
             # CLICK reads a comma outside RAND ( a , b ) or LSH..RRO ( a , b ) as a decimal
             # comma, and refuses DS1 , DS2 with OBJ-037. MAX ( DS1 , DS2 ) is refused too,
@@ -900,6 +998,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                     Reason.FORM,
                     "OBJ-1001",
                     code=Code.MATH_ARG_EXPRESSION,
+                    then=f"Write it as {_call_example(token.text, mode)}.",
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
@@ -915,6 +1014,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                     ),
                     Reason.FORM,
                     code=Code.MATH_ARG_EXPRESSION,
+                    then=f"Write it as {_call_example(token.text, mode)}.",
                 )
             call_separators.add(i + 3)
         elif token.text in TRIG:
@@ -926,7 +1026,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 return _error(
                     says(
                         "{function} ( ... ) holds a ',' or ':' that is not a SUM range",
-                        "CLICK refuses it",
+                        "remove it",
                         function=token.text,
                     ),
                     Reason.FORM,
@@ -940,6 +1040,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
             Reason.FORM,
             "OBJ-1001",
             code=Code.MATH_SYNTAX_ERROR,
+            then=f"Start the formula with a value or '(', such as {_example('DS1 + 2', mode)}.",
         )
     if last.kind not in (")", "pi", "const", "addr"):
         return _error(
@@ -947,6 +1048,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
             Reason.FORM,
             "OBJ-1001",
             code=Code.MATH_SYNTAX_ERROR,
+            then=f"End the formula with a value or ')', such as {_example('DS1 + 2', mode)}.",
         )
     return None
 
@@ -1179,20 +1281,25 @@ def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldErro
     if len(inside) == 1:
         said = says(
             "{function} ( {low} : {high} ) is refused: {end} is in the option slot "
-            "({first}-{last}), and CLICK sums the wrong bits for this range.",
+            "({first}-{last})",
             end=inside[0],
             **values,
         )
     else:
         said = says(
             "{function} ( {low} : {high} ) is refused: {low} and {high} are in the option "
-            "slot ({first}-{last}), and CLICK sums the wrong bits for this range.",
+            "slot ({first}-{last})",
             **values,
         )
+    pair = f"{Address(bank, first + 4).display} : {Address(bank, first + 5).display}"
     return _error(
         said,
         Reason.RANGE,
         code=Code.SUM_OPTION_SLOT,
+        then=(
+            "In the option slot, write a range of one point or of two points next to each "
+            f"other, such as {function} ( {pair} )."
+        ),
     )
 
 
@@ -1374,6 +1481,7 @@ def parse(text: str, mode: str) -> Formula:
                 says("{key!r} is part of a pointer", "Math takes no pointer", key=raw.text),
                 Reason.POINTER,
                 code=Code.POINTER_OUTSIDE_COPY,
+                then=f"Write an address, such as {_example('DS1', mode)}.",
             )
     found: list[FieldError] = []
     tokens: list[Token] = []
@@ -1385,7 +1493,7 @@ def parse(text: str, mode: str) -> Formula:
             token = Token("word", raw.text, refused=True)
         tokens.append(token)
     shown = " ".join(t.text for t in tokens)
-    if (error := _check_parentheses(tokens, shown)) is not None:
+    if (error := _check_parentheses(tokens, shown, mode)) is not None:
         _raise([*found, error])
     if mode == "decimal":
         tokens = _merge_signs(tokens)
@@ -1404,7 +1512,7 @@ def parse(text: str, mode: str) -> Formula:
     found += _check_mode(tokens, mode, shown)
     if not known:
         _raise(found)
-    if (error := _check_order(tokens)) is not None:
+    if (error := _check_order(tokens, mode)) is not None:
         _raise([*found, error])
     found += _check_rand(tokens, mode)
     found += _check_operands(tokens, mode)

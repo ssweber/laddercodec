@@ -3,15 +3,15 @@
   "time_drum presets[0]=\"\t\"": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: '\"\\t\"' is quoted text; Drum.presets[0] takes a decimal integer"},
   "time_drum presets[0]=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" is quoted text; Drum.presets[0] takes a decimal integer"},
   "time_drum presets[0]=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" is quoted text; Drum.presets[0] takes a decimal integer"},
-  "time_drum presets[0]=": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets", "message": "Drum.presets: every step needs a duration (OBJ-022)"},
+  "time_drum presets[0]=": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets", "message": "Drum.presets: every step needs a duration (OBJ-022). Give each step a duration, such as 100."},
   "time_drum presets[0]= ": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: ' ' is refused; Drum.presets[0] takes a decimal integer"},
   "time_drum presets[0]=\u0663": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: '\u0663' is refused; Drum.presets[0] takes a decimal integer"},
   "time_drum presets[0]= DS1": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: ' DS1' is refused; Drum.presets[0] takes a decimal integer"},
-  "time_drum presets[0]=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'DS1 ' is not a CLICK address"},
-  "time_drum outputs[0]= Y001": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: ' Y001' is not a CLICK address"},
-  "time_drum outputs[0]=Y001 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: 'Y001 ' is not a CLICK address"},
-  "event_drum events[0]= X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: ' X001' is not a CLICK address"},
-  "event_drum events[0]=X001 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X001 ' is not a CLICK address"},
-  "time_drum jump_enabled=1 jump_step= DS1": {"verdict": "refused", "error": "AddressError", "field": "Drum.jump_step", "message": "Drum.jump_step: ' DS1' is not a CLICK address"},
-  "time_drum jump_enabled=1 jump_step=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.jump_step", "message": "Drum.jump_step: 'DS1 ' is not a CLICK address"}
+  "time_drum presets[0]=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'DS1 ' is not a CLICK address. Write an address, such as DS1."},
+  "time_drum outputs[0]= Y001": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: ' Y001' is not a CLICK address. Write an address, such as Y001."},
+  "time_drum outputs[0]=Y001 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: 'Y001 ' is not a CLICK address. Write an address, such as Y001."},
+  "event_drum events[0]= X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: ' X001' is not a CLICK address. Write an address, such as X001."},
+  "event_drum events[0]=X001 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X001 ' is not a CLICK address. Write an address, such as X001."},
+  "time_drum jump_enabled=1 jump_step= DS1": {"verdict": "refused", "error": "AddressError", "field": "Drum.jump_step", "message": "Drum.jump_step: ' DS1' is not a CLICK address. Write an address, such as DS1."},
+  "time_drum jump_enabled=1 jump_step=DS1 ": {"verdict": "refused", "error": "AddressError", "field": "Drum.jump_step", "message": "Drum.jump_step: 'DS1 ' is not a CLICK address. Write an address, such as DS1."}
 }

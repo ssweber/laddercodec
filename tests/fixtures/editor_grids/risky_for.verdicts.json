@@ -5,7 +5,7 @@
   "for \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" is quoted text. Write a whole number from 0 to 2147483647, or an address in DS, DD, TD, CTD or SD, such as DS1."},
   "for ": {"verdict": "refused", "error": "FieldError", "field": "ForLoop.count", "message": "ForLoop.count: The count is blank. Enter a number of loops, or an address that holds one."},
   "for  ": {"verdict": "refused", "error": "FieldError", "field": "ForLoop.count", "message": "ForLoop.count: The count is blank. Enter a number of loops, or an address that holds one."},
-  "for \u0663": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '\u0663' is not a CLICK address"},
+  "for \u0663": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '\u0663' is not a CLICK address. Write an address, such as DS1."},
   "for  DS1": {"verdict": "accepted"},
   "for DS1 ": {"verdict": "accepted"}
 }

@@ -351,7 +351,7 @@ def test_real_typed_with_a_lowercase_e_is_taken_when_both_forms_keep_it(
     _refused(
         f"DF1 * ( {constant} )",
         "decimal",
-        re.escape(f"{constant} may have more digits than CLICK keeps in Math: write {write}"),
+        re.escape(f"{constant} may have more digits than CLICK keeps in Math. Write {write}."),
     )
     Math(f"DF1 * ( {write} )", "DF9")
     Math("DF1 * ( 1.5e-3 )", "DF9")

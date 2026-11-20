@@ -658,9 +658,12 @@ class TestHeldRefusals:
     [
         (
             "copy(DS1,TXT1,convert=to_text(suppress_zero=2))",
-            "Copy.suppress_zero: '2' is not 1 or 0",
+            "Copy.suppress_zero: 2 is not 1 or 0. Write suppress_zero=1 or suppress_zero=0.",
         ),
-        ("copy(DF1,TXT1,convert=to_text(exponential=x))", "Copy.exponential: 'x' is not 1 or 0"),
+        (
+            "copy(DF1,TXT1,convert=to_text(exponential=x))",
+            "Copy.exponential: 'x' is not 1 or 0. Write exponential=1 or exponential=0.",
+        ),
         ("copy(DS1,TXT1,convert=to_text(suppress_zero=))", "Copy.suppress_zero: is blank"),
     ],
 )

@@ -4,8 +4,8 @@
   "shift X001..X002": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'X001' is not allowed; Shift.start_bit takes C (OBJ-004)"},
   "shift X001..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'X001' is not allowed; Shift.start_bit takes C (OBJ-004)"},
   "shift C1..X001": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 'X001' is not allowed; Shift.end_bit takes C (OBJ-004)"},
-  "shift C[DS1]..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'C[DS1]' is not a CLICK address"},
-  "shift C1..C[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 'C[DS1]' is not a CLICK address"},
-  "shift 5..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: '5' is not a CLICK address"},
-  "shift C1..5": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: '5' is not a CLICK address"}
+  "shift C[DS1]..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'C[DS1]' is not a CLICK address. Write an address, such as C1."},
+  "shift C1..C[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 'C[DS1]' is not a CLICK address. Write an address, such as C1."},
+  "shift 5..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 5 is not a CLICK address. Write an address, such as C1."},
+  "shift C1..5": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 5 is not a CLICK address. Write an address, such as C1."}
 }

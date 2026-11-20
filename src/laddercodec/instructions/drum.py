@@ -439,7 +439,7 @@ def _check_distinct_outputs(
 
 
 def _refuse_blank_steps(
-    check: Refusals, attr: str, blank: list[int], rule: Rule, click_id: str
+    check: Refusals, attr: str, blank: list[int], rule: Rule, click_id: str, then: str
 ) -> None:
     """Refuse the list field *attr* if any of its steps is blank.
 
@@ -447,11 +447,12 @@ def _refuse_blank_steps(
     step instead, so that the other refusal does not hide this one."""
     if not blank:
         return
+    code = Code.DRUM_STEP_EMPTY
     if check.refused(attr):
         for i in blank:
-            check.refuse(f"{attr}[{i}]", rule, Reason.MISSING, click_id, code=Code.DRUM_STEP_EMPTY)
+            check.refuse(f"{attr}[{i}]", rule, Reason.MISSING, click_id, code=code, then=then)
     else:
-        check.refuse(attr, rule, Reason.MISSING, click_id, code=Code.DRUM_STEP_EMPTY)
+        check.refuse(attr, rule, Reason.MISSING, click_id, code=code, then=then)
 
 
 def _timer_done_bit(accumulator: str) -> str:
@@ -546,6 +547,7 @@ class Drum(PinnedInstruction):
                         says("an event drum has events, not presets"),
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
+                        then="Leave presets empty.",
                     )
                 if kind == "event_drum" and self.unit:
                     check.refuse(
@@ -561,6 +563,7 @@ class Drum(PinnedInstruction):
                         says("a time drum has presets, not events"),
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
+                        then="Leave events empty.",
                     )
                 # A blank list is refused once, here. The size and pattern checks skip it.
                 for name in blank:
@@ -633,6 +636,7 @@ class Drum(PinnedInstruction):
                         [i for i, event in enumerate(self.events) if not event],
                         says("every step needs an event"),
                         "OBJ-021",
+                        "Give each step an event, such as X001.",
                     )
                 else:
                     self._check_timed(check, kind, steps, sizes_ok)
@@ -714,6 +718,7 @@ class Drum(PinnedInstruction):
                 [i for i, preset in enumerate(self.presets) if not preset],
                 says("every step needs a duration"),
                 "OBJ-022",
+                "Give each step a duration, such as 100.",
             )
             return
         if not sizes_ok:
@@ -738,6 +743,7 @@ class Drum(PinnedInstruction):
                     Reason.MISSING,
                     "OBJ-1019",
                     code=Code.DRUM_STEP_EMPTY,
+                    then=f"Give step {i + 1} a duration, such as 100, or an event, such as X001.",
                 )
 
     @property
