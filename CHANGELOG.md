@@ -6,7 +6,16 @@
 
 ## Unreleased
 
-`decode()` and `decode_program()` no longer raise at a rung that they can't read. They return a marker for that rung and decode the rest. A stored value that CLICK's dialog refuses now decodes as the instruction, with a warning. You can now build a rung from its circuit with `lay_out()`, read and write a whole project as a folder of CSV files, and list the addresses that a CLICK project must hold before you paste. Each refusal and each `check()` finding names its rule in `code`, and CLICK's own id in `click_id` when CLICK has one. An error from `read_csv` names the cell. This release breaks the API. Classes, fields and exceptions are renamed, instructions are frozen, and the field checks refuse more values that CLICK refuses. Read Breaking changes before you upgrade.
+- This release breaks the API. Most code needs four changes:
+  - `decode()` always returns a list, even for one rung.
+  - `Contact` and `Coil` take the operand first and a `kind`, such as `Contact("X001", kind="nc")`.
+  - Instruction fields have the names of their CSV keywords, such as `Timer.preset` and `Math.dest`.
+  - Instructions and rungs are frozen. Change one with `laddercodec.replace()`.
+- `decode()` and `decode_program()` no longer raise at a rung that they can't read. They return a marker for it, with an `UndecodedRungWarning`.
+- The field checks follow CLICK's dialogs, so some values that v0.4.0 accepted now raise `FieldError`. A program that CLICK saved with such a value still decodes, with a `RefusedFieldWarning`.
+- You can now build a rung from its circuit with `lay_out()`, read and write a project as a folder of CSV files with `read_bundle()` and `write_bundle()`, and list the addresses that a project must hold before you paste with `addresses()`.
+- Each `FieldError` and each `check()` finding names its rule in `code`, and CLICK's id in `click_id` when CLICK has one. Match on `code`, not on the message text.
+- Read Breaking changes before you upgrade.
 
 ### Breaking changes
 
