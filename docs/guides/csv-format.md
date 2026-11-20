@@ -654,6 +654,8 @@ Producer may emit:
     `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
+  - Each part of a TCP `ip` is a decimal number. `read_csv` accepts leading zeros and
+    `write_csv` leaves them out (`010.002.003.004` is `10.2.3.4`, `000.0.0.0` is `0.0.0.0`).
   - Write a quote inside a name twice: `name="a""b"` names the target `a"b`.
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
   - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
