@@ -275,8 +275,9 @@ IP_UNTYPED = (
 IP_PADDED = (
     "kept: CLICK's IP control drops the leading zeros of each part, and the dialog saves "
     "1.2.3.4. CLICK saves a pasted IP with its leading zeros, and the dialog shows each "
-    "part as a decimal number. laddercodec accepts the IP and writes it without leading zeros, as the dialog saves it. Where a "
-    "Send with this IP connects on the PLC is not known"
+    "part as a decimal number. laddercodec accepts the IP and writes it without leading "
+    "zeros, as the dialog saves it. Where a Send with this IP connects on the PLC is not "
+    "known"
 )
 IP_PADDED_LABELS = (
     "send fc06 984 400001 <- DS1 ip='01.2.3.4'",

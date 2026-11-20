@@ -239,7 +239,8 @@ _IP_REFUSED_PARTS = frozenset({"", "-1", "-01"})
 
 
 def _check_ip(check: Refusals, target: ModbusTcpTarget) -> None:
-    """Refuse an IP address that is not four decimal octets, each from 0 to 255.
+    """Refuse an IP address that is not four decimal octets from 0 to 255, or set
+    ``target.ip`` to it without leading zeros.
 
     0.0.0.0 is accepted. An octet may have leading zeros, as in 010.002.003.004. They are
     decimal, not octal. When the address is accepted, this function sets ``target.ip`` to it
