@@ -51,7 +51,7 @@ from ..operands.checks import (
 )
 from ..operands.constants import Kind, hex_display
 from ..operands.message import Op, Rule, make_refusal, operand, says, wrong_type
-from ..operands.unchecked import allowed, holds_refusals
+from ..operands.unchecked import allowed, holds_refusals, read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -134,7 +134,7 @@ class ModbusTcpTarget:
                     code=Code.INVALID_CHOICE,
                 )
             _check_device_id(check, self, 255)
-            _check_ip(check, self.ip)
+            _check_ip(check, self)
             if isinstance(self.port, bool) or not isinstance(self.port, int):
                 check.refuse(
                     "port",
@@ -238,12 +238,15 @@ _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
 _IP_REFUSED_PARTS = frozenset({"", "-1", "-01"})
 
 
-def _check_ip(check: Refusals, ip: str) -> None:
-    """Refuse an IP address that is not four decimal octets, each from 0 to 255.
+def _check_ip(check: Refusals, target: ModbusTcpTarget) -> None:
+    """Refuse an IP address that is not four decimal octets from 0 to 255, or set
+    ``target.ip`` to it without leading zeros.
 
-    0.0.0.0 is accepted. An octet may have leading zeros, as in 01.2.3.4, and the IP is
-    stored as it was given.
+    0.0.0.0 is accepted. An octet may have leading zeros, as in 010.002.003.004. They are
+    decimal, not octal. When the address is accepted, this function sets ``target.ip`` to it
+    without them, as 10.2.3.4. An octet of zeros is 0.
     """
+    ip = target.ip
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
     rule = says("{ip} is not an IP address", ip=operand(ip))
     then = "Write four numbers from 0 to 255 joined by dots, such as 192.168.0.10."
@@ -253,6 +256,8 @@ def _check_ip(check: Refusals, ip: str) -> None:
         )
     elif any(int(octet) > 255 for octet in m.groups()):
         check.refuse("ip", rule, Reason.RANGE, code=Code.INVALID_MODBUS_TARGET, then=then)
+    else:
+        object.__setattr__(target, "ip", ".".join(str(int(octet)) for octet in m.groups()))
 
 
 def _ip_click_id(ip: object) -> str | None:
@@ -2037,6 +2042,16 @@ def _build_remote_start(tags: dict[int, str], function_code: int) -> str | Modbu
     return ModbusAddress(address=remote_start_raw)
 
 
+def _keep_stored_ip(built: Send | Receive, tags: dict[int, str]) -> None:
+    """Mark *built* to keep its stored blob if CLICK saved a TCP address with leading zeros.
+
+    The target holds the address without them.
+    """
+    target = built.target
+    if isinstance(target, ModbusTcpTarget) and target.ip != tag_value(tags, 0x622B):
+        read_in_another_form(built)
+
+
 def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
     target = _build_target(tags, "RD")
     function_code = _RD_FC_FROM_SUBTYPE.get(tag_value(tags, 0x2211))
@@ -2047,7 +2062,7 @@ def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
     if target is None or remote_start is None or not dest:
         return None
 
-    return Receive(
+    built = Receive(
         target=target,
         remote_start=remote_start,
         dest=dest,
@@ -2059,6 +2074,8 @@ def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
         word_swap=tag_value(tags, 0x221C) == "0",
         function_code=cast("ReceiveFunctionCode", function_code),
     )
+    _keep_stored_ip(built, tags)
+    return built
 
 
 def _from_tags_sd(tags: dict[int, str]) -> Send | None:
@@ -2071,7 +2088,7 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
     if target is None or remote_start is None or not source:
         return None
 
-    return Send(
+    built = Send(
         target=target,
         remote_start=remote_start,
         source=source,
@@ -2083,6 +2100,8 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
         word_swap=tag_value(tags, 0x221C) == "0",
         function_code=cast("SendFunctionCode", function_code),
     )
+    _keep_stored_ip(built, tags)
+    return built
 
 
 # ---------------------------------------------------------------------------

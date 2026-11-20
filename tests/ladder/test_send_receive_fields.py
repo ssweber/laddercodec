@@ -217,14 +217,14 @@ def test_tcp_ip_click_id(ip, click_id) -> None:
 
 
 @pytest.mark.parametrize("ip", ["01.2.3.4", "001.002.003.004"])
-def test_tcp_ip_with_leading_zeros_is_kept_as_given(ip) -> None:
-    """An IP with leading zeros in a part is accepted. Encode writes it as given, and decode
-    reads it back the same."""
+def test_tcp_ip_with_leading_zeros_is_written_without_them(ip) -> None:
+    """An IP with leading zeros in a part is accepted. Encode writes the parts without them,
+    and decode reads that back."""
     target = ModbusTcpTarget(name="tcp", ip=ip, port=502, device_id=1)
-    assert target.ip == ip
+    assert target.ip == "1.2.3.4"
     built = send(target=target)
     blob = built.build_blob()
-    assert ip.encode("utf-16-le") in blob
+    assert "1.2.3.4".encode("utf-16-le") in blob
     assert parse_af_blob(blob) == built
 
 
