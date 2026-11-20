@@ -39,11 +39,15 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 Sam tags laddercodec first, then pyrung. laddercodec makes no release before that. The API stays open to change
 from pyrung's feedback until the two release together (Sam, 2026-11-17).
 
-**Before the tag.** Nothing waits on Sam except the tag itself. The branch `fix/ip-canonical` changes how a
-Modbus TCP address is written (Settled). It merges before the tag.
+**Before the tag.** Nothing waits on Sam except the tag itself.
+1. The laddercodec session merges `fix/ip-canonical`, which changes how a Modbus TCP address is written
+   (Settled).
+2. The laddercodec session then merges the release tidy (the roadmap, the CHANGELOG layout and the release
+   notes).
+3. Sam tags laddercodec.
 
 **After the joint release, in this order:**
-1. `FieldError.span` (Sam proposed it; see "Where in a formula" in item 1).
+1. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
 2. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
 3. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
@@ -116,7 +120,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   (banks, constant kinds, modes). They take the shape of ClickNick's `devtools/editor_cases.json`. click's
   runner runs them and returns the answers. `make editor-grids` writes the cases to
   `tests/fixtures/editor_grids/`, with laddercodec's verdict beside each. The runner has answered every grid
-  there. `tests/test_editor_answers.py` compares the answers with the rules and lists each difference in
+  there except nine (CLICK): `preflight_counter`, `preflight_drum`, `preflight_fill`, `preflight_for`,
+  `preflight_send`, `preflight_shift`, `preflight_timer`, `receive_click_count1` and `drum_events_padded2`.
+  `tests/test_editor_answers.py` compares the answers with the rules and lists each difference in
   `DISAGREEMENTS`, grouped by what is to be done. A new grid is new work for the runner. Tighten a field's rule
   when its answers arrive.
 - **Open order of checks in a Math range (CLICK).** The rules check every range's banks and order before any
@@ -223,8 +229,6 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     it: an SC bit that a coil can't write (`C1..SC1`), an immediate range whose end is in another bank
     (`immediate(Y001..C2)`), and an end outside its bank in another bank (`C1..DS0`, where the rules report the
     end's bank refusal, OBJ-004). `Y001..X[DS1]` is OBJ-005, and the rules give it no id.
-  - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
-    from CLICK's own code. The math grids confirm every one that the rules report.
 - **A unit on an instruction that has none (nothing).** An event drum accepts any `unit`, and `to_csv()` and
   `encode()` drop it. A toggle accepts any falsy `unit`, such as `None` or `0`. Both should refuse a `unit`
   other than `""` with `OPTION_NOT_OFFERED`. The annotations `TimeUnit | Literal[""]` on `Drum.unit` and
