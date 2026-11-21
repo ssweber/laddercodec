@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- `decode()` and `decode_program()` now read each rung comment as CLICK shows it, such as `€ µ ß`, Chinese text in a SimSun font, or an emoji. v0.5.0 lost the text up to the first space when a comment started with a character outside ASCII, and it read an emoji as two surrogates that Python can't write as UTF-8. Text in a font whose charset laddercodec does not read now decodes as U+FFFD, with an `UndecodedCommentWarning` whose `partial` is True.
+- `decode()` and `decode_program()` now read each rung comment as CLICK shows it. A comment decoded by v0.5.0 or earlier may have lost text, such as its first word, or the whole comment when it starts with `€`, an emoji or a CJK character. Decode the same clipboard or program file again with this release to get the text back. Text in a font whose charset laddercodec does not read decodes as U+FFFD, with an `UndecodedCommentWarning` whose `partial` is True.
 
 ## 0.5.0 (2026-11-20)
 
