@@ -4,6 +4,12 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
+## Unreleased
+
+### Fixed
+
+- `decode()` and `decode_program()` now read each rung comment as CLICK shows it, such as `€ µ ß`, Chinese text in a SimSun font, or an emoji. v0.5.0 lost the text up to the first space when a comment started with a character outside ASCII, and it read an emoji as two surrogates that Python can't write as UTF-8. Text in a font whose charset laddercodec does not read now decodes as U+FFFD, with an `UndecodedCommentWarning` whose `partial` is True.
+
 ## 0.5.0 (2026-11-20)
 
 - This release breaks the API. Code that reads, builds or edits rungs in Python needs these changes:

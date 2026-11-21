@@ -48,6 +48,7 @@ from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 from .undecoded import (
     BAD_BYTES,
+    CommentFailure,
     Undecoded,
     marker_rung,
     read_comment,
@@ -1081,7 +1082,7 @@ def decode_program(data: bytes) -> Program:
     while records and _is_trailing_placeholder(records[-1]):
         records.pop()
 
-    failed: list[tuple[int, str]] = []
+    failed: list[CommentFailure] = []
     rungs = [_record_rung(record, index, stop, failed) for index, record in enumerate(records)]
     if framing_error is not None:
         index = len(rungs)
@@ -1095,7 +1096,7 @@ def decode_program(data: bytes) -> Program:
 
 
 def _record_rung(
-    record: _ScrRungRecord, index: int, stop: UndecodedStop, failed: list[tuple[int, str]]
+    record: _ScrRungRecord, index: int, stop: UndecodedStop, failed: list[CommentFailure]
 ) -> Rung:
     """Return rung *index* of the program, built from *record*, or an undecoded marker rung.
 

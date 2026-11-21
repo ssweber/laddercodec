@@ -328,6 +328,11 @@ comment is the note alone.
 `encode()` writes the note and the text like any comment. A `*` or `_` pair in the
 text reads as styling when you encode it, as it does in any comment.
 
+The decoder reads text in a font of charset 0 (Windows code page 1252) or 134
+(GBK). If a font of any other charset holds non-ASCII text, the decoder emits the
+same warning with `partial` set to True. The rung's comment then holds the decoded
+text, with U+FFFD for each non-ASCII byte in that font, and no note.
+
 A marker never reaches CLICK. `encode()` refuses it, and `check()` reports it as an
 `undecoded-rung` finding. `write_csv()` writes it as an `undecoded(...)` token, and
 `read_csv()` reads that token back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).
