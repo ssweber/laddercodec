@@ -4,7 +4,7 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
-## Unreleased
+## 0.5.1 (2026-11-25)
 
 `encode()` now writes text outside ASCII in a rung comment, such as `é`, `中` or an emoji, as CLICK stores it. `decode()` reads it back. The comment of an undecoded marker rung now numbers its rung from 1, the same as CLICK, and `Undecoded` has a new field, `to_the_end`. Read Breaking changes before you upgrade.
 
