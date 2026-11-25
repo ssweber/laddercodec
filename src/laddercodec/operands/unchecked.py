@@ -49,6 +49,10 @@ any other refusal raises. :func:`allowed` returns True for an instruction whose 
 were all kept this way. ``build_blob()`` and ``encode()`` build the blob of such an
 instruction from its fields. ``read_csv(..., allow=...)`` reads a CSV inside such a block.
 
+Each instruction class, Modbus target and Modbus address takes ``allow=codes`` as a
+keyword (:class:`AllowsRefusals`). The constructor builds the instance inside
+``unchecked(allow=codes)``, as ``read_csv(..., allow=codes)`` builds it.
+
 :func:`replace` is public as ``laddercodec.replace``. The rest of this module is not
 public API.
 """
@@ -61,13 +65,17 @@ import functools
 from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import fields, is_dataclass
+from dataclasses import InitVar, field, fields, is_dataclass
 from typing import Any, TypeVar, cast
 
+from ..codes import Code
+from ..errors import LaddercodecError
 from .address import NotDisplayForm
 from .errors import FieldError, Reason
 
 __all__ = [
+    "AllowsRefusals",
+    "allow_codes",
     "allowed",
     "checked",
     "fields_blob",
@@ -146,6 +154,75 @@ def _keepable(error: FieldError) -> bool:
     return not (error.field or "").endswith(".pin_rows")
 
 
+def allow_codes(
+    allow: Iterable[str] | None, *, caller: str, error: type[LaddercodecError] = LaddercodecError
+) -> frozenset[Code]:
+    """Return the codes that *allow* names. Read None as no codes.
+
+    Each item is a code's name or a ``Code``. Raise *error* if *allow* is a string, bytes or
+    not iterable, or if an item names no ``Code``. *caller* starts the message.
+    """
+    if allow is None:
+        allow = ()
+    if isinstance(allow, str):
+        text = str(allow)
+        raise error(
+            f"{caller}: allow={text!r} is one code name. Pass a list of code names, such as "
+            f"allow=[{text!r}]."
+        )
+    names: list[object] | None = None
+    if not isinstance(allow, (bytes, bytearray)):
+        try:
+            names = list(allow)
+        except TypeError:
+            names = None  # not iterable
+    if names is None:
+        raise error(
+            f"{caller}: allow={allow!r} is not a list of code names. Pass a list, such as "
+            "allow=['bank-not-allowed']."
+        )
+    codes: set[Code] = set()
+    for name in names:
+        try:
+            codes.add(Code(name))
+        except ValueError:
+            raise error(
+                f"{caller}: allow= holds {name!r}, which is not a code. Use the name of a "
+                "Code, such as 'bank-not-allowed'."
+            ) from None
+    return frozenset(codes)
+
+
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
+class AllowsRefusals:
+    """The base of each instruction class, Modbus target and Modbus address. It adds the
+    keyword-only ``allow`` to the constructor of each dataclass that subclasses it.
+
+    ``allow`` lists the codes of the refusals that you accept, such as
+    ``Coil("X001", allow=["bank-not-allowed"])``. The instance keeps a refusal only if
+    every error in it has a listed code. Any other refusal raises, as it does without
+    ``allow``. The limits of ``read_csv(..., allow=...)`` apply too:
+
+    - a refusal that construction always raises still raises;
+    - an instruction that laddercodec can't write and read back the same raises its first
+      refusal.
+
+    The instance does not store ``allow``. Equality, hashing and ``repr`` ignore it.
+    ``allow=None`` and ``allow=()`` build the instance as if you passed no ``allow``.
+
+    A dataclass that subclasses this class must be frozen. A class that has no checks, such
+    as ``End``, accepts ``allow``, checks the value and ignores it.
+
+    A bad *allow* raises :class:`~laddercodec.LaddercodecError`, as :func:`allow_codes`
+    describes.
+    """
+
+    allow: InitVar[Iterable[str] | None] = field(default=None, kw_only=True)
+
+    def __post_init__(self, allow: Iterable[str] | None = None) -> None:
+        allow_codes(allow, caller=type(self).__name__)
+
+
 def holds_refusals(cls: type[_T]) -> type[_T]:
     """Wrap the ``__post_init__`` and ``build_blob`` that *cls* defines, and return *cls*.
 
@@ -160,6 +237,14 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
     ``obj`` gets the instance as its ``obj``.
     Outside the block, or for a refusal that no instruction may keep, the error is raised
     as usual.
+
+    The wrapped ``__post_init__`` takes the ``allow`` of :class:`AllowsRefusals`. With
+    codes in it, construction runs inside ``unchecked(allow=codes)``. Each Modbus target or
+    Modbus address in a field that holds refusals is built again inside the same block
+    first. Then, if no :func:`unchecked` block was open when construction started, and
+    :func:`allowed` returns True for the instruction, construction checks that its blob
+    reads back to it (``writes_back``). If the blob does not, construction raises the
+    instruction's first refusal.
     """
     build_blob = cls.__dict__.get("build_blob")
     if build_blob is not None:
@@ -168,8 +253,7 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
     if post_init is None:
         return cls
 
-    @functools.wraps(post_init)
-    def wrapper(self: Any) -> None:
+    def keeping(self: Any) -> None:
         try:
             post_init(self)
         except FieldError as exc:
@@ -191,8 +275,40 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
                 object.__setattr__(self, "_allowed", True)
             kept.append(exc)
 
+    @functools.wraps(post_init)
+    def wrapper(self: Any, allow: Iterable[str] | None = None) -> None:
+        codes = allow_codes(allow, caller=type(self).__name__)
+        outside = _KEPT.get() is None
+        if codes:
+            with unchecked(allow=codes):
+                for f in fields(self):
+                    nested = getattr(self, f.name)
+                    if is_dataclass(nested) and not isinstance(nested, type) and refusals(nested):
+                        object.__setattr__(self, f.name, _as_built(nested, {}))
+                keeping(self)
+        else:
+            keeping(self)
+        if outside:
+            _raise_unwritable(self)
+
     cast("Any", cls).__post_init__ = wrapper
     return cls
+
+
+def _raise_unwritable(inst: Any) -> None:
+    """Raise the first refusal of *inst* if :func:`allowed` returns True for it and
+    laddercodec can't write it and read it back the same.
+
+    Do nothing for an object that is not an instruction, such as a Modbus target. The
+    Send or Receive that holds it is checked when it is built.
+    """
+    if not allowed(inst):
+        return
+    from ..instructions import writes_back
+    from ..model import Condition, Instruction
+
+    if isinstance(inst, (Condition, Instruction)) and not writes_back(inst):
+        raise refusals(inst)[0].with_traceback(None)
 
 
 class _Held:
@@ -319,6 +435,12 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     - otherwise, if *inst* has no stored blob, ``encode()`` raises the first refusal that
       the copy holds.
 
+    *inst* does not remember the ``allow=`` that it was built with. To accept refusals in
+    the copy, pass ``allow`` again: ``replace(coil, operand="X002",
+    allow=["bank-not-allowed"])``. ``replace`` then builds the copy from its values as the
+    constructor builds it with that ``allow``, whether or not a field changes. The copy has
+    no stored blob. ``allow=None`` and ``allow=()`` change nothing.
+
     A ``Rung`` is frozen too. ``replace(rung, instructions=...)`` returns a copy of the
     rung with those instructions. On a ``Rung``, no check runs. The copy holds the cells
     that you pass, and the cells of *rung* that you do not change, as they are.
@@ -326,6 +448,12 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     """
     if not is_dataclass(inst) or isinstance(inst, type):
         raise TypeError(f"replace() takes an instruction or a Rung, not {type(inst).__name__}")
+    if isinstance(inst, AllowsRefusals) and "allow" in changes:
+        changes = dict(changes)
+        allow = changes.pop("allow")
+        if allow_codes(allow, caller=type(inst).__name__):
+            with checked():
+                return cast("_T", dataclasses.replace(inst, **changes, allow=allow))
     names = {f.name for f in fields(inst)}
     changed = {
         name: value
@@ -342,7 +470,8 @@ def _as_built(inst: Any, changes: dict[str, Any]) -> Any:
     """Return ``dataclasses.replace(inst, **changes)``, and build again each Modbus target
     or Modbus address in a field that holds refusals.
 
-    Call it inside :func:`checked`, so that each build raises its first refusal.
+    Call it inside :func:`checked`, so that each build raises its first refusal, or inside
+    an :func:`unchecked` block, so that each build keeps what the block allows.
     """
     values = {f.name: getattr(inst, f.name) for f in fields(inst)} | changes
     nested = {

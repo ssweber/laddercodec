@@ -6,7 +6,13 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- A dataclass that subclasses `Condition` or `Instruction` must be frozen. 0.5.1 accepted one that was not frozen. Python now raises `TypeError` when it defines such a class, so add `frozen=True` to its `@dataclass`.
+
 ### Added
+
+- Each instruction class, Modbus target and `ModbusAddress` takes `allow=`, such as `Coil("X001", allow=["bank-not-allowed"])`. The instance keeps a refusal whose codes you list, as `read_csv(path, allow=...)` keeps it, and `encode()` writes it. To keep the refusal in a changed copy, pass `allow=` to `replace()` too.
 
 - `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
 - `check()` now reports a rung comment that `encode()` refuses as too long, with the new code `comment-too-long`. The message says how many bytes to cut. In 0.5.1, `check()` returned no finding for such a comment, and you learned of it only when `encode()` raised `EncodeError`.

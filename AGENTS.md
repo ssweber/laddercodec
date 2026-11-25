@@ -98,7 +98,7 @@ src/laddercodec/
 │   │                     #   shown(): a short repr of a caller's value that never raises;
 │   │                     #   wrong_type(): the rule for a value of the wrong type, such as "5 is an int, not text";
 │   │                     #   str(err) and LaddercodecError.message()/short()/detail() render them
-│   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()
+│   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked(); AllowsRefusals, the base that gives each instruction constructor its allow= keyword
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── family.py         # Family SPEC (csv names, parse_csv_call) used by the registry and CSV dispatch
@@ -133,6 +133,7 @@ src/laddercodec/
 - **Operand rules.**
   - A refused field raises `FieldError` at construction (`AddressError` for an address).
   - A decoder builds the instruction anyway and keeps the refusal (`operands/unchecked.py`).
+  - A constructor called with `allow=[codes]` keeps each refusal whose codes are all listed, as `read_csv(path, allow=...)` does. Every instruction dataclass must be frozen, because `AllowsRefusals` is a frozen dataclass.
   - Each refusal site passes `code=Code.<MEMBER>` (`codes.py`). `tests/test_code_guard.py` fails on a call without one.
   - `docs/gen_codes.py` writes the error codes page (`docs/guides/codes.md`) from `Code`. `tests/test_codes.py` fails when the page is out of date.
   - `tests/test_operand_guards.py` counts three things in `instructions/` and compares the counts with an allowlist. They are each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` or a `laddercodec.errors` class outside blob parsing.

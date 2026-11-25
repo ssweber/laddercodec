@@ -119,6 +119,16 @@ exclude = ["tests", "scratchpad", "devtools/pdf_to_png.py"]
 [tool.ty.rules]
 import-not-found = "ignore"
 
+# Each instruction class inherits the `allow` InitVar from AllowsRefusals, and defines
+# `__post_init__(self)` without it. holds_refusals wraps that method in one that takes
+# `allow`, so the method that the dataclass calls has the right signature. ty can't see the
+# wrapper.
+[[tool.ty.overrides]]
+include = ["src/laddercodec/instructions/**"]
+
+[tool.ty.overrides.rules]
+invalid-dataclass = "ignore"
+
 [tool.pytest.ini_options]
 python_files = ["*.py"]
 python_classes = ["Test*"]

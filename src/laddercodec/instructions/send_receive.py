@@ -51,7 +51,7 @@ from ..operands.checks import (
 )
 from ..operands.constants import Kind, hex_display
 from ..operands.message import Op, Rule, make_refusal, operand, says, wrong_type
-from ..operands.unchecked import allowed, holds_refusals, read_in_another_form
+from ..operands.unchecked import AllowsRefusals, allowed, holds_refusals, read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ SendFunctionCode = Literal[5, 6, 15, 16]
 
 @holds_refusals
 @dataclass(frozen=True)
-class ModbusRtuTarget:
+class ModbusRtuTarget(AllowsRefusals):
     """A Modbus RTU device on a serial port, which a Send or Receive talks to."""
 
     name: str  # human label, not in binary
@@ -110,7 +110,7 @@ class ModbusRtuTarget:
 
 @holds_refusals
 @dataclass(frozen=True)
-class ModbusTcpTarget:
+class ModbusTcpTarget(AllowsRefusals):
     """A Modbus TCP device at an IP address and port, which a Send or Receive talks to."""
 
     name: str  # human label, not in binary
@@ -289,7 +289,7 @@ _MAX_INT_DIGITS = 4300
 
 @holds_refusals
 @dataclass(frozen=True)
-class ModbusAddress:
+class ModbusAddress(AllowsRefusals):
     """A remote address given as a MODBUS 984 number or in hex, not as a CLICK address."""
 
     address: str  # "400001" or "0h"

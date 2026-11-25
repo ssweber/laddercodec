@@ -55,7 +55,6 @@ drops the padding rows.
 from __future__ import annotations
 
 import re
-import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import Any, cast
@@ -69,12 +68,9 @@ from ..instructions import (
     ConditionToken,
     Contact,
     InstructionToken,
-    Receive,
-    Send,
     Tee,
-    parse_af_blob,
     parse_af_call,
-    parse_condition_blob,
+    writes_back,
 )
 from ..model import (
     Condition,
@@ -83,7 +79,7 @@ from ..model import (
     PinnedInstruction,
     check_address,
 )
-from ..operands.unchecked import allowed, checked, rebuilt, refusals, unchecked
+from ..operands.unchecked import allowed, checked, refusals, unchecked
 from .ast import (
     AfBlank,
     AfCall,
@@ -756,37 +752,6 @@ def reads_back(token: object) -> bool:
     except Exception:  # noqa: BLE001 - a value the CSV can't hold breaks it anywhere
         return False
     return again == token
-
-
-def writes_back(inst: Condition | Instruction) -> bool:
-    """Return True if the blob that *inst* builds parses back to an instruction equal to
-    *inst*.
-
-    The function parses the blob as ``decode()`` parses it.  If building or parsing the
-    blob fails, the function returns False, because laddercodec can't write the
-    instruction.
-
-    The blob does not store the name of a Send or Receive target, so the function gives the
-    parsed instruction the name of *inst*'s target before it compares the two.
-    """
-    parse = parse_condition_blob if isinstance(inst, Condition) else parse_af_blob
-    try:
-        blob = inst.build_blob()
-        with warnings.catch_warnings():
-            # The parse only tests the blob.  A warning from it is not the caller's.
-            warnings.simplefilter("ignore")
-            back = parse(blob)
-            if (
-                isinstance(inst, (Send, Receive))
-                and isinstance(back, (Send, Receive))
-                and type(back.target) is type(inst.target)
-                and back.target.name != inst.target.name
-            ):
-                renamed = rebuilt(back.target, name=inst.target.name)
-                back = rebuilt(back, target=renamed)
-    except Exception:  # noqa: BLE001 - a blob that can't be built or parsed can't be written
-        return False
-    return back == inst
 
 
 # ---------------------------------------------------------------------------

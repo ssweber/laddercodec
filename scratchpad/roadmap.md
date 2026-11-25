@@ -41,14 +41,11 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 2. Sam tags 0.5.1. ClickNick 0.26.1 pins it, together with pyclickplc 0.11.3 and pyrung's next release.
 
 **After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
-needs while pyrung changes its builder to parse each operand once, so that laddercodec does not hold up the
-export. So it comes first. The steps after it do not wait.
-1. What pyrung's export still needs:
-   - A public way to build one instruction that the checks refuse. The `allow=` form exists only for
-     `read_csv` and `read_bundle`. Sam approves the name of each new public function or parameter.
-2. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
+needs first, so that laddercodec does not hold up the export. That work is done. The steps below are what
+is left.
+1. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-3. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
+2. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
    and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
    Later.
 

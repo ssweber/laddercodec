@@ -520,12 +520,12 @@ from laddercodec.instructions.comparison import CompareContact as _Compare
 _built = _Compare.__post_init__
 
 
-def _int_of_the_text(self):
+def _int_of_the_text(self, allow=None):
     # int() on a long run of digits, as Compare read an integer before the shared check.
     for value in (self.left, self.right):
         if _re.fullmatch(r"[+-]?[0-9]+", value) and len(value.lstrip("+-").lstrip("0")) <= 10:
             int(value)
-    _built(self)
+    _built(self, allow)
 
 
 _Compare.__post_init__ = _int_of_the_text
@@ -539,12 +539,12 @@ from laddercodec.instructions.comparison import CompareContact as _Compare
 _built = _Compare.__post_init__
 
 
-def _refuse_the_zeros(self):
+def _refuse_the_zeros(self, allow=None):
     # A FieldError for a long run of leading zeros: not the shared check's verdict.
     for value in (self.left, self.right):
         if len(value) > 4300 and value.lstrip("+-").startswith("0"):
             raise _FieldError("CompareContact: too many digits", code=_Code.CONSTANT_OUT_OF_RANGE)
-    _built(self)
+    _built(self, allow)
 
 
 _Compare.__post_init__ = _refuse_the_zeros

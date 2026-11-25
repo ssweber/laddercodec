@@ -339,7 +339,7 @@ def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
 # ---------------------------------------------------------------------------
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class _Inner(Instruction):
     a: str = "x"  # not blank, because a blank value is refused as missing
     b: str = "x"
@@ -350,7 +350,7 @@ class _Inner(Instruction):
             check.refuse("b", says("is refused"), Reason.FORM, code=Code.INVALID_CONSTANT)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class _Outer(Instruction):
     items: tuple[str, ...] = ()
     other: str = "x"
@@ -513,7 +513,7 @@ def test_display_form_refusal_names_the_field() -> None:
 def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
     """The conftest fixture fails a refusal that names a field its class does not have."""
 
-    @dataclasses.dataclass
+    @dataclasses.dataclass(frozen=True)
     class Box(Instruction):
         operand: str = "C1"
 
