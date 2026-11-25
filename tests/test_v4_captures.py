@@ -82,6 +82,7 @@ from laddercodec.model import XY_SLOTS
 from laddercodec.operands.unchecked import refusals
 from laddercodec.undecoded import UndecodedRungWarning
 from tests.undecoded_captures import without_marker
+from tests.v4_added_tags import V4_ADDED_TAGS
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
 _DECODABLE = without_marker(sorted(CAPTURE_DIR.glob("*.bin")))
@@ -1102,13 +1103,6 @@ _SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
     "send__slave_id_ds": frozenset({0x622B}),
 }
 
-#: Fields that v4 adds to a blob that the encoder writes in v3's form. v4 accepts both forms
-#: on paste.
-_V4_ADDED_TAGS: dict[str, frozenset[int]] = {
-    "Drum": frozenset({0x6891, 0x428A, 0x6068}),
-    # v4 writes every Out in its OutVariant shape: pulse/timer fields, all blank or 0.
-    "Out": frozenset({0x60B3, 0x60B4, 0x60B5, 0x60B6, 0x1246, 0x1247, 0x21F9, 0x2248, 0x20CA}),
-}
 
 #: Slot tables that v4 pads further than v3. A Math has 5000 range-interior slots, not 500.
 #: The test compares only the filled slots.
@@ -1158,7 +1152,7 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
     ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset()) | _SWEEP_V3_VALUES.get(
         rung_id, frozenset()
     )
-    v4_added = _V4_ADDED_TAGS.get(native[0], frozenset())
+    v4_added = V4_ADDED_TAGS.get(native[0], frozenset())
     if not any(f[0] in v4_added for f in ours[4]):
         ignored |= v4_added
     padded = _PADDED_TAGS.get(native[0], frozenset())

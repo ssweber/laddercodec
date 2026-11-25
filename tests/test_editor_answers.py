@@ -29,7 +29,6 @@ way.
 
 from __future__ import annotations
 
-import csv
 import importlib.util
 import json
 import re
@@ -40,7 +39,8 @@ from typing import Any
 
 import pytest
 
-from laddercodec import FieldError, RefusedFieldWarning
+from laddercodec import FieldError, RefusedFieldWarning, write_csv
+from laddercodec.binary_helpers import _set_flag, _tag_wire_type
 from laddercodec.csv import read_csv
 from laddercodec.decode_program import (
     _parse_header,
@@ -54,6 +54,7 @@ from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.undecoded import Undecoded
 from laddercodec.model import ADDRESS_BANKS, Instruction
+from tests.v4_added_tags import V4_ADDED_TAGS
 
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
@@ -195,9 +196,10 @@ INNER_SPACE_SAVED = (
     "stays refused (settled)"
 )
 SHIFT_END_SPACE = (
-    "kept: CLICK accepted the end bit C 1 after the start bit C1 in this answer. On an offline "
-    "project, CLICK exits about 0.6 s after OK, with no error box and no "
-    "save. CLICK refuses C1..C1 with OBJ-012. A space inside an address stays refused (settled)"
+    "kept: With a PLC connected, CLICK accepted the end bit C 1 after the start bit C1. On an "
+    "offline C2-03CPU project, CLICK exited after OK with no error box and no save, in two "
+    "runs. Why it exits is not known. CLICK refuses C1..C1 with OBJ-012. A space inside an "
+    "address stays refused (settled)"
 )
 EDGE_WHITESPACE = (
     "deliberate: CLICK accepts a space or a tab at the start or end of this field. What it "
@@ -274,7 +276,7 @@ MATH_STORED_TYPE = (
 )
 E_REAL_FILL = (
     "kept: CLICK accepts 1E and E5 as a Fill source into DS. It saves them as the reals 1.0 "
-    "and 0.0. Neither is an integer constant, so laddercodec refuses them (settled)"
+    "and 0.0. Neither is a number or an address, so laddercodec refuses them (settled)"
 )
 SLOT_PORTS = (
     "The port list of the PLC that answered has no slot ports, so CLICK did not take these "
@@ -1545,15 +1547,27 @@ def _saved_cases() -> list[tuple[str, dict[str, Any]]]:
 
 
 def test_each_save_decodes_as_its_stored_row() -> None:
-    """``decode_program`` reads each program file that an answer names as the box in the
-    first of the answer's ``stored`` rows. The rows after it hold the box's pins, such as
-    ``.reset()``. Each file in the folders of saves is named by one answer."""
+    """``write_csv`` writes, for what ``decode_program`` reads from each program file that an
+    answer names, the answer's ``stored`` rows. These are the box's row and its pin rows,
+    such as ``.reset()``. Each file in the folders of saves is named by one answer."""
     saved = _saved_cases()
     files = [path for folder in SAVES for path in folder.iterdir()]
     assert sorted(GRIDS / case["save"] for _, case in saved) == sorted(files)
     for grid, case in saved:
-        box = next(csv.reader(case["stored"][:1]))[-1]
-        assert saved_tokens(case) == [box], (grid, case["case"])
+        assert saved_rows(case) == case["stored"], (grid, case["case"])
+
+
+def saved_rows(case: dict[str, Any]) -> list[str]:
+    """Return the rows under the header that ``write_csv`` writes for the program that
+    ``decode_program`` reads from the program file that CLICK saved for *case*."""
+    data = (GRIDS / case["save"]).read_bytes()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RefusedFieldWarning)
+        program = decode_program(data)
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "saved.csv"
+        write_csv(path, program.rungs)
+        return path.read_text(encoding="utf-8").splitlines()[1:]
 
 
 #: CLICK v4 sets the flag 0x1201 in every Copy and Fill that it saves. The encoder writes the
@@ -1584,32 +1598,29 @@ def test_the_encoder_writes_the_tags_that_click_saves(generator: Any) -> None:
 
 
 def assert_writes_saved_tags(grid: str, case: dict[str, Any], instruction: Instruction) -> None:
-    """Assert that the encoder writes, for *instruction*, each tag that the program file saved
-    for *case* stores, with the same value. The flag 0x1201 is written in the older form, and
-    the flags in ``SET_FLAGS`` are written as the encoder writes a set flag."""
+    """Assert that the blob that the encoder writes for *instruction* holds each tag of the
+    program file that CLICK saved for *case*, with the same value.
+
+    The blob holds 0x1201 in the older form (``OLDER_FORM_FLAG``). A program file stores a set
+    flag as an empty value, and the blob holds each other set flag as the encoder writes a set
+    flag of the class (``_set_flag``). A tag that CLICK v4 adds (``V4_ADDED_TAGS``) may be
+    absent. One such tag is 0x6068, the done bit of a time drum's timer: the v3 form of a time
+    drum, which the encoder writes for constant presets, has no such tag, and CLICK writes the
+    T of the TD when it pastes."""
     class_name, _type, _parts, _extra, fields = _decompose_blob(instruction.build_blob())
     written = {tag: value for tag, _sentinel, value in fields}
     flag, saved_flag, written_flag = OLDER_FORM_FLAG
+    v4_added = V4_ADDED_TAGS.get(class_name, frozenset())
     for tag, value in saved_tags(case).items():
         where = (grid, case["case"], hex(tag))
         if tag == flag:
             assert (value, written[tag]) == (saved_flag, written_flag), where
-        elif (class_name, tag) in SET_FLAGS:
-            assert (value, written[tag]) == ("", SET_FLAGS[class_name, tag]), where
-        elif (class_name, tag) in OLDER_FORM_LEAVES_OUT and tag not in written:
+        elif _tag_wire_type(tag) == "flag" and value == "":
+            assert written[tag] == _set_flag(class_name), where
+        elif tag in v4_added and tag not in written:
             continue
         elif tag != END_TAG:
             assert written[tag] == value, where
-
-
-#: The flags that a program file stores as an empty value when they are set, by class, each
-#: mapped to the value that the encoder writes for the set flag. A drum's jump flag 0x1202 is
-#: set when the tag is present.
-SET_FLAGS = {("Drum", 0x1202): "-1"}
-#: The tags that CLICK v4 saves and that the older blob form has no field for, by class.
-#: CLICK v4 saves the done bit of a time drum's timer (0x6068), such as T1 for TD1. The
-#: encoder writes a time drum with constant presets in the v3 form, which has no 0x6068.
-OLDER_FORM_LEAVES_OUT = {("Drum", 0x6068)}
 
 
 def stored_instruction(case: dict[str, Any]) -> Instruction | None:

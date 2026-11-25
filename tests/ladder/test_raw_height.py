@@ -485,6 +485,7 @@ def test_native_pin_rows_round_trip_through_csv(
     monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
     monkeypatch.setattr(_decode_program, "_scr_af", lambda *args: None)
     boxes = moved = 0
+    in_hex = []
     for path in _native_files():
         rungs = [
             rung
@@ -499,12 +500,12 @@ def test_native_pin_rows_round_trip_through_csv(
             boxes += 1
             pins = _decode_blob_pins(af.blob)
             moved += pins != bytes(range(1, af.part_count))
-            # The hex form holds the pins in the blob. to_csv writes it for a box whose field
-            # values the fields form can't hold, such as a preset that ends in a space.
-            hex_form = f"raw({af.class_name},{af.blob.hex()},"
             token = af.to_csv()
-            assert token.startswith(hex_form) or f",pins={'/'.join(map(str, pins))}," in token
-            back = RawInstruction.from_csv_token(af.to_csv())
+            if token.startswith(f"raw({af.class_name},{af.blob.hex()},"):
+                in_hex.append(f"{path.parent.name}/{path.name}")
+            else:
+                assert f",pins={'/'.join(map(str, pins))}," in token
+            back = RawInstruction.from_csv_token(token)
             assert back.blob == af.blob
             assert back == af
         out = tmp_path / f"{path.name}.csv"
@@ -516,6 +517,9 @@ def test_native_pin_rows_round_trip_through_csv(
     # In the fixtures, 50 boxes have a pin that is not on its default row.
     assert moved == 50
     assert boxes > moved
+    # One box is written in the hex form, which holds its pins in the blob: a Timer whose
+    # preset ends in a space (DS1 ). The fields form can't hold that value.
+    assert in_hex == ["saves2/case20.scr"]
 
 
 def _decode_blob_pins(blob: bytes) -> bytes:

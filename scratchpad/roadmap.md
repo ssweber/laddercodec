@@ -380,7 +380,7 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
   CLICK's saves with the blobs that the encoder writes.
 - **Fill text outside ASCII (PLC).** CLICK accepts `"é"`, `"€"` and a tab as a Fill into TXT, and saves
-  each as typed. It saves `"€"` as U+20AC. What does a PLC write into one TXT register for them? The code
+  each as typed. The program file holds `"€"` as the character U+20AC. What does a PLC write into one TXT register for them? The code
   refuses all three.
 - **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
   a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
@@ -521,8 +521,8 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **A space in an address (Sam, 2026-11-17):** an edge space, or a space inside an address (`DS 1`), stays
   refused on purpose, though CLICK's dialog accepts it. An instruction holds the address in display form. Decode
   reads CLICK's saves of such an address, and a decoded Compare whose Data B holds `DS 1` keeps the refusal.
-- **What CLICK saves for a space in an address (CLICK):** the rules refuse each of these, as the item above
-  says.
+- **What CLICK saves for a space in an address (CLICK):** the rules refuse each of these, as **A space in
+  an address** says.
   - CLICK removes the space in a Fill source (`DS 1`), a Counter's done bit (`CT 1`), a For count (`DS 1`),
     a Shift Register's start bit (`C 1`), a Timer's done bit (`T 1`) and a Time Drum's jump step (`DS 1`).
   - CLICK saves the text with the space in a Counter preset (`DS 1`), an Event Drum event (`X 001`), a Time
@@ -533,8 +533,9 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   - A preset with a space at one end: CLICK saves a Counter preset ` DS1` and a Timer preset `DS1 ` with
     the space, and `decode_program` reads these two saves as `raw(...)`. CLICK saves a Counter preset
     `DS1 ` and a Timer preset ` DS1` as no preset.
-  - A Shift Register from `C1` to `C 1`: CLICK exits about 0.6 s after OK on an offline
-    project, with no error box and no save. CLICK refuses `C1..C1` with OBJ-012.
+  - A Shift Register from `C1` to `C 1`: with a PLC connected, CLICK accepted it. On an offline C2-03CPU
+    project, CLICK exited after OK with no error box and no save, in two runs. Why it exits is not known.
+    CLICK refuses `C1..C1` with OBJ-012.
 - **Text that isn't a number, saved as typed (CLICK):** CLICK saves the Counter presets `1-2` and `--5`
   and the For counts `1 0` and `1 2` as typed. The rules refuse each, because none is a number.
 - **Quoted text with an E into TXT (Sam, 2026-11-17):** the rules keep accepting it, and the encoder keeps

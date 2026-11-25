@@ -4,7 +4,8 @@
  "plc": "none: an offline project for a C2-03CPU",
  "runs": [
   "live-1",
-  "live-2"
+  "live-2",
+  "live-3-case27"
  ],
  "cases": [
   {
@@ -1165,6 +1166,11 @@
     {
      "out": "live-1",
      "reason": "CLICK exited while waiting for CLICK's answer to case 27 (saves.shift shift C1..C 1)",
+     "crashed": true
+    },
+    {
+     "out": "live-3-case27",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 1 (saves.shift shift C1..C 1)",
      "crashed": true
     }
    ]
