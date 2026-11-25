@@ -37,23 +37,30 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 ## Next steps
 
 **Before the tag.** Nothing waits on Sam except the tag itself.
-1. The laddercodec session merges the release tidy for 0.5.1: the CHANGELOG, this roadmap and the release
-   notes.
+1. The laddercodec session merges the CHANGELOG and this roadmap, and hands Sam the release notes.
 2. Sam tags 0.5.1. ClickNick 0.26.1 pins it, together with pyclickplc 0.11.3 and pyrung's next release.
 
-**After 0.5.1, in this order.** The planner set this order on 2026-11-25. laddercodec builds what pyrung's
-export needs while pyrung builds parse-once, so that laddercodec does not hold up the export (Sam,
-2026-11-25).
+**After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds the three things that
+pyrung's export needs while pyrung changes its builder to parse each operand once, so that laddercodec does
+not hold up the export. So they come first. Two of them wait on a capture. The steps after them do not wait.
 1. The three things that pyrung's export needs:
-   - `lay_out` accepts a box after a box with pins. It refuses one today, because no capture shows how CLICK
-     draws it.
-   - A raw instruction takes pins, so that Email, Home, Position and Velocity can have their pins wired.
+   - `lay_out` accepts a box after a box with pins (CLICK). It refuses one today, because no capture shows
+     how CLICK draws it. ClickNick's runner captures one first.
+   - A `Box` in `lay_out` accepts wired pins on a `RawInstruction`, so that Email, Home, Position and
+     Velocity can have their pins wired (CLICK). Today `circuit._check_pin` refuses a pin on any box that is
+     not a `PinnedInstruction`. Each capture of these four classes is a box of one part, so no capture shows
+     where their pins sit. ClickNick's runner captures each with its pins wired first. The field-map
+     captures in "Captures for motion and Email" do not ask for pins, so add them to that round.
    - A public way to build one instruction that the checks refuse. The `allow=` form exists only for
      `read_csv` and `read_bundle`. Sam approves the name of each new public function or parameter.
 2. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
 3. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-4. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
+4. A comment that is too long, built with the whole-program check (Sam, for the name). `check()` reports a
+   rung comment whose RTF body is over 1400 bytes as a Finding. The finding names the rung and how many
+   bytes to cut. pyrung's validation reads it in place of its 1400-character cap. The code name
+   `comment-too-long` waits on Sam's approval.
+5. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
    and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
    Later.
 
@@ -61,7 +68,7 @@ export needs while pyrung builds parse-once, so that laddercodec does not hold u
 - pyrung's reports from adopting the API.
 - The field rules (item 2), tightened to each grid as ClickNick's runner returns it.
 
-**Waits for the next release (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
+**After 0.5.1 (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
 `NOP` (see Later).
 
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
@@ -130,21 +137,21 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   `tests/test_editor_answers.py` compares the answers with the rules and lists each difference in
   `DISAGREEMENTS`, grouped by what is to be done. A new grid is new work for the runner. Tighten a field's rule
   when its answers arrive.
-- **The J4 answers (nothing).** ClickNick's runner has recorded CLICK v4.00's saves of 25 Fill, Math and
-  Copy cases, which its results call J4. CLICK accepted all 25. Commit the cases and the saves under
-  `tests/fixtures/editor_grids/`, with no local paths, and add them to `tests/test_editor_answers.py`. Two
-  saves differ from what laddercodec writes. Fix both:
-  - `fill(1234567.8,TXT1..TXT2)` is saved as `1234568.0`, and laddercodec writes `1234567.8`. Refuse it and
-    name the saved text, as a single Copy does.
-  - A decimal Math `DF1 = 1e6` is saved as the integer `W1000000` in tag 0x6229. laddercodec writes the
-    real `F1000000.0`. The `math_decimal` answers have `DS1 = 1e5` saved as the real `F100000.0`. So these
-    two saves do not settle which reals typed with a lowercase `e` CLICK stores as integers.
+- **CLICK's saves of 25 Fill, Math and Copy cases (nothing).** ClickNick's runner has recorded CLICK v4.00's
+  saves of 25 cases, which ClickNick's runner results call J4. CLICK accepted all 25. Commit the cases and
+  the saves under `tests/fixtures/editor_grids/`, with no local paths, and add them to
+  `tests/test_editor_answers.py`. Fix the one Fill save that differs from what laddercodec writes.
+  `fill(1234567.8,TXT1..TXT2)` is saved as `1234568.0`, and laddercodec writes `1234567.8`. Refuse it and
+  name the saved text, as a single Copy does. One Math save differs too. It is a CLICK question in "Math
+  real stored type", and it is not part of this item.
 
-  Then update the items that the saves settle: "Fill text and a bare number", "Math real stored type", "Reals
-  in exponent form in a Math", "A typed + on a real", "Math real form", and both items on a pointer on both
-  sides of a Copy. For a pointer on both sides, CLICK saves type 7, and type 8 with 0x2206 `1` for Copy
-  Binary, as laddercodec writes. The saves also answer the open Fill question in "Quoted text with an E".
-  CLICK saves `fill("HELLO",TXT1..TXT2)` as `0.0`.
+  Then update the items that the saves settle: "Fill text and a bare number", "Reals in exponent form in a
+  Math", "A typed + on a real", "Math real form", "A pointer on both sides of a single Copy" and "Pointer on
+  both sides of a Copy". CLICK saves Copy type 7 for every plain case, the four in "A pointer on both sides
+  of a single Copy" among them. It saves type 8 with 0x2206 `1` for Copy Binary. laddercodec writes the
+  same, except that it writes 0x2206 `0` in a plain copy, which CLICK leaves out. Decode reads both forms.
+  The saves also answer the open Fill question in "Quoted text with an E". CLICK saves
+  `fill("HELLO",TXT1..TXT2)` as `0.0`.
 - **Open order of checks in a Math range (CLICK).** The rules check every range's banks and order before any
   address's bank, then a median's size and the X/Y option-slot ends. No answer covers these cases:
   - A reversed or two-bank `MAX`, `MIN`, `MDN` or `AVG` range over a refused bank (`MAX ( DH2 : DH1 )` in
@@ -363,11 +370,17 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   | `1E5` | `W100000` | `F100000.0` |
   | `1.5E+3`, `1.5E3` | `H1500` | `F1500.0` |
   | `1234567.0` | `W1234567` (shown `1234567`) | `F1234567.0` |
+  | `1e6` (into DF1) | `W1000000` | `F1000000.0` |
 
   An integral real typed with an `E`, and `1234567.0`, are stored as integers (H in int16, else W). `1e5`
   (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
-  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type
-  changes what the Math computes, and which other positional reals CLICK stores as integers.
+  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type changes what the Math computes, and which
+  other positional reals CLICK stores as integers.
+
+  **A lowercase `e` (CLICK).** CLICK v4.00 stored `1e5` as the real `F100000.0` and `1e6` as the integer
+  `W1000000`. Two saves do not give a rule, so laddercodec fits none yet. ClickNick's runner answers a grid of
+  lowercase-`e` reals from about 1e5 to 1e7 first, such as `1e5`, `5e5`, `1e6`, `2.5e6`, `1.5e3` and `1e7`.
+  laddercodec writes that grid. The encoder changes after CLICK answers.
 - **Send Word Swap after a change of function code.** With FC16 and Word Swap on, switch the Send to FC06.
   Does CLICK keep Word Swap stored, or clear it? A runner case types `send fc16 984 400001 <- DS1 x2
   word_swap=ON`, then picks FC06 and saves. The code refuses Word Swap with any code but FC16, so a stored
@@ -542,10 +555,14 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   of bits (`C1 : C8`) is told to write "its registers as DH, XD or YD"; the message should say bits.
 - **`quantity=N` in Send and Receive messages (builder).** Some refusals advise `quantity=N`, which a CSV
   token refuses. The message should name the source range instead.
-- **The Fill `$hh` hint (nothing).** A Fill into TXT of a character outside ASCII, such as `"é"`, is refused
-  with `invalid-text-constant`. The message says to write the character as its `$hh` code. If you then write
-  the quoted form `"$E9"`, it is refused again, with `constant-out-of-range`. The bare `$E9` is accepted. The
-  hint should show the bare form.
+- **The `$hh` hint in Fill and Compare (nothing).** A Fill into TXT and Compare's Data A share one text
+  check. Each refuses a character outside ASCII, such as `"é"`, with `invalid-text-constant`, and the message
+  says to write the character as its `$hh` code. The bare `$E9` is accepted in both. The quoted form `"$E9"`
+  is not what the hint means:
+  - In a Fill it is refused again, with `constant-out-of-range`.
+  - In Compare's Data A it is accepted as the 3-character text `$E9`, so the compare matches other text.
+
+  The hint should show the bare form.
 - **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
   none or another. Add the ids, with no new codes:
   - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);
@@ -618,7 +635,7 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   - a pin row of wires that no rail or contact reaches: C0202 at AF, as for an empty row, or elsewhere;
   - two groups of boxes that share nets in one rung: one C000A line or two;
   - C0206-C0214.
-- **`read_csv` and CLICK's check rewrite of a wires-only rung (Sam; waits for the next release).** CLICK's
+- **`read_csv` and CLICK's check rewrite of a wires-only rung (Sam; after 0.5.1).** CLICK's
   check wires a rung of only wires through AF, and the rung then decodes as wires into a `NOP`
   (`tests/test_check_shapes.py`, rung 14). `read_csv` keeps the rung as drawn, with no `NOP`. Should it
   return the post-check form? A `NOP` in a rung of wires is a token that the CSV does not hold.
