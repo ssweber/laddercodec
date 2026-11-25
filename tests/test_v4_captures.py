@@ -1274,7 +1274,7 @@ def test_down_wire_in_the_output_column_is_refused() -> None:
     ]
     assert isinstance(rung, Rung)
     assert rung.instructions == (Undecoded(error, 0, 0, 31, "end"),)
-    assert rung.comment == f"UNDECODED: rung 0, row 0: {error}"
+    assert rung.comment == f"UNDECODED: CLICK rung 1, row 1: {error}"
 
 
 def test_checked_windy_road_is_one_straight_row() -> None:

@@ -92,7 +92,6 @@ from .undecoded import (
     marker_rung,
     read_comment,
     reason,
-    to_the_end,
     warn_comments,
     warn_undecoded,
 )
@@ -1142,13 +1141,13 @@ def _build_rung(
     """
     comment = read_comment(rtf, rung, failed)
     if not rows:
-        return marker_rung(Undecoded(to_the_end("the rung has no data rows", rung), rung), comment)
+        return marker_rung(Undecoded("the rung has no data rows", rung, to_the_end=True), comment)
 
     conditions: list[list[ConditionToken]] = []
     instructions: list[InstructionToken] = []
     for row, (tag, cursor, error) in enumerate(rows):
         if tag != _DATA:
-            return marker_rung(Undecoded(to_the_end(str(error), rung), rung, row), comment)
+            return marker_rung(Undecoded(str(error), rung, row, to_the_end=True), comment)
         try:
             conds, af = _decode_data_row(data, cursor, refuse_af_down=True)
         except _CellError as exc:

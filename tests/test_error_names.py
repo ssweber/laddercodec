@@ -1125,7 +1125,8 @@ def test_a_raw_token_refusal_that_states_what_the_box_needs_has_a_detail() -> No
         pytest.param(
             "undecoded(why,rung=0,stop=end)",
             "'undecoded(why,rung=0,stop=end)' must be "
-            'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+            'undecoded("<error>",rung=N,row=R,column=C,stop=end,to_the_end=1), '
+            "row, column and to_the_end optional",
             id="syntax",
         ),
     ],

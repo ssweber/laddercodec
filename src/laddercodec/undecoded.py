@@ -21,7 +21,7 @@ from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from ._rtf import ANSI_CHARSET, default_font, font_table, join_surrogates, read_bytes
-from .instructions.undecoded import Undecoded, UndecodedStop
+from .instructions.undecoded import Undecoded, UndecodedStop, to_the_end_note
 from .topology import CONDITION_COLUMNS
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class UndecodedRungWarning(UserWarning):
         prefix = f"program {program!r}, " if program is not None else ""
         super().__init__(
             f"{prefix}{marker.where} is not decoded, and an undecoded marker stands in for it: "
-            f"{marker.error}"
+            f"{marker.error}{to_the_end_note(marker)}"
         )
 
 
@@ -135,12 +135,6 @@ def reason(exc: BaseException) -> str:
 
     If the message is empty, return the name of the exception's type."""
     return one_line(str(exc)) or type(exc).__name__
-
-
-def to_the_end(error: str, rung: int) -> str:
-    """Return *error* with a note that decoding stopped, for a marker that stands for rung
-    *rung* and every rung after it."""
-    return f"{error}; decoding stopped, so this marker stands for rung {rung} to the end"
 
 
 def comment_note(error: str) -> str:
@@ -460,7 +454,6 @@ __all__ = [
     "reason",
     "recover_text",
     "recovered_comment",
-    "to_the_end",
     "warn_comments",
     "warn_undecoded",
 ]

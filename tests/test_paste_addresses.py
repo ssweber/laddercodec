@@ -237,6 +237,8 @@ def test_warns_where_decode_stops_for_a_row_it_cannot_walk() -> None:
     assert (
         _where(caught) == [(m.rung, m.row, m.column) for m in _markers(decoded)] == [(1, 0, None)]
     )
+    assert [m.to_the_end for m in _markers(caught)] == [m.to_the_end for m in _markers(decoded)]
+    assert [m.to_the_end for m in _markers(caught)] == [True]
 
 
 def test_warns_for_a_cell_whose_fields_it_cannot_read() -> None:

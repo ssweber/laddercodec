@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 from ..codes import Code
 from ..model import FieldError, Instruction, Reason
 from ..operands.address import digits_value, too_long
-from ..operands.checks import Refusals
+from ..operands.checks import Refusals, check_csv_flag
 from ..operands.message import make_refusal, says
 from .family import AfInstructionFamilySpec
 
@@ -49,6 +49,9 @@ class Undecoded(Instruction):
         ``None`` when the failure is not at one row or cell.
     stop:
         What the marker acts as: ``"end"`` in the main program, ``"return"`` in a subroutine.
+    to_the_end:
+        True when decoding stopped at this rung. The marker then stands for this rung and
+        every rung after it.
     """
 
     error: str
@@ -56,6 +59,7 @@ class Undecoded(Instruction):
     row: int | None = None
     column: int | None = None
     stop: UndecodedStop = "end"
+    to_the_end: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -111,16 +115,27 @@ class Undecoded(Instruction):
                     reason,
                     code=Code.INVALID_CHOICE,
                 )
+            check.flag("to_the_end")
 
     @property
     def where(self) -> str:
-        """Where decoding failed, as ``rung N, row R``, or ``rung N`` when ``row`` is ``None``."""
+        """Where decoding failed, as ``rung N, row R``, or ``rung N`` when ``row`` is ``None``.
+
+        The rung and the row count from 0."""
         return f"rung {self.rung}" if self.row is None else f"rung {self.rung}, row {self.row}"
 
     @property
     def headline(self) -> str:
-        """The first line of the marker rung's comment: ``UNDECODED: rung N, row R: <error>``."""
-        return f"UNDECODED: {self.where}: {self.error}"
+        """The first line of the marker rung's comment.
+
+        It reads ``UNDECODED: CLICK rung N, row R: <error>``. The rung and the row count
+        from 1. CLICK counts them the same way. The headline leaves out ``, row R`` when
+        ``row`` is ``None``. When ``to_the_end`` is True, the error is followed by
+        ``; decoding stopped, so this marker stands for CLICK rung N to the end``.
+        """
+        rung = f"CLICK rung {self.rung + 1}"
+        where = rung if self.row is None else f"{rung}, row {self.row + 1}"
+        return f"UNDECODED: {where}: {self.error}{to_the_end_note(self, click=True)}"
 
     def refusal(self) -> str:
         """Return why ``encode()`` refuses the marker."""
@@ -138,6 +153,8 @@ class Undecoded(Instruction):
         if self.column is not None:
             parts.append(f"column={self.column}")
         parts.append(f"stop={self.stop}")
+        if self.to_the_end:
+            parts.append("to_the_end=1")
         return f"undecoded({','.join(parts)})"
 
     def cell_params(self) -> dict:
@@ -145,6 +162,19 @@ class Undecoded(Instruction):
 
     def build_blob(self) -> bytes:
         raise NotImplementedError(self.refusal())
+
+
+def to_the_end_note(marker: Undecoded, *, click: bool = False) -> str:
+    """Return the note that follows *marker*'s error when ``to_the_end`` is True, else ``""``.
+
+    The note reads ``; decoding stopped, so this marker stands for rung N to the end``, with
+    N counted from 0. If *click* is True, it names ``CLICK rung N`` and counts from 1. The
+    headline uses that form.
+    """
+    if not marker.to_the_end:
+        return ""
+    rung = f"CLICK rung {marker.rung + 1}" if click else f"rung {marker.rung}"
+    return f"; decoding stopped, so this marker stands for {rung} to the end"
 
 
 def _is_index(value: object) -> bool:
@@ -176,10 +206,10 @@ def _whole_number(call: AfCall, key: str) -> int | None:
 
 
 def parse_af_call(call: AfCall) -> Undecoded:
-    """Parse ``undecoded("<error>",rung=N[,row=R][,column=C],stop=end|return)``."""
+    """Parse ``undecoded("<error>",rung=N[,row=R][,column=C],stop=end|return[,to_the_end=1])``."""
     from ..csv.token_parser import _decode_af_string_literal
 
-    known = {"rung", "row", "column", "stop"}
+    known = {"rung", "row", "column", "stop", "to_the_end"}
     extra = sorted(set(call.kwargs) - known)
     if len(call.args) != 1 or not call.args[0].startswith('"') or extra:
         raise make_refusal(
@@ -187,7 +217,8 @@ def parse_af_call(call: AfCall) -> Undecoded:
             "Undecoded",
             says(
                 "{token!r} must be "
-                'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+                'undecoded("<error>",rung=N,row=R,column=C,stop=end,to_the_end=1), '
+                "row, column and to_the_end optional",
                 token=call.to_token(),
             ),
             field=None,  # The token's syntax is wrong, not a field's value.
@@ -229,6 +260,7 @@ def parse_af_call(call: AfCall) -> Undecoded:
         row=_whole_number(call, "row"),
         column=_whole_number(call, "column"),
         stop=stop,
+        to_the_end=check_csv_flag(call.kwargs, "to_the_end", "Undecoded.to_the_end"),
     )
 
 

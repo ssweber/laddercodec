@@ -169,7 +169,8 @@ def _stopped_at(rungs: list[Rung], markers: list[Undecoded], index: int) -> Unde
     assert isinstance(marker, Undecoded)
     assert markers == [marker]
     assert marker.rung == index
-    assert marker.error.endswith(f"so this marker stands for rung {index} to the end")
+    assert marker.to_the_end is True
+    assert "decoding stopped" not in marker.error
     return marker
 
 
@@ -361,7 +362,8 @@ def test_rows_lost_to_the_end_make_one_marker(index: int, row: int, cut: bool) -
     assert isinstance(marker, Undecoded)
     assert markers == [marker]
     assert (marker.rung, marker.row, marker.column) == (index, row, None)
-    assert marker.error.endswith(f"so this marker stands for rung {index} to the end")
+    assert marker.to_the_end is True
+    assert "decoding stopped" not in marker.error
     assert marker.error.startswith("the buffer ends before" if cut else "grid row")
 
 
@@ -369,7 +371,7 @@ def test_two_bad_rungs_make_two_markers() -> None:
     rungs, markers = _decode(
         _patched((_cell(0, 0, 31) + 0x21, b"\x01"), (_cell(2, 0, 31) + 0x21, b"\x01"))
     )
-    assert [m.rung for m in markers] == [0, 2]
+    assert [(m.rung, m.to_the_end) for m in markers] == [(0, False), (2, False)]
     assert rungs[1] == DECODED[1]
 
 
@@ -526,6 +528,9 @@ def test_program_lists_no_markers_when_every_rung_decodes() -> None:
         ({"row": -1}, r"Undecoded\.row"),
         ({"column": 32}, r"Undecoded\.column"),
         ({"stop": "halt"}, r"Undecoded\.stop"),
+        ({"to_the_end": 2}, r"Undecoded\.to_the_end: 2 is not True, False, 1 or 0"),
+        ({"to_the_end": "yes"}, r"Undecoded\.to_the_end: 'yes' is not True, False, 1 or 0"),
+        ({"to_the_end": None}, r"Undecoded\.to_the_end: None is not True, False, 1 or 0"),
     ],
 )
 def test_marker_fields_are_checked(kwargs: dict, message: str) -> None:
@@ -534,13 +539,52 @@ def test_marker_fields_are_checked(kwargs: dict, message: str) -> None:
         Undecoded(**fields)
 
 
+def test_to_the_end_is_stored_as_a_bool() -> None:
+    """``to_the_end`` accepts 1 and 0 as every flag field does, and stores a bool."""
+    assert Undecoded("why", 0, to_the_end=1).to_the_end is True
+    assert Undecoded("why", 0, to_the_end=0).to_the_end is False
+    assert Undecoded("why", 0, to_the_end=1) == Undecoded("why", 0, to_the_end=True)
+
+
 def test_marker_text() -> None:
+    """The headline counts the rung and the row from 1, as CLICK shows them.
+
+    ``where`` and the CSV token count them from 0.
+    """
     marker = Undecoded("why", 4, 2, 31, "return")
     assert marker.where == "rung 4, row 2"
-    assert marker.headline == "UNDECODED: rung 4, row 2: why"
+    assert marker.headline == "UNDECODED: CLICK rung 5, row 3: why"
     assert marker.to_csv() == 'undecoded("why",rung=4,row=2,column=31,stop=return)'
     assert Undecoded("why", 4).to_csv() == 'undecoded("why",rung=4,stop=end)'
-    assert Undecoded("why", 4).headline == "UNDECODED: rung 4: why"
+    assert Undecoded("why", 4).headline == "UNDECODED: CLICK rung 5: why"
+    assert Undecoded("why", 0, 0).headline == "UNDECODED: CLICK rung 1, row 1: why"
+
+
+def test_marker_text_to_the_end() -> None:
+    """A marker that stands for its rung and every rung after it says so after the error."""
+    stopped = Undecoded("why", 4, stop="end", to_the_end=True)
+    assert stopped.headline == (
+        "UNDECODED: CLICK rung 5: why; decoding stopped, so this marker stands for "
+        "CLICK rung 5 to the end"
+    )
+    assert stopped.to_csv() == 'undecoded("why",rung=4,stop=end,to_the_end=1)'
+    at_row = Undecoded("why", 1, 0, to_the_end=True)
+    assert at_row.headline == (
+        "UNDECODED: CLICK rung 2, row 1: why; decoding stopped, so this marker stands for "
+        "CLICK rung 2 to the end"
+    )
+    assert at_row.where == "rung 1, row 0"
+    assert str(UndecodedRungWarning(at_row)) == (
+        "rung 1, row 0 is not decoded, and an undecoded marker stands in for it: why; "
+        "decoding stopped, so this marker stands for rung 1 to the end"
+    )
+    assert str(UndecodedRungWarning(Undecoded("why", 1, 0))) == (
+        "rung 1, row 0 is not decoded, and an undecoded marker stands in for it: why"
+    )
+    with pytest.raises(
+        EncodeError, match=r"\(UNDECODED: CLICK rung 2, row 1: why; decoding stopped"
+    ):
+        encode(marker_rung(at_row))
 
 
 def test_warnings_pickle() -> None:
@@ -568,6 +612,8 @@ def test_warnings_pickle() -> None:
         Undecoded("why", 0),
         Undecoded('a "quoted", comma-held error', 7, 3, 12, "return"),
         Undecoded("the output column has a down wire", 2, 0, 31),
+        Undecoded("the buffer ends", 3, 1, stop="return", to_the_end=True),
+        Undecoded("the rung has no data rows", 5, to_the_end=True),
     ],
 )
 def test_csv_round_trip(marker: Undecoded, tmp_path: Path) -> None:
@@ -586,6 +632,8 @@ def test_csv_round_trip(marker: Undecoded, tmp_path: Path) -> None:
         ('undecoded("x",rung=1,stop=halt)', "must be 'end' or 'return'"),
         ('undecoded("x",rung=-1,stop=end)', "must be a whole number from 0"),
         ('undecoded("x",rung=1,column=32,stop=end)', "must be None or 0 to 31"),
+        ('undecoded("x",rung=1,stop=end,to_the_end=2)', "to_the_end: 2 is not 1 or 0"),
+        ('undecoded("x",rung=1,stop=end,to_the_end=yes)', "'yes' is not 1 or 0"),
     ],
 )
 def test_csv_token_errors(token: str, message: str, tmp_path: Path) -> None:
@@ -684,6 +732,18 @@ def test_check_reports_the_marker_and_nothing_else() -> None:
     )
 
 
+def test_check_says_that_a_marker_stands_to_the_end() -> None:
+    """The finding for a marker with ``to_the_end`` set ends with the warning's note."""
+    marker = Undecoded("why", 3, 1, to_the_end=True)
+    (finding,) = check(marker_rung(marker))
+    note = "; decoding stopped, so this marker stands for rung 3 to the end"
+    assert finding.message == (
+        "row 0 from 0, column AF: an undecoded marker for rung 3, row 1, "
+        f"which encode() refuses: why{note}"
+    )
+    assert str(UndecodedRungWarning(marker)).endswith(f": why{note}")
+
+
 def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> None:
     """check() runs every layout check on a hand-built rung that holds a marker and more."""
     marker = Undecoded("why", 3, 1)
@@ -746,3 +806,11 @@ def test_a_truncated_scr_record_stops_decoding_at_a_marker() -> None:
     with pytest.warns(UndecodedRungWarning, match="rung 1 to the end"):
         program = decode_program(data[:cut])
     assert program.rungs[0].comment == "first"
+    (marker,) = program.undecoded
+    assert (marker.rung, marker.row, marker.to_the_end) == (1, None, True)
+    assert "decoding stopped" not in marker.error
+    assert program.rungs[1].comment == marker.headline
+    assert marker.headline.startswith("UNDECODED: CLICK rung 2: ")
+    assert marker.headline.endswith(
+        "; decoding stopped, so this marker stands for CLICK rung 2 to the end"
+    )

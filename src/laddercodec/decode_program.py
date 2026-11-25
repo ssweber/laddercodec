@@ -53,7 +53,6 @@ from .undecoded import (
     marker_rung,
     read_comment,
     reason,
-    to_the_end,
     warn_comments,
     warn_undecoded,
 )
@@ -1086,7 +1085,7 @@ def decode_program(data: bytes) -> Program:
     rungs = [_record_rung(record, index, stop, failed) for index, record in enumerate(records)]
     if framing_error is not None:
         index = len(rungs)
-        rungs.append(marker_rung(Undecoded(to_the_end(framing_error, index), index, stop=stop)))
+        rungs.append(marker_rung(Undecoded(framing_error, index, stop=stop, to_the_end=True)))
 
     warn_legacy(rungs, program=header.name)
     warn_refused(rungs, program=header.name)

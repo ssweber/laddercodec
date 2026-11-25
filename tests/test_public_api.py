@@ -80,6 +80,7 @@ EXPECTED_ROOT_EXPORTS = (
     "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
+    "marker_rung",
     "Condition",
     "Instruction",
     "ConditionToken",
@@ -149,6 +150,13 @@ def test_root_public_api_manifest_is_explicit() -> None:
     assert tuple(laddercodec.__all__) == EXPECTED_ROOT_EXPORTS
     for name in EXPECTED_ROOT_EXPORTS:
         assert getattr(laddercodec, name) is not None
+
+
+def test_marker_rung_is_exported_from_the_top_level() -> None:
+    from laddercodec import marker_rung
+    from laddercodec.undecoded import marker_rung as from_module
+
+    assert marker_rung is from_module
 
 
 def test_root_public_api_supports_basic_roundtrip(tmp_path: Path) -> None:

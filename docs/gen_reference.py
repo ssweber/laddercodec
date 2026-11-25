@@ -53,6 +53,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "RefusedFieldWarning",
             "UndecodedRungWarning",
             "UndecodedCommentWarning",
+            "marker_rung",
         ),
     ),
     ReferencePage(

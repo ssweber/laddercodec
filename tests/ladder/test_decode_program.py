@@ -942,7 +942,8 @@ def _framing_marker(data: bytes | bytearray, rung: int, error: str) -> list:
     assert isinstance(marker, Undecoded)
     assert (marker.rung, marker.row, marker.column) == (rung, None, None)
     assert marker.stop == "return"  # _synthetic_scr is a subroutine
-    assert marker.error.endswith(f"so this marker stands for rung {rung} to the end")
+    assert marker.to_the_end is True
+    assert "decoding stopped" not in marker.error
     assert program.undecoded == [marker]
     return decoded
 
@@ -1442,7 +1443,7 @@ def test_down_wire_in_the_output_column_is_refused(monkeypatch):
     assert program.undecoded == [Undecoded(AF_DOWN_WIRE, 1, 0, 31, "end")]
     marker = program.rungs[1]
     assert marker.comment is not None
-    assert marker.comment.splitlines()[0] == f"UNDECODED: rung 1, row 0: {AF_DOWN_WIRE}"
+    assert marker.comment.splitlines()[0] == f"UNDECODED: CLICK rung 2, row 1: {AF_DOWN_WIRE}"
     assert marker.conditions == (("-",) * 31,)
     # The rungs around it decode as they do without the down list.
     assert program.rungs[:1] + program.rungs[2:] == want[:1] + want[2:]
