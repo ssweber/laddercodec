@@ -615,7 +615,19 @@ _PARTNER_CASES: dict[str, tuple[Callable[..., object], str]] = {
         lambda **kw: Pack(**{"source_start": "5x", "source_end": "SC50", "dest": "DH1", **kw}),
         "source_start",
     ),
+    "compare text opposite TXT": (
+        lambda **kw: CompareContact(**{"op": "==", "left": '"é"', "right": "TXT1", **kw}),
+        "left",
+    ),
+    "compare text opposite DS": (
+        lambda **kw: CompareContact(**{"op": "==", "left": '"é"', "right": "DS1", **kw}),
+        "left",
+    ),
 }
+
+#: The cases of :data:`_PARTNER_CASES` where no value fits the other fields, so the refusal
+#: suggests none.
+_NO_EXAMPLE_FITS = frozenset({"compare text opposite DS"})
 
 
 def _receive(**kw: object) -> Receive:
@@ -627,14 +639,17 @@ def _receive(**kw: object) -> Receive:
 
 @pytest.mark.parametrize("name", list(_PARTNER_CASES))
 def test_the_example_fits_the_partner_field(name: str) -> None:
-    """The address that a refusal suggests is accepted with the instruction's other fields
-    as they are."""
+    """The value that a refusal suggests is accepted with the instruction's other fields as
+    they are. Where no value fits them, the refusal suggests none."""
     build, attr = _PARTNER_CASES[name]
     with pytest.raises(FieldError) as caught:
         build()
     field = f"{type(caught.value.obj).__name__}.{attr}"
     error = next(e for e in caught.value.errors if e.field == field)
     example = _EXAMPLE.search(str(error))
+    if name in _NO_EXAMPLE_FITS:
+        assert example is None, str(error)
+        return
     assert example is not None, str(error)
     build(**{attr: example.group(1).removeprefix(f"{attr}=").strip('"')})
 

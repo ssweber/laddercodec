@@ -203,9 +203,12 @@ def _operand_group(
     Raise :class:`FieldError` if the operand is neither an address in a data bank that a
     compare accepts nor one of the ``constants`` that its side of the dialog accepts.
     ``other`` is the other operand and its constants. The address that a refusal suggests
-    is in the other operand's group."""
+    is in the other operand's group. Opposite an operand that is not text, the refusal of
+    text names no ``$hh`` code."""
     group = None if other is None else _group_or_none(*other)
     example = None if group is None else GROUP_BANKS[group]
+    if group is not None and group != "text":
+        constants = replace(constants, char_code=False)
     operand = check_operand(value, name, _DATA_BANKS, constants, example=example)
     const = operand.constant
     if const is not None:

@@ -18,7 +18,7 @@
 
 ### Fixed
 
-- A refusal's example now fits the instruction's other fields, where any value does. `Coil("Y001", range_end="$41")` suggested Y001 as the end.
+- A refusal's example now fits the instruction's other fields when some value can. `Coil("Y001", range_end="$41")` suggested Y001 as the end.
 - A Math refusal that tells you to set the other mode names each other change that mode needs, or says only to take the key out.
 - A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
 - A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
