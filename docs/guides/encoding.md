@@ -428,16 +428,18 @@ backslash, write `\\`. The last comment above encodes as
 [Comment styles and escapes](csv-format.md#comment-styles-and-escapes).
 
 A comment can hold any Unicode text, such as `é`, `°`, `→`, `中` or an emoji.
-`encode()` writes each character of the comment's RTF body in the form that
-CLICK stores:
+`encode()` writes each character of the comment into the RTF body in the form
+that CLICK stores. The form sets how many bytes the character counts toward
+the limit:
 
-- An ASCII character is written as itself, in 1 byte. `\`, `{` and `}` take
-  2 bytes each (`\\`, `\{`, `\}`), and a line break takes 5 (`\par `).
+- An ASCII character is written as itself and counts as 1 byte. `\`, `{` and
+  `}` count as 2 bytes each (`\\`, `\{`, `\}`), and a line break counts as 5
+  (`\par `).
 - A character in Windows code page 1252, such as `é`, `°` or `€`, is written
-  as its byte in hex, such as `\'e9`. It takes 4 bytes.
+  as its byte in hex, such as `\'e9`. It counts as 4 bytes.
 - Any other character, such as `→` or `中`, is written as its code, such as
-  `\u8594?`. It takes 6 to 8 bytes. A character above U+FFFF, such as an
-  emoji, is written as two codes and takes 16 bytes.
+  `\u8594?`. It counts as 6 to 8 bytes. A character above U+FFFF, such as an
+  emoji, is written as two codes and counts as 16 bytes.
 
 The limit is 1400 bytes of the RTF body. The limit counts each character in
 the form above. It also counts the group around each styled stretch, such as

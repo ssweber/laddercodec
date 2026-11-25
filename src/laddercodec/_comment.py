@@ -8,7 +8,8 @@ other character is a backslash.
 A run of ``*`` or ``_`` can open a style only if a character that is not whitespace comes
 after it. It can close a style only if a character that is not whitespace comes before it.
 A run of ``_`` also opens only where no letter or digit comes before it, and closes only
-where no letter or digit comes after it. So ``2 * 3 * 4`` and ``Pump_1_Run`` are text.
+where no letter or digit comes after it. A combining mark counts as a letter here. So
+``2 * 3 * 4`` and ``Pump_1_Run`` are text.
 
 A run of ``*`` that can end a style pairs with the nearest run of ``*`` before it that can
 start one. The same holds for ``_``. When both runs have at least two characters left, two
@@ -34,6 +35,7 @@ the RTF. Each takes time in proportion to the length of the comment.
 from __future__ import annotations
 
 import functools
+import unicodedata
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field, replace
 
@@ -71,7 +73,11 @@ def _read_form(text: str) -> str:
 
 
 def _is_alnum(ch: str | None) -> bool:
-    return ch is not None and ch.isalnum()
+    """Return whether *ch* is a letter, a digit or a combining mark.
+
+    A combining mark counts, so that ``e`` and a combining acute accent read as ``é`` does.
+    """
+    return ch is not None and (ch.isalnum() or unicodedata.category(ch).startswith("M"))
 
 
 # ---------------------------------------------------------------------------
@@ -426,8 +432,8 @@ def _merged(runs: Iterable[Run]) -> list[Run]:
 
 @dataclass
 class _Piece:
-    """A character of comment text, or ``\\r\\n``, the character that the reader sees in it,
-    and its style."""
+    """One character of comment text or a ``\\r\\n``, with the character that the reader
+    sees and its style."""
 
     text: str
     unit: str

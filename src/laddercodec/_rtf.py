@@ -1,4 +1,4 @@
-"""Read the text bytes of a rung comment's RTF, and name the byte that writes a character.
+"""Read the text bytes of a rung comment's RTF, and find the code page 1252 byte for a character.
 
 A byte of comment text, raw or written as ``\\'hh``, is read in the code page of the font
 that is current where the byte stands. The RTF starts with a font table, and each font in
@@ -35,7 +35,7 @@ READ_CHARSETS = frozenset({ANSI_CHARSET, GBK_CHARSET})
 _CP1252_TABLE = "".join(
     bytes([byte]).decode("cp1252", errors="ignore") or chr(byte) for byte in range(256)
 )
-# The byte from 0x80 up for each character that the table reads from one.
+# For each character that the table reads from a byte of 0x80 or more, that byte.
 _CP1252_BYTE = {char: byte for byte, char in enumerate(_CP1252_TABLE) if byte >= 0x80}
 
 _FONT_TABLE = b"{\\fonttbl"

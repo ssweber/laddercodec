@@ -163,9 +163,19 @@ def test_a_comment_too_long_says_how_many_bytes_to_cut() -> None:
         encode(Rung([_ROW], ["NOP"], E_ACUTE * 350 + "ab"))
     assert str(exc.value) == (
         "The comment is too long: CLICK would store 1402 bytes, and the limit is 1400. "
-        f"A character outside ASCII takes more than one byte: {E_ACUTE} takes 4 (\\'e9) and "
-        f"{ARROW} takes 7 ({_u(8594)}). Shorten the comment by at least 2 bytes."
+        f"A character outside ASCII takes more than one byte: {E_ACUTE} takes 4 (\\'e9), "
+        "and a character that code page 1252 lacks takes 6 or more. Shorten the comment by "
+        "at least 2 bytes."
     )
+    # A log file in code page 1252 can hold the message.
+    str(exc.value).encode("cp1252")
+
+
+def test_a_lone_surrogate_decodes_as_the_replacement_character() -> None:
+    """A surrogate outside a pair is not text. encode() writes it, and decode() reads U+FFFD."""
+    lone = chr(0xD800)
+    assert rtf_body(f"a{lone}b") == f"a{_u(55296)}b"
+    assert _round_trip(f"a{lone}b").comment == "a\N{REPLACEMENT CHARACTER}b"
 
 
 def test_a_comment_too_long_names_its_rung_among_several() -> None:

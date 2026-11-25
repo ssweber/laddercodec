@@ -84,7 +84,7 @@ Comments are stored as RTF with a fixed prefix and suffix:
 
 Body encoding:
 
-- Plain text: cp1252-encoded directly
+- Plain text: the body is ASCII. An ASCII character is written as itself, except that `\`, `{` and `}` are written as `\\`, `\{` and `\}`. A character that code page 1252 holds is written as `\'hh`, in lowercase hex. Any other character is written as `\uN?`, with N unsigned. A character above U+FFFF is written as the two escapes of its surrogate pair.
 - Bold: `{\b text}`
 - Italic: `{\i text}`
 - Underline: `{\ul text}`

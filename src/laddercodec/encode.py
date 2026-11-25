@@ -170,8 +170,8 @@ def _comment_body(comment: str, rung: int | None = None) -> bytes:
         raise EncodeError(
             f"{which} is too long: CLICK would store {len(body)} bytes, and the limit is "
             f"{COMMENT_MAX_BYTES}. A character outside ASCII takes more than one byte: "
-            f"é takes 4 (\\'e9) and → takes 7 (\\u8594?). Shorten the comment by "
-            f"at least {len(body) - COMMENT_MAX_BYTES} bytes."
+            f"é takes 4 (\\'e9), and a character that code page 1252 lacks takes 6 or "
+            f"more. Shorten the comment by at least {len(body) - COMMENT_MAX_BYTES} bytes."
         )
     return body
 

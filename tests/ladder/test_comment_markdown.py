@@ -30,6 +30,7 @@ from laddercodec import (
 from laddercodec._comment import (
     PLAIN,
     Style,
+    _is_alnum,
     _merged,
     _pieces,
     _read_form,
@@ -249,6 +250,13 @@ def test_an_underscore_beside_a_letter_outside_ascii_is_text() -> None:
     assert markdown == "x caf\u00e9y \\_z\\_"
 
 
+def test_a_combining_mark_beside_an_underscore_reads_as_a_letter() -> None:
+    """``e`` and a combining acute accent read as ``\u00e9`` does beside a ``__``."""
+    for word in ("cafe\N{COMBINING ACUTE ACCENT}", "caf\N{LATIN SMALL LETTER E WITH ACUTE}"):
+        assert parse(f"{word}__y__") == [(PLAIN, f"{word}__y__")]
+        assert write_runs([(PLAIN, word), (_U, "y")]) == f"{word}y"
+
+
 # -- The round trip --
 
 
@@ -281,7 +289,7 @@ def _check_round_trip(runs: list[tuple[Style, str]]) -> None:
     underline = [w.underline for _, w in want]
     touches_word = any(
         underline[k] != underline[k + 1]
-        and (want[k][0].isalnum() if underline[k + 1] else want[k + 1][0].isalnum())
+        and (_is_alnum(want[k][0]) if underline[k + 1] else _is_alnum(want[k + 1][0]))
         for k in range(len(want) - 1)
     )
     if not touches_word:
