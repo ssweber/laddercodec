@@ -160,7 +160,7 @@ def test_message_takes_the_later_of_two_keys_for_one_address() -> None:
             lambda: Fill(value="1", dest_start="DS1", dest_end="DS[DD1]"),
             {"DD1": "Ptr"},
             "Fill.dest_end: DS[Ptr] (DS[DD1]) is a pointer; only a single Copy takes one. "
-            "Write an address, such as DS1.",
+            "Write an address, such as DS2.",
             id="pointer-index-named",
         ),
         pytest.param(
@@ -1456,11 +1456,12 @@ _OPTION_SLOT_THEN = (
         pytest.param(
             lambda: Math("DS1 AND DS2", "DS3"),
             "AND is hex only",
-            "'DS1 AND DS2' is a decimal Math. Take AND out of the formula, or set mode to hex "
-            "and write its registers as DH, XD or YD.",
+            "'DS1 AND DS2' is a decimal Math. Take AND out of the formula, or set mode to hex. "
+            "In a hex Math, write its registers as DH, XD or YD. Write the result to a DH or YD "
+            "register.",
             "Math.expression: AND is hex only; 'DS1 AND DS2' is a decimal Math (OBJ-1006). "
-            "Take AND out of the formula, or set mode to hex and write its registers as DH, XD "
-            "or YD.",
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write its registers "
+            "as DH, XD or YD. Write the result to a DH or YD register.",
             id="key-of-the-other-mode",
         ),
         pytest.param(
@@ -1539,14 +1540,16 @@ def test_a_math_refusal_keeps_its_parts(
             "DH1 AND DH2",
             "DS3",
             "decimal",
-            "'DH1 AND DH2' is a decimal Math. Set mode to hex, or take AND out of the formula.",
+            "'DH1 AND DH2' is a decimal Math. Take AND out of the formula, or set mode to hex. "
+            "In a hex Math, write the result to a DH or YD register.",
         ),
         (
             "SIN ( DH1 )",
             "DH3",
             "hex",
-            "'SIN ( DH1 )' is a hex Math. Take SIN out of the formula, or set mode to decimal "
-            "and write its registers as DS, DD, DF, TD, CTD or SD.",
+            "'SIN ( DH1 )' is a hex Math. Take SIN out of the formula, or set mode to decimal. "
+            "In a decimal Math, write its registers as DS, DD, DF, TD, CTD or SD. Write the "
+            "result to a DS, DD, DF, TD, CTD or SD register.",
         ),
     ],
 )
@@ -1630,8 +1633,7 @@ def test_each_refusal_of_a_math_formula_keeps_its_parts() -> None:
     ]
     want_detail = [
         "a real constant in Math is at most 3.402823E+38 in size",
-        "'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math. Take LSH out of the formula, "
-        "or set mode to hex and write its registers as DH, XD or YD.",
+        "'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math. Take LSH out of the formula.",
         _DECIMAL_BANKS,
         _DECIMAL_BANKS,
     ]
@@ -1639,8 +1641,7 @@ def test_each_refusal_of_a_math_formula_keeps_its_parts() -> None:
         "Math.expression: 1e50 is outside the float32 range; a real constant in Math is at most "
         "3.402823E+38 in size (OBJ-1009)",
         "Math.expression: LSH is hex only; 'C1 + DH1 + 1e50 + LSH ( DS1 , 2 )' is a decimal Math "
-        "(OBJ-1006). Take LSH out of the formula, or set mode to hex and write its registers "
-        "as DH, XD or YD.",
+        "(OBJ-1006). Take LSH out of the formula.",
         f"Math.expression: Valve (C1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
         f"Math.expression: Word (DH1) is refused; {_DECIMAL_BANKS} (OBJ-1002)",
     ]

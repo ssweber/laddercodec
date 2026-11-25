@@ -971,7 +971,8 @@ def _slave_example(send: Send) -> Collection[str] | None:
         return _slave_banks(source.bank, fc) or None
     if fc is None:
         return None
-    return (_SEND_REMOTE_REGS_FC06 if fc == 6 else _SEND_REMOTE_REGS_FC16) - {"SD"}
+    remote_banks = _SEND_REMOTE_REGS_FC06 if fc == 6 else _SEND_REMOTE_REGS_FC16
+    return [bank for bank in ADDRESS_BANKS if bank in remote_banks and bank != "SD"]
 
 
 def _lowest(bank: str) -> str:
