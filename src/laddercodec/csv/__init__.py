@@ -79,6 +79,8 @@ def read_csv(
     ``encode()``, ``write_csv`` and ``csv_rows`` write the instruction from its fields.
     If you change a field with :func:`laddercodec.replace`, the copy is checked again.  A
     refused value that the copy still holds then raises, even if *allow* listed its code.
+    To build a changed instruction that keeps the refusal, call its constructor with
+    ``allow=``.  Each instruction's constructor accepts the same ``allow=``.
 
     A file that isn't UTF-8 text, or a row, token or rung that can't be read, raises
     ``CsvReadError``.  A value that CLICK's dialog refuses raises ``FieldError``, or

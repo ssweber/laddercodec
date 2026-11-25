@@ -33,6 +33,7 @@ from ..operands.address import require_text
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
 from ..operands.message import Op, from_parts, make_refusal, parts_of, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -160,13 +161,13 @@ def _check_for_count(text: str) -> None:
 
 
 @dataclass(frozen=True)
-class ForLoop(Instruction):
+class ForLoop(Instruction, AllowsRefusals):
     """FOR loop instruction."""
 
     count: str
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             # Write the count in display form before the bank check, so that a count that
             # the check refuses, such as ``x1``, is held as ``X001``.
@@ -225,7 +226,7 @@ class ForLoop(Instruction):
 
 
 @dataclass(frozen=True)
-class Next(Instruction):
+class Next(Instruction, AllowsRefusals):
     """NEXT loop instruction."""
 
     @classmethod
@@ -250,7 +251,7 @@ class Next(Instruction):
 
 
 @dataclass(frozen=True)
-class Break(Instruction):
+class Break(Instruction, AllowsRefusals):
     """The CLICK v4 BREAK instruction, which leaves the innermost loop.
 
     Its binary class is ``Next``, with func code 9233."""
@@ -277,7 +278,7 @@ class Break(Instruction):
 
 
 @dataclass(frozen=True)
-class Continue(Instruction):
+class Continue(Instruction, AllowsRefusals):
     """The CLICK v4 CONTINUE instruction, which skips to the next iteration of the loop.
 
     Its binary class is ``Next``, with func code 9232."""

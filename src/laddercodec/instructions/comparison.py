@@ -21,7 +21,7 @@ from ..operands.address import ADDRESS_BANKS, read_typed_address
 from ..operands.checks import ALL_KINDS, Constants, Refusals, check_kept_text, check_operand
 from ..operands.constants import HEX16_MAX, Kind
 from ..operands.message import Op, operand, says
-from ..operands.unchecked import read_in_another_form
+from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .contact import refuse_down_prefix
 from .family import ConditionInstructionFamilySpec
 
@@ -220,7 +220,7 @@ _COMPARE_TAGS = (0x3218, 0x6066, 0x6067, 0x21F7, 0x0000)
 
 
 @dataclass(frozen=True)
-class CompareContact(Condition):
+class CompareContact(Condition, AllowsRefusals):
     """A comparison contact (EQ, NE, GT, LT, GE, LE).
 
     It sits in a condition column, like any contact. Its binary class name is ``Compare``
@@ -231,7 +231,7 @@ class CompareContact(Condition):
     left: str  # left operand, e.g. "DS1"
     right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"', "$41"
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not isinstance(self.op, str) or self.op not in COMPARE_OP_TO_FUNC:
                 check.refuse(

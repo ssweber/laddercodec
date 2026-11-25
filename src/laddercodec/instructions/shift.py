@@ -24,6 +24,7 @@ from ..model import Address, InstructionType, PinnedInstruction, Reason, check_a
 from ..operands.address import address_above
 from ..operands.checks import Refusals
 from ..operands.message import Op, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ _SHIFT_SUB_MARKERS = (b"\x00\x00\x00\x00", b"\x01\x00\x00\x00", b"\x02\x00\x00\x
 
 
 @dataclass(frozen=True)
-class Shift(PinnedInstruction):
+class Shift(PinnedInstruction, AllowsRefusals):
     """A shift register instruction."""
 
     start_bit: str
@@ -59,7 +60,7 @@ class Shift(PinnedInstruction):
     #: ``.reset()`` down.
     pin_rows: tuple[int, ...] = (1, 2)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize("start_bit", "end_bit")
             # Both ends must be C bits. CLICK refuses any other bank with OBJ-004, and that

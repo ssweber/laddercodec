@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..errors import CsvReadError
 from ..model import Instruction
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -21,7 +22,7 @@ _END_TAGS = (0x0000,)
 
 
 @dataclass(frozen=True)
-class End(Instruction):
+class End(Instruction, AllowsRefusals):
     """Program terminator instruction."""
 
     @classmethod

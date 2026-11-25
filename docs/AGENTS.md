@@ -29,4 +29,4 @@ Developers who work with CLICK PLC ladder logic programmatically. They know ladd
 - Comments are plain text with optional markdown-style formatting (bold, italic, underline).
 - The encoder writes bytes directly from verified formulas. It has no ORM or intermediate representation.
 - Round-trip identity: `decode(encode(rungs)) == rungs` for all supported types.
-- `read_csv(path, allow=[codes])` reads an instruction whose refusals all have a listed code, if laddercodec can write it and read it back the same. It emits no warning, and `encode()` writes it. `decode(encode(rungs)) == rungs` holds for those rungs too, except a Send or Receive target's name.
+- `read_csv(path, allow=[codes])` reads an instruction whose refusals all have a listed code, if laddercodec can write it and read it back the same. It emits no warning, and `encode()` writes it. `decode(encode(rungs)) == rungs` holds for those rungs too, except a Send or Receive target's name. The constructor of each instruction, Modbus target and `ModbusAddress` accepts the same `allow=` keyword, with the same limits.

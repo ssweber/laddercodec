@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field, tag_value
 from ..errors import CsvReadError
 from ..model import Instruction
+from ..operands.unchecked import AllowsRefusals
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
     AfInstructionFamilySpec,
@@ -73,7 +74,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Email(Instruction):
+class Email(Instruction, AllowsRefusals):
     """The Email instruction, with each field kept as a string under its CLICK tag id.
 
     laddercodec does not interpret these fields. Their names, such as ``tag_3218``, are

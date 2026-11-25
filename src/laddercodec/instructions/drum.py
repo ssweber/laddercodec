@@ -44,6 +44,7 @@ from ..operands.banks import BIT_BANKS, XY_BANKS
 from ..operands.checks import Constants, Refusals, check_operand, choice_operand, is_choice
 from ..operands.constants import INT16_MAX, Kind
 from ..operands.message import Op, Rule, from_parts, operand, parts_of, says, shown
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 from .timer import TimeUnit
 
@@ -477,7 +478,7 @@ def _iterable(value: Any) -> bool:
 
 
 @dataclass(frozen=True)
-class Drum(PinnedInstruction):
+class Drum(PinnedInstruction, AllowsRefusals):
     """A drum sequencer instruction: an event_drum, a time_drum or a time_event_drum.
 
     The drum sits in the AF column.  Its binary class name is ``Drum``, and its type
@@ -511,7 +512,7 @@ class Drum(PinnedInstruction):
     #: under a pin push the later pins down.  An unused pin keeps a row of its own.
     pin_rows: tuple[int, ...] = (1, 2, 3)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.flag("jog_enabled", "jump_enabled")
             check.run(self._check_pin_rows)

@@ -23,6 +23,7 @@ from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from ..operands.message import Op, operand, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -69,7 +70,7 @@ _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 
 
 @dataclass(frozen=True)
-class Counter(PinnedInstruction):
+class Counter(PinnedInstruction, AllowsRefusals):
     """A counter instruction (count_up / count_down)."""
 
     kind: CounterKind
@@ -84,7 +85,7 @@ class Counter(PinnedInstruction):
     #: push every later input down, ``.reset()`` included.
     pin_rows: tuple[int, ...] = (1, 2)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if self.kind not in _COUNTER_KINDS:
                 check.refuse(

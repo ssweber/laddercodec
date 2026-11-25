@@ -94,7 +94,7 @@ from ..operands.message import (
     with_click_id,
     wrong_type,
 )
-from ..operands.unchecked import read_in_another_form
+from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -1554,7 +1554,7 @@ def _termination_csv(termination_code: str) -> list[str]:
 
 
 @dataclass(frozen=True)
-class Copy(Instruction):
+class Copy(Instruction, AllowsRefusals):
     """A single copy instruction.
 
     Attributes
@@ -1598,7 +1598,7 @@ class Copy(Instruction):
     exponential: bool = False
     termination_code: str = "0"
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             # normalize_address returns a constant as it was written.
             check.normalize("source", "dest", values=("source",))
@@ -2066,7 +2066,7 @@ _BLOCKCOPY_CONVERTS = frozenset({None, *get_args(BlockCopyConvert)})
 
 
 @dataclass(frozen=True)
-class BlockCopy(Instruction):
+class BlockCopy(Instruction, AllowsRefusals):
     """A block copy instruction (copy_type_idx=1).
 
     Copies a contiguous range of source registers to a destination range.
@@ -2096,7 +2096,7 @@ class BlockCopy(Instruction):
     oneshot: bool = False
     termination_code: str = "0"
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize("source_start", "source_end", "dest_start", "dest_end")
             if not is_choice(self.convert, _BLOCKCOPY_CONVERTS):
@@ -2312,7 +2312,7 @@ class BlockCopy(Instruction):
 
 
 @dataclass(frozen=True)
-class Fill(Instruction):
+class Fill(Instruction, AllowsRefusals):
     """A fill instruction (copy_type_idx=2).
 
     Fills a contiguous range of destination registers with a single value.
@@ -2332,7 +2332,7 @@ class Fill(Instruction):
     dest_end: str
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize("value", "dest_start", "dest_end", values=("value",))
             kind = check("value", _source_kind, REGISTER_BANKS)
@@ -2432,7 +2432,7 @@ _PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
 
 
 @dataclass(frozen=True)
-class Pack(Instruction):
+class Pack(Instruction, AllowsRefusals):
     """A pack instruction (copy_type_idx=3).
 
     Packs a range of source registers into a single destination.
@@ -2458,7 +2458,7 @@ class Pack(Instruction):
     allow_whitespace: bool = False
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize("source_start", "source_end", "dest")
             # The checks and messages use the short name of the kind: bits, words or text.
@@ -2617,7 +2617,7 @@ _UNPACK_KINDS = frozenset(get_args(UnpackKind))
 
 
 @dataclass(frozen=True)
-class Unpack(Instruction):
+class Unpack(Instruction, AllowsRefusals):
     """An unpack instruction (copy_type_idx=4).
 
     Unpacks a single source into a range of destination registers.
@@ -2640,7 +2640,7 @@ class Unpack(Instruction):
     kind: UnpackKind = "unpack_to_bits"
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize("source", "dest_start", "dest_end")
             # The checks and messages use the short name of the kind: bits or words.

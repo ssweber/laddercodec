@@ -13,6 +13,7 @@ from ..model import FieldError, Instruction, Reason
 from ..operands.address import digits_value, too_long
 from ..operands.checks import Refusals, check_csv_flag
 from ..operands.message import make_refusal, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ _STOPS: tuple[UndecodedStop, ...] = get_args(UndecodedStop)
 
 
 @dataclass(frozen=True)
-class Undecoded(Instruction):
+class Undecoded(Instruction, AllowsRefusals):
     """A marker for a rung that laddercodec could not decode, with the reason.
 
     When a decoder cannot read a rung, it puts a marker rung in its place.  The marker rung
@@ -61,7 +62,7 @@ class Undecoded(Instruction):
     stop: UndecodedStop = "end"
     to_the_end: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not isinstance(self.error, str):
                 check.refuse(

@@ -6,6 +6,7 @@ tags that the decoders read.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
@@ -22,7 +23,13 @@ from ..model import (
 )
 from ..operands.checks import Refusals
 from ..operands.message import says
-from ..operands.unchecked import keep_stored_blob, needs_stored_blob, refusals, unchecked
+from ..operands.unchecked import (
+    keep_stored_blob,
+    needs_stored_blob,
+    rebuilt,
+    refusals,
+    unchecked,
+)
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -344,6 +351,37 @@ def parse_af_blob(raw: bytes) -> Instruction | None:
         raw,
     )
     return _keeping_blob(parsed, raw)
+
+
+def writes_back(inst: Condition | Instruction) -> bool:
+    """Return True if the blob that *inst* builds parses back to an instruction equal to
+    *inst*.
+
+    The function parses the blob as ``decode()`` parses it.  If building or parsing the
+    blob fails, the function returns False, because laddercodec can't write the
+    instruction.
+
+    The blob does not store the name of a Send or Receive target, so the function gives the
+    parsed instruction the name of *inst*'s target before it compares the two.
+    """
+    parse = parse_condition_blob if isinstance(inst, Condition) else parse_af_blob
+    try:
+        blob = inst.build_blob()
+        with warnings.catch_warnings():
+            # The parse only tests the blob.  A warning from it is not the caller's.
+            warnings.simplefilter("ignore")
+            back = parse(blob)
+            if (
+                isinstance(inst, (Send, Receive))
+                and isinstance(back, (Send, Receive))
+                and type(back.target) is type(inst.target)
+                and back.target.name != inst.target.name
+            ):
+                renamed = rebuilt(back.target, name=inst.target.name)
+                back = rebuilt(back, target=renamed)
+    except Exception:  # noqa: BLE001 - a blob that can't be built or parsed can't be written
+        return False
+    return back == inst
 
 
 def _noting_empty_flags(
