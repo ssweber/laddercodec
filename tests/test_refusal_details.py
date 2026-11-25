@@ -625,8 +625,8 @@ _PARTNER_CASES: dict[str, tuple[Callable[..., object], str]] = {
     ),
 }
 
-#: The cases of :data:`_PARTNER_CASES` where no value fits the other fields, so the refusal
-#: suggests none.
+#: The cases of :data:`_PARTNER_CASES` where no value of the refused kind fits the other
+#: fields, so the refusal suggests none.
 _NO_EXAMPLE_FITS = frozenset({"compare text opposite DS"})
 
 

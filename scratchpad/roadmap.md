@@ -216,14 +216,16 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   `TimeUnit | Literal[""]` on `Drum.unit` and `OutVariantUnit | Literal[""]` on `OutVariant.unit` state that
   contract.
 - **Partner examples from tables (builder).** The example in a refusal of one field is picked from tables of
-  the banks that suit the other fields: `example_address`, `_own_bank_first`, `_slave_example`,
-  `_local_example` and `_receive_remote_example`. The instruction is not rebuilt with the example, so a table
-  that is wrong for some shape gives an example that the instruction refuses. Rebuild the instruction with the
-  example and fall back to a plainer one if it is refused, as `_source_span` does for a Send's source range.
-- **An even TXT count that the slave address refuses (builder).**
-  `Send(remote_start=ModbusAddress("FFFEh"), source="TXT1", quantity=1, function_code=16)` is refused twice:
-  the count is odd, and FFFEh is past FFFDh for a TXT source. The count refusal says to send an even count of characters, and
-  every even count is refused at FFFEh. It should say to start lower, or say nothing.
+  the banks that suit the other fields, in helpers such as `example_address`, `_own_bank_first`,
+  `_slave_example`, `_local_example` and `_receive_remote_example`. The instruction is not rebuilt with the
+  example, so a table that is wrong for some shape gives an example that the instruction refuses. Rebuild the
+  instruction with the example and fall back to a plainer one if it is refused, as `_source_span` does for a
+  Send's source range.
+- **An even TXT count that the slave address refuses (builder).** A Send from TXT1 to
+  `ModbusAddress("FFFEh")` with `function_code=16` is refused twice. FFFEh is past FFFDh for a TXT source
+  (OBJ-010). With `quantity=1` the count is below 2 (OBJ-010), and with `quantity=3` it is odd (OBJ-029).
+  Each count refusal says to send an even count of characters, and every even count is refused at FFFEh. It
+  should say to start lower, or say nothing.
 - **A one-digit `$` code in a Copy and a Fill (CLICK).** `Copy("$1", "TXT1")` is accepted as `$01`, and
   `Fill("$1", "TXT1", "TXT2")` is refused. Does CLICK's Fill dialog accept `$1`, and how does it save it?
 
