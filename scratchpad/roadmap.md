@@ -56,10 +56,14 @@ not hold up the export. So they come first. Two of them wait on a capture. The s
 2. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
 3. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-4. A comment that is too long, built with the whole-program check (Sam, for the name). `check()` reports a
-   rung comment whose RTF body is over 1400 bytes as a Finding. The finding names the rung and how many
-   bytes to cut. pyrung's validation reads it in place of its 1400-character cap. The code name
-   `comment-too-long` waits on Sam's approval.
+4. A finding for a comment that is too long. This session proposed it on 2026-11-25, and pyrung asked for
+   it. Build it together with the whole-program check. `check()` reports a rung comment whose RTF body is
+   over 1400 bytes as a Finding, and the finding names the rung and how many bytes to cut. pyrung's
+   validation then reads that finding in place of its own 1400-character cap. Sam approves the code name,
+   `comment-too-long`, before it merges.
+   - The comment's length is a limit of `encode()`, not a shape that CLICK's syntax check refuses. So
+     `check()` reports more than its docstring says (`layout_check.py`), and the docstring changes too.
+     `undecoded-rung` and `layout-too-tall` are earlier findings of the same kind.
 5. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
    and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
    Later.
@@ -379,7 +383,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 
   **A lowercase `e` (CLICK).** CLICK v4.00 stored `1e5` as the real `F100000.0` and `1e6` as the integer
   `W1000000`. Two saves do not give a rule, so laddercodec fits none yet. ClickNick's runner answers a grid of
-  lowercase-`e` reals from about 1e5 to 1e7 first, such as `1e5`, `5e5`, `1e6`, `2.5e6`, `1.5e3` and `1e7`.
+  lowercase-`e` reals from about 1e5 to 1e7 first, such as `1e5`, `5e5`, `1e6`, `2.5e6` and `1e7`. The grid
+  also holds `1.5e3`, because CLICK stores it as `H1500` when it is typed with an uppercase `E`.
   laddercodec writes that grid. The encoder changes after CLICK answers.
 - **Send Word Swap after a change of function code.** With FC16 and Word Swap on, switch the Send to FC06.
   Does CLICK keep Word Swap stored, or clear it? A runner case types `send fc16 984 400001 <- DS1 x2
@@ -414,8 +419,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
   offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
-  Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
-  stay `raw(...)`.
+  Cc, Bcc, Subject and both body modes filled, each field a distinct value, with their pins wired. Their field
+  maps are inferred and stay `raw(...)`.
 - **ASCII Send and Receive** (static, dynamic, fixed, variable), and Home, Velocity, Position and Email with
   every status field set to a distinct address: native blobs to model later.
 - **Other non-pinned boxes in a compact OR layout.** `read_csv` lays them out as it does stacked 2-row
