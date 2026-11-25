@@ -16,6 +16,13 @@
 - `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
 - `check()` now reports a rung comment that `encode()` refuses as too long, with the new code `comment-too-long`. The message says how many bytes to cut. In 0.5.1, `check()` returned no finding for such a comment, and you learned of it only when `encode()` raised `EncodeError`.
 
+### Fixed
+
+- A refusal's example now fits the instruction's other fields when some value can. `Coil("Y001", range_end="$41")` suggested Y001 as the end.
+- A Math refusal that tells you to set the other mode names each other change that mode needs, or says only to take the key out.
+- A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
+- A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
+
 ## 0.5.1 (2026-11-25)
 
 `encode()` now writes text outside ASCII in a rung comment, such as `é`, `中` or an emoji, as CLICK stores it. `decode()` reads it back. The comment of an undecoded marker rung now numbers its rung from 1, the same as CLICK, and `Undecoded` has a new field, `to_the_end`. Read Breaking changes before you upgrade.

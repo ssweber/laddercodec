@@ -37,6 +37,8 @@ from laddercodec.csv.ast import AfCall
 from laddercodec.csv.token_parser import parse_af_token
 from laddercodec.instructions import (
     BlockCopy,
+    Coil,
+    CompareContact,
     Contact,
     Copy,
     Counter,
@@ -49,11 +51,15 @@ from laddercodec.instructions import (
     OutVariant,
     Pack,
     Receive,
+    Search,
     Send,
+    Shift,
     Tee,
     Undecoded,
+    Unpack,
     parse_af_call,
 )
+from laddercodec.instructions.send_receive import _parse_range_quantity
 from laddercodec.operands.address import check_address, display_form_only
 from tests.test_field_names import CLASSES
 
@@ -340,10 +346,12 @@ def test_the_codes_without_a_detail_still_have_a_refusal_without_one() -> None:
 #: Each example of a refusal: the text after ``such as``, up to ``, or``, ``; ``, the end of
 #: a sentence, CLICK's id or the end of the message.
 _EXAMPLE = re.compile(r"such as (.+?)(?=, or |; |\. | \([A-Z]+-\d+\)|\.?$)")
-#: An example written as a keyword argument, such as ``quantity=1`` or ``source="TXT999"``.
+#: An example written as a keyword argument, such as ``function_code=16``.
 _KEYWORD = re.compile(r"([a-z_]\w*)=(.+)")
 #: An example of a whole range, such as ``SD31..SD32``.
 _RANGE = re.compile(r"([A-Z]{1,3}\d+)\.\.([A-Z]{1,3}\d+)")
+#: An example that is one address, such as ``DS1``.
+_ADDRESS = re.compile(r"[A-Z]{1,3}\d+")
 #: A field name, split into its class, its attribute and the index of an item.
 _FIELD_PARTS = re.compile(r"([A-Z]\w*)\.([a-z_]\w*)(?:\[(\d+)\])?")
 
@@ -352,14 +360,8 @@ _C = Code
 _NO_OBJ = "a Modbus target or a ModbusAddress sets no obj on its refusal"
 _CSV_RANGE = "read_csv refuses the range before it builds the Send, so the refusal holds none"
 _CODE = "the example is Python code that builds the value"
-_OTHER_END = "the example needs the other end of the range moved too"
-_COPY_PAIR = "the example needs the other side of the copy in a bank that pairs with it"
-_COMPARE_PAIR = "the example needs the other side of the compare in its group"
-_SEARCH_TABLE = "the example needs a table of its kind"
-_SEND_FC = "the example needs another function code or source too"
-_IGNORES_PARTNER = (
-    "the example comes from the field's banks, not from the other end or the other operand"
-)
+_COPY_PAIR = "no character code copies into the destination's bank"
+_PARTNER_REFUSED = "the other end or the destination is refused on its own, so no example fits it"
 
 #: The examples that the test can't put back into their field, or that need another field
 #: changed too, by code, field and example, and why.  The list may only shrink: a test
@@ -376,54 +378,16 @@ EXAMPLE_NOT_SUBSTITUTED: dict[tuple[Code, str, str], str] = {
     (_C.INVALID_CIRCUIT, "Parallel.legs", "Parallel((Contact('X001'), Contact('X002')))"): _CODE,
     (_C.INVALID_CIRCUIT, "Parallel.legs", "Parallel((Contact('X001'), Series(())))"): _CODE,
     (_C.INVALID_TEE, "Tee.contact", "Tee(Contact('X001'))"): _CODE,
-    (_C.NOT_AN_ADDRESS, "BlockCopy.source_end", "X001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "BlockCopy.source_start", "X001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Coil.range_end", "Y001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Fill.dest_end", "DS1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Pack.source_end", "X001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Pack.source_start", "X001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Search.table_end", "DS1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Shift.end_bit", "C1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Unpack.dest_end", "Y001"): _IGNORES_PARTNER,
-    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_end", "DS1"): _IGNORES_PARTNER,
-    (_C.POINTER_OUTSIDE_COPY, "Fill.dest_end", "DS1"): _IGNORES_PARTNER,
-    (_C.POINTER_OUTSIDE_COPY, "Search.table_end", "DS1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "BlockCopy.dest_start", "Y001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Copy.dest", "Y001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Copy.source", "X001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Unpack.dest_start", "Y001"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "CompareContact.right", "DS1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Search.value", "DS1"): _IGNORES_PARTNER,
-    (_C.NOT_AN_ADDRESS, "Send.remote_start", "Y001"): _IGNORES_PARTNER,
-    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_end", "X001"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_start", "DS1"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_start", "X001"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Pack.source_end", "DS1"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Pack.source_end", "X001"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Pack.source_start", "DS1"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Pack.source_start", "X001"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Unpack.dest_end", "DS1"): _OTHER_END,
-    (_C.POINTER_OUTSIDE_COPY, "Unpack.dest_end", "Y001"): _OTHER_END,
     (_C.INVALID_CHAR_CODE, "Copy.source", "$41"): _COPY_PAIR,
     (_C.INVALID_CHAR_CODE, "Fill.value", "$41"): _COPY_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.dest_start", "Y001"): _COPY_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "Fill.value", "TXT1"): _COPY_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "Unpack.dest_start", "DS1"): _COPY_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "Unpack.dest_start", "Y001"): _COPY_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.left", "DH1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.left", "TXT1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.left", "XD1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.left", "YD1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.right", "DH1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.right", "TXT1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.right", "XD1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "CompareContact.right", "YD1"): _COMPARE_PAIR,
-    (_C.POINTER_OUTSIDE_COPY, "Search.value", "DH1"): _SEARCH_TABLE,
-    (_C.POINTER_OUTSIDE_COPY, "Search.value", "TXT1"): _SEARCH_TABLE,
-    (_C.POINTER_OUTSIDE_COPY, "Search.value", "XD1"): _SEARCH_TABLE,
-    (_C.POINTER_OUTSIDE_COPY, "Search.value", "YD1"): _SEARCH_TABLE,
-    (_C.NOT_WRITABLE, "Send.remote_start", 'remote_start="DD1"'): _SEND_FC,
-    (_C.NOT_WRITABLE, "Send.remote_start", 'remote_start="DF1"'): _SEND_FC,
+    (_C.NOT_AN_ADDRESS, "BlockCopy.source_start", "DS1"): _PARTNER_REFUSED,
+    (_C.NOT_AN_ADDRESS, "BlockCopy.source_end", "DS2"): _PARTNER_REFUSED,
+    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_start", "DS1"): _PARTNER_REFUSED,
+    (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_end", "DS2"): _PARTNER_REFUSED,
+    (_C.NOT_AN_ADDRESS, "Pack.source_start", "C15"): _PARTNER_REFUSED,
+    (_C.POINTER_OUTSIDE_COPY, "Pack.source_start", "C15"): _PARTNER_REFUSED,
+    (_C.NOT_AN_ADDRESS, "Unpack.dest_start", "C15"): _PARTNER_REFUSED,
+    (_C.POINTER_OUTSIDE_COPY, "Unpack.dest_start", "C15"): _PARTNER_REFUSED,
 }
 
 
@@ -444,6 +408,21 @@ def _with_example(error: FieldError, example: str) -> tuple[Callable[[], object]
     ends = _RANGE.fullmatch(example)
     attrs = [_FIELD_PARTS.fullmatch(field) for field in error.fields]
     pair = sorted(m.group(2) for m in attrs if m is not None and m.group(3) is None)
+    local = {"Send": "source", "Receive": "dest"}.get(cls_name)
+    counted = local is not None and (
+        (ends is not None and {local, "quantity"} & set(pair))
+        or ("quantity" in pair and _ADDRESS.fullmatch(example))
+    )
+    if counted and local is not None:
+        # A range example such as DS1..DS4 sets a Send's source, or a Receive's dest, and the
+        # count, as the CSV token reads them. An address alone that a refusal of the count
+        # suggests is one element.
+        try:
+            start, count = _parse_range_quantity(example, f"{cls_name}.{local}")
+        except FieldError as exc:
+            return f"the example is no range: {exc}"
+        build = functools.partial(dataclasses.replace, obj, **{local: start, "quantity": count})
+        return build, f"{cls_name}.quantity"
     if ends and len(pair) == 2 and pair[0].endswith("_end") and pair[1].endswith("_start"):
         # A range example such as SD31..SD32 fills the start and the end that the refusal
         # names.
@@ -486,20 +465,28 @@ def _example_failures() -> dict[tuple[Code, str, str], str]:
     """
     failures: dict[tuple[Code, str, str], str] = {}
     for _, error in _collected():
-        for example in _EXAMPLE.findall(str(error)):
-            key = (error.code, re.sub(r"\[\d+\]$", "", error.field or ""), example)
-            built = _with_example(error, example)
-            if isinstance(built, str):
-                failures[key] = built
-                continue
-            build, filled = built
-            named = {error.field, filled}
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                still = [again for again in _refusals_of(build) if named & set(again.fields)]
-            if still:
-                failures[key] = f"{error}  ->  {still[0]}"
+        for example, why in _example_problems(error):
+            failures[(error.code, re.sub(r"\[\d+\]$", "", error.field or ""), example)] = why
     return failures
+
+
+def _example_problems(error: FieldError) -> list[tuple[str, str]]:
+    """Return each example in ``error`` that its field still refuses, or that the test can't
+    put back, with what happened."""
+    problems = []
+    for example in _EXAMPLE.findall(str(error)):
+        built = _with_example(error, example)
+        if isinstance(built, str):
+            problems.append((example, built))
+            continue
+        build, filled = built
+        named = {error.field, filled}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            still = [again for again in _refusals_of(build) if named & set(again.fields)]
+        if still:
+            problems.append((example, f"{error}  ->  {still[0]}"))
+    return problems
 
 
 def test_every_example_is_accepted_by_its_field() -> None:
@@ -517,6 +504,188 @@ def test_the_examples_not_substituted_still_fail() -> None:
     failing = _example_failures()
     fixed = [str(key) for key in EXAMPLE_NOT_SUBSTITUTED if key not in failing]
     assert not fixed, f"remove these from EXAMPLE_NOT_SUBSTITUTED: {', '.join(fixed)}"
+
+
+def _send(**kw: object) -> Send:
+    """Build a Send from DS1 to DS1, with ``kw`` in place of its fields."""
+    fields: dict = {"target": _RTU, "remote_start": "DS1", "source": "DS1", "quantity": 1}
+    status = {"sending": "C1", "success": "C2", "error": "C3", "exception_response": "DS100"}
+    return Send(**{**fields, **status, **kw})
+
+
+#: Refused instructions whose refusal suggests a value for ``attr`` that must fit another
+#: field: the other end of a range, the other operand, or a Send's function code. Each
+#: builds the instruction with ``attr`` given, and its other fields as they are.
+_PARTNER_CASES: dict[str, tuple[Callable[..., object], str]] = {
+    "coil end": (lambda **kw: Coil(**{"operand": "Y001", "range_end": "$41", **kw}), "range_end"),
+    "coil start": (lambda **kw: Coil(**{"operand": "$41", "range_end": "Y005", **kw}), "operand"),
+    "shift start": (lambda **kw: Shift(**{"start_bit": "5", "end_bit": "C1", **kw}), "start_bit"),
+    "copy source": (lambda **kw: Copy(**{"source": "5x", "dest": "C1", **kw}), "source"),
+    "copy dest": (lambda **kw: Copy(**{"source": "X001", "dest": "5x", **kw}), "dest"),
+    "block dest": (
+        lambda **kw: BlockCopy(
+            **{
+                "source_start": "X001",
+                "source_end": "X016",
+                "dest_start": "5x",
+                "dest_end": "C16",
+                **kw,
+            }
+        ),
+        "dest_start",
+    ),
+    "pack dest": (
+        lambda **kw: Pack(**{"source_start": "X001", "source_end": "X016", "dest": "5x", **kw}),
+        "dest",
+    ),
+    "unpack source": (
+        lambda **kw: Unpack(**{"source": "5x", "dest_start": "Y001", "dest_end": "Y016", **kw}),
+        "source",
+    ),
+    "compare left": (
+        lambda **kw: CompareContact(**{"op": "==", "left": "5x", "right": "TXT1", **kw}),
+        "left",
+    ),
+    "compare right": (
+        lambda **kw: CompareContact(**{"op": "==", "left": "DH1", "right": "5x", **kw}),
+        "right",
+    ),
+    "search value": (
+        lambda **kw: Search(
+            **{
+                "table_start": "DH1",
+                "table_end": "DH10",
+                "value": "5x",
+                "result": "DS1",
+                "found": "C1",
+                "op": "==",
+                **kw,
+            }
+        ),
+        "value",
+    ),
+    "send FC06 bank": (
+        lambda **kw: _send(**{"remote_start": "5x", "function_code": 6, **kw}),
+        "remote_start",
+    ),
+    "send FC06 SD": (
+        lambda **kw: _send(**{"remote_start": "SD1", "function_code": 6, **kw}),
+        "remote_start",
+    ),
+    "send source": (lambda **kw: _send(**{"remote_start": "DD1", "source": "5x", **kw}), "source"),
+    "receive dest": (
+        lambda **kw: _receive(**{"remote_start": "DD1", "dest": "5x", **kw}),
+        "dest",
+    ),
+    "receive remote": (
+        lambda **kw: _receive(**{"remote_start": "5x", "dest": "DD1", **kw}),
+        "remote_start",
+    ),
+    "copy TXT source": (lambda **kw: Copy(**{"source": "5x", "dest": "TXT1", **kw}), "source"),
+    "copy TXT dest": (lambda **kw: Copy(**{"source": "TXT1", "dest": "5x", **kw}), "dest"),
+    "block SC end": (
+        lambda **kw: BlockCopy(
+            **{
+                "source_start": "SC50",
+                "source_end": "5x",
+                "dest_start": "C1",
+                "dest_end": "C3",
+                **kw,
+            }
+        ),
+        "source_end",
+    ),
+    "block SD start": (
+        lambda **kw: BlockCopy(
+            **{
+                "source_start": "5x",
+                "source_end": "SD29",
+                "dest_start": "DS1",
+                "dest_end": "DS4",
+                **kw,
+            }
+        ),
+        "source_start",
+    ),
+    "pack SC end": (
+        lambda **kw: Pack(**{"source_start": "SC53", "source_end": "5x", "dest": "DH1", **kw}),
+        "source_end",
+    ),
+    "pack SC start": (
+        lambda **kw: Pack(**{"source_start": "5x", "source_end": "SC50", "dest": "DH1", **kw}),
+        "source_start",
+    ),
+    "compare text opposite TXT": (
+        lambda **kw: CompareContact(**{"op": "==", "left": '"é"', "right": "TXT1", **kw}),
+        "left",
+    ),
+    "compare text opposite DS": (
+        lambda **kw: CompareContact(**{"op": "==", "left": '"é"', "right": "DS1", **kw}),
+        "left",
+    ),
+}
+
+#: The cases of :data:`_PARTNER_CASES` where no value of the refused kind fits the other
+#: fields, so the refusal suggests none.
+_NO_EXAMPLE_FITS = frozenset({"compare text opposite DS"})
+
+
+def _receive(**kw: object) -> Receive:
+    """Build a Receive from DS1 to DS1, with ``kw`` in place of its fields."""
+    fields: dict = {"target": _RTU, "remote_start": "DS1", "dest": "DS1", "quantity": 1}
+    status = {"receiving": "C1", "success": "C2", "error": "C3", "exception_response": "DS100"}
+    return Receive(**{**fields, **status, **kw})
+
+
+@pytest.mark.parametrize("name", list(_PARTNER_CASES))
+def test_the_example_fits_the_partner_field(name: str) -> None:
+    """The value that a refusal suggests is accepted with the instruction's other fields as
+    they are. Where no value fits them, the refusal suggests none."""
+    build, attr = _PARTNER_CASES[name]
+    with pytest.raises(FieldError) as caught:
+        build()
+    field = f"{type(caught.value.obj).__name__}.{attr}"
+    error = next(e for e in caught.value.errors if e.field == field)
+    example = _EXAMPLE.search(str(error))
+    if name in _NO_EXAMPLE_FITS:
+        assert example is None, str(error)
+        return
+    assert example is not None, str(error)
+    build(**{attr: example.group(1).removeprefix(f"{attr}=").strip('"')})
+
+
+#: Refused Sends whose refusal may suggest a source range, with the count it sets. Each
+#: example must be a range that the Send accepts, or the start alone.
+_SEND_RANGE_CASES: dict[str, Callable[[], object]] = {
+    "TXT even start, count past the bank": lambda: _send(
+        remote_start="TXT1", source="TXT2", quantity=2000
+    ),
+    "TXT even start, count past the text limit": lambda: _send(
+        remote_start="TXT1", source="TXT2", quantity=250
+    ),
+    "TXT count past the text limit": lambda: _send(
+        remote_start="TXT1", source="TXT1", quantity=250
+    ),
+    "XD past the hex room under FC16": lambda: _send(
+        remote_start=ModbusAddress("FFF0h"), source="XD0", quantity=16
+    ),
+    "DS past the hex room": lambda: _send(
+        remote_start=ModbusAddress("FFF0h"), source="DS1", quantity=32
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_SEND_RANGE_CASES))
+def test_a_send_range_example_is_accepted(name: str) -> None:
+    """A range that a Send refusal suggests exists and is accepted with the Send's other
+    fields as they are."""
+    with pytest.raises(FieldError) as caught:
+        _SEND_RANGE_CASES[name]()
+    errors = [e for e in caught.value.errors if isinstance(e, FieldError)]
+    problems = [
+        f"{example}: {why}" for error in errors for example, why in _example_problems(error)
+    ]
+    assert not problems, "\n".join(problems)
 
 
 _FIELD = re.compile(r"([A-Z]\w*)\.([a-z_]\w*)(?:\[\d+\])?")

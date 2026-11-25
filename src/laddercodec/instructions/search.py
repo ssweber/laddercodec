@@ -125,12 +125,15 @@ _VALUE = Constants(
 )
 
 
-def _check_value_operand(value: str, field: str) -> Operand:
+def _check_value_operand(value: str, field: str, table: Address | None = None) -> Operand:
     """Check a search value and return it.  A text value may hold only the characters that
     CLICK keeps (:func:`~laddercodec.operands.checks.check_kept_text`).  The refusal of an
-    empty text names ``$00``, the code that a Search matches a blank character with."""
+    empty text names ``$00``, the code that a Search matches a blank character with.  The
+    address that a refusal suggests is in the group of ``table``, the table's start."""
+    group = None if table is None else bank_group(table.bank)
+    example = None if group is None else GROUP_BANKS[group] & REGISTER_BANKS
     try:
-        operand = check_box_operand(value, field, REGISTER_BANKS, _VALUE)
+        operand = check_box_operand(value, field, REGISTER_BANKS, _VALUE, example=example)
     except FieldError as err:
         parts = parts_of(err)
         if value == '""' and parts is not None:
@@ -222,7 +225,13 @@ class Search(Instruction, AllowsRefusals):
             # or the out-of-range rule refuses for the same reason are one refusal of the
             # table.
             start, end = check_range_ends(
-                check, "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
+                check,
+                "table_start",
+                self.table_start,
+                "table_end",
+                self.table_end,
+                TABLE_BANKS,
+                reads=True,
             )
             table = None
             if start is not None and end is not None:
@@ -239,7 +248,7 @@ class Search(Instruction, AllowsRefusals):
             check("result", check_box_operand, RESULT_BANKS)
             check("found", check_box_operand, FOUND_BANKS)
             # The search value is a constant or a data register, never a bit.
-            value = check("value", _check_value_operand)
+            value = check("value", _check_value_operand, start)
             if value is not None:
                 self._check_value(check, value, table)
             check.flag("continuous", "oneshot")

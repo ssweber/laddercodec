@@ -52,7 +52,7 @@ from ..operands.constants import INT16_MAX, INT16_MIN
 from ..operands.message import make_refusal, says, wrong_type
 from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .family import AfInstructionFamilySpec
-from .math_formula import address_parts, parse, stored_reals_written
+from .math_formula import RESULT_BANKS, _parse, address_parts, parse, stored_reals_written
 from .math_formula import range_interiors as formula_range_interiors
 from .raw import _decompose_blob
 
@@ -107,14 +107,6 @@ _EMPTY_OPERAND_BYTES = b"".join(
 _EMPTY_RESERVED_BYTES = b"".join(
     struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
-
-#: The banks a Math result may be in, for each mode.  CLICK reports OBJ-004 for any other
-#: bank.  A decimal result in SD must be one of ``WRITABLE_SD``, and CLICK reports OBJ-003
-#: for any other SD.
-RESULT_BANKS: dict[MathMode, frozenset[str]] = {
-    "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
-    "hex": frozenset({"DH", "YD"}),
-}
 
 
 def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
@@ -275,7 +267,7 @@ class Math(Instruction, AllowsRefusals):
                     check.run(check_writable_sd, dest, check.field("dest"), click_id="OBJ-003")
                 if not check.refused("expression"):
                     # Each refusal of the formula is recorded on the field Math.expression.
-                    formula = check.run(parse, self.expression, self.mode)
+                    formula = check.run(_parse, self.expression, self.mode, self.dest)
                     if formula is not None:
                         object.__setattr__(self, "expression", formula.written)
             else:

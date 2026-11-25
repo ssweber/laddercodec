@@ -19,7 +19,7 @@ from ..model import (
     InstructionType,
     Reason,
 )
-from ..operands.address import range_then
+from ..operands.address import example_end, example_start, range_then
 from ..operands.checks import (
     WRITABLE_SC,
     Refusals,
@@ -136,7 +136,8 @@ class Coil(Instruction, AllowsRefusals):
             # the same error ids for all three. OBJ-004 is for a bank that the coil does not
             # accept, and OBJ-003 is for an SC bit that it cannot write.
             ids = {"bank_id": "OBJ-004", "not_writable_id": "OBJ-003"}
-            start = check("operand", check_out_target, immediate=immediate, **ids)
+            below = None if self.range_end is None else example_start(self.range_end)
+            start = check("operand", check_out_target, immediate=immediate, example=below, **ids)
             if self.range_end is None:
                 return
             # If the end of the range is in another bank, refuse it with OBJ-008 before the
@@ -159,7 +160,11 @@ class Coil(Instruction, AllowsRefusals):
                 )
             # In an SC range, both ends must be writable. CLICK accepts a range that holds a
             # read-only SC between its ends, such as SC50..SC60, which holds SC52.
-            end = check("range_end", check_out_target, immediate=immediate, **ids)
+            above = None
+            if start is not None:
+                among = WRITABLE_SC if start.bank == "SC" else None
+                above = example_end(start.display, among=among)
+            end = check("range_end", check_out_target, immediate=immediate, example=above, **ids)
             if start is None or end is None:
                 return
             if end.number <= start.number:

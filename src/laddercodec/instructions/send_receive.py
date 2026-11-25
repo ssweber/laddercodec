@@ -13,8 +13,10 @@ padding fields tagged 0x688F, and then a terminator.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import struct
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast, get_args
 
@@ -50,11 +52,19 @@ from ..operands.checks import (
     choice_operand,
 )
 from ..operands.constants import Kind, hex_display
-from ..operands.message import Op, Rule, make_refusal, operand, says, wrong_type
-from ..operands.unchecked import AllowsRefusals, allowed, holds_refusals, read_in_another_form
+from ..operands.message import Op, Rule, make_refusal, operand, or_list, says, wrong_type
+from ..operands.unchecked import (
+    AllowsRefusals,
+    allowed,
+    checked,
+    holds_refusals,
+    read_in_another_form,
+)
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from ..csv.ast import AfCall
 
 #: The cell keyword arguments of a Send or Receive box. The box is three rows tall. In the
@@ -562,6 +572,51 @@ def _addr_end(start: str, quantity: int, cls: str) -> str:
     return Address(prefix, number + quantity - 1).display
 
 
+#: True while :func:`_source_span` builds a Send to check a range. The Send's own refusals
+#: then name their ranges unchecked, so that one check does not start another.
+_CHECKING_SPAN: ContextVar[bool] = ContextVar("_CHECKING_SPAN", default=False)
+
+
+def _source_span(send: Send, start: Address, count: int) -> str | None:
+    """Return ``count`` elements of ``send``'s source from ``start`` as the CSV token writes
+    them: a range such as ``DS1..DS4``, or the address alone for one element.
+
+    Return None if the range runs past its bank, or if ``send``, with that source and count
+    and its other fields as they are, refuses its source or its count.
+    """
+    span = start.display
+    if count > 1:
+        end = _addr_end(start.display, count, "Send")
+        if parse_address(end) is None:
+            return None
+        span = f"{span}..{end}"
+    if _CHECKING_SPAN.get():
+        return span
+    token = _CHECKING_SPAN.set(True)
+    try:
+        with checked():
+            dataclasses.replace(send, source=start.display, quantity=count)
+    except FieldError as error:
+        moved = {"Send.source", "Send.quantity"}
+        if any(moved & set(each.fields) for each in error.errors):
+            return None
+    finally:
+        _CHECKING_SPAN.reset(token)
+    return span
+
+
+def _txt_span(send: Send, start: int, count: int) -> str | None:
+    """Return ``count`` TXT characters from ``TXT{start}`` as :func:`_source_span` does. If
+    they would run past TXT1000, the range starts lower and ends at TXT1000."""
+    return _source_span(send, Address("TXT", _txt_start(start, count)), count)
+
+
+def _txt_start(start: int, count: int) -> int:
+    """Return ``start``, or the address from which ``count`` TXT characters end at TXT1000
+    if ``start`` is higher."""
+    return max(1, min(start, ADDRESS_BANKS["TXT"][1] - count + 1))
+
+
 def _addr_type_code(remote_start: str | ModbusAddress) -> str:
     """Return the binary address_type field value."""
     if isinstance(remote_start, str):
@@ -918,11 +973,6 @@ def _check_quantity_bounds(
         )
 
 
-def _or_list(names: list[str]) -> str:
-    """Return ``names`` joined as a list that ends with "or": ``DS, TD or SD``."""
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
-
-
 def _slave_banks(source_bank: str, fc: int | None) -> list[str]:
     """Return the CLICK slave banks that a Send from ``source_bank`` writes with ``fc``, in
     CLICK's bank order. With no ``fc``, return the banks of either FC06 or FC16."""
@@ -934,6 +984,54 @@ def _slave_banks(source_bank: str, fc: int | None) -> list[str]:
         remote_banks = _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16
     same = _SAME_TYPE.get(source_bank, frozenset()) & remote_banks
     return [bank for bank in ADDRESS_BANKS if bank in same and bank != "SD"]
+
+
+def _send_fc(send: Send) -> int | None:
+    """Return the Send's function code if it is one that a Send takes, or None."""
+    fc = send.function_code
+    return fc if isinstance(fc, int) and fc in (5, 6, 15, 16) else None
+
+
+def _slave_example(send: Send) -> Collection[str] | None:
+    """Return the CLICK slave banks that suit the Send's source and function code, for the
+    address that a refusal of ``remote_start`` suggests. Return None if no bank is known
+    to suit them.
+
+    If no slave bank suits a register source and the function code, the banks suit the
+    function code alone."""
+    fc = _send_fc(send)
+    source = parse_address(send.source)
+    if fc in (5, 15) or (fc is None and source is not None and source.bank in BIT_BANKS):
+        return _SEND_REMOTE_BITS
+    if source is not None and source.bank not in BIT_BANKS:
+        same = _slave_banks(source.bank, fc)
+        if same or fc is None:
+            return same or None
+    if fc is None:
+        return None
+    remote_banks = _SEND_REMOTE_REGS_FC06 if fc == 6 else _SEND_REMOTE_REGS_FC16
+    return [bank for bank in ADDRESS_BANKS if bank in remote_banks and bank != "SD"]
+
+
+def _local_example(remote: Address | None, readers: dict[str, frozenset[str]]) -> list[str]:
+    """Return the local register banks that pair with the CLICK register ``remote``, for
+    the address that a refusal of a Send's source or a Receive's dest suggests.
+    ``readers`` maps each local bank to the remote banks that it pairs with. Return no banks
+    if ``remote`` is None or a bit."""
+    if remote is None or remote.bank in BIT_BANKS:
+        return []
+    return [bank for bank in ADDRESS_BANKS if remote.bank in readers.get(bank, ())]
+
+
+def _receive_remote_example(receive: Receive) -> Collection[str] | None:
+    """Return the CLICK slave banks that suit the Receive's dest, for the address that a
+    refusal of ``remote_start`` suggests. Return None if the dest is no address."""
+    dest = parse_address(receive.dest)
+    if dest is None:
+        return None
+    if dest.bank in BIT_BANKS:
+        return BIT_BANKS
+    return _RECEIVE_REMOTE_FOR_DEST.get(dest.bank)
 
 
 def _lowest(bank: str) -> str:
@@ -964,7 +1062,7 @@ def _check_send_pair(check: Refusals, remote_addr: Address, local: Address, fc: 
         Reason.CONFLICT,
         _BANK_ID,
         code=Code.BANK_NOT_ALLOWED,
-        then=f'Pick a slave address in {_or_list(takes)}, such as remote_start="{example}".',
+        then=f'Pick a slave address in {or_list(takes)}, such as remote_start="{example}".',
     )
 
 
@@ -985,22 +1083,31 @@ def _send_hex_room(remote: str | ModbusAddress, local: Address) -> int | None:
     return last - start + 1
 
 
+def _such_as(advice: str, example: str | None) -> str:
+    """Return the sentence ``advice``, with ``example`` after it if there is one."""
+    return f"{advice}." if example is None else f"{advice}, such as {example}."
+
+
 def _check_send_txt_count(
-    check: Refusals, quantity: int, local: Address, hex_room: int | None
+    check: Refusals, send: Send, quantity: int, local: Address, hex_room: int | None
 ) -> None:
     """Refuse a TXT count that is not an even number of characters from 2 to 246, or that
     runs past TXT1000.
 
     After a hex start, ``hex_room`` lowers the top of the range. A count outside the range
-    gets the range id, even when it is also odd."""
+    gets the range id, even when it is also odd. Each message names a source range that
+    ``send`` accepts (:func:`_source_span`), or none if it refuses the range."""
     last = ADDRESS_BANKS["TXT"][1]
     left = last - local.number + 1
     high = _TXT_SEND_MAX if hex_room is None else max(2, min(_TXT_SEND_MAX, hex_room))
     if quantity > left:
         if left >= 2:
-            then = f"Lower the count, such as quantity={min(left - left % 2, high - high % 2)}."
+            fewer = _txt_span(send, local.number, min(left - left % 2, high - high % 2))
+            then = _such_as("Send fewer characters", fewer)
         else:
-            then = f'Start at a lower TXT address, such as source="TXT{last - 1}".'
+            count = quantity if quantity <= high and quantity % 2 == 0 else 2
+            lower = _txt_span(send, last, count) or f"TXT{_txt_start(last, count)}"
+            then = _such_as("Start at a lower TXT address", lower)
         check.refuse(
             "quantity",
             says(
@@ -1021,8 +1128,10 @@ def _check_send_txt_count(
             Reason.RANGE,
             _RANGE_ID,
             code=Code.COUNT_OUT_OF_RANGE,
-            then="Send an even count of characters, such as "
-            f"quantity={2 if quantity < 2 else high - high % 2}.",
+            then=_such_as(
+                "Send an even count of characters",
+                _txt_span(send, local.number, 2 if quantity < 2 else high - high % 2),
+            ),
         )
     elif quantity % 2:
         even = quantity + 1 if quantity < min(left, high) else quantity - 1
@@ -1032,19 +1141,24 @@ def _check_send_txt_count(
             Reason.RANGE,
             _ODD_ID,
             code=Code.COUNT_OUT_OF_RANGE,
-            then=f"Send an even count of characters, such as quantity={even}.",
+            then=_such_as("Send an even count of characters", _txt_span(send, local.number, even)),
         )
 
 
 def _check_send_hex_room(
-    check: Refusals, remote: ModbusAddress, local: Address, quantity: int | None
+    check: Refusals,
+    send: Send,
+    remote: ModbusAddress,
+    local: Address,
+    quantity: int | None,
 ) -> None:
     """Refuse a hex remote start past FFFDh for a DD, DF, CTD or TXT source, and a count
     of registers that runs past the room that :func:`_send_hex_room` returns.
 
     ``quantity`` is None when the count is refused. The TXT count check refuses a TXT count
     that runs past the room. The count that the message suggests stays inside the Send's
-    count cap."""
+    count cap, and the message names its source range only if ``send`` accepts it
+    (:func:`_source_span`)."""
     start = int(remote.address[:-1], 16)
     if local.bank in _SEND_HEX_FFFD and start > 0xFFFD:
         check.refuse(
@@ -1074,7 +1188,10 @@ def _check_send_hex_room(
         Reason.RANGE,
         _RANGE_ID,
         code=Code.COUNT_OUT_OF_RANGE,
-        then=f"Lower the count, such as quantity={min(room, cap)}.",
+        then=_such_as(
+            "Send one element" if min(room, cap) == 1 else "Lower the count",
+            _source_span(send, local, min(room, cap)),
+        ),
     )
 
 
@@ -1147,6 +1264,18 @@ def _odd_txt_start(start: int, quantity: int | None) -> int:
     return max(odd, 1)
 
 
+def _odd_txt_span(send: Send, start: int, quantity: int | None) -> str:
+    """Return the TXT characters from :func:`_odd_txt_start` as :func:`_source_span` writes
+    them. The range holds ``quantity`` characters if that is an even count and ``send``
+    accepts the range. Otherwise it is the address alone."""
+    odd = _odd_txt_start(start, quantity)
+    if quantity is not None and quantity > 0 and quantity % 2 == 0:
+        span = _txt_span(send, odd, quantity)
+        if span is not None:
+            return span
+    return f"TXT{odd}"
+
+
 def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
     """Check every field of *send*, and record each refusal in *check*.
 
@@ -1170,12 +1299,13 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
             _SEND_REMOTE_BITS | _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16,
             label=f"{who} remote_start",
             bank_id=_BANK_ID,
+            example=_slave_example(send),
         )
         if remote_addr is not None:
             bit = remote_addr.bank in _SEND_REMOTE_BITS
             if remote_addr.bank == "SD":
-                source = parse_address(send.source) if isinstance(send.source, str) else None
-                banks = _slave_banks(source.bank if source is not None else "DS", None)
+                source = parse_address(send.source)
+                banks = _slave_banks(source.bank if source is not None else "DS", _send_fc(send))
                 check.refuse(
                     "remote_start",
                     says(
@@ -1214,7 +1344,14 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         banks = BIT_BANKS
     else:
         banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
-    local = check("source", check_address, banks, label=f"{who} source", bank_id=_BANK_ID)
+    local = check(
+        "source",
+        check_address,
+        banks,
+        label=f"{who} source",
+        bank_id=_BANK_ID,
+        example=_local_example(remote_addr, _SAME_TYPE) or None,
+    )
     even_txt = False
     if local is not None and local.bank == "TXT" and local.number % 2 == 0:
         # A TXT source starts at an odd address. An even start is refused before the count
@@ -1231,7 +1368,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
             "OBJ-028",
             code=Code.TXT_START_NOT_ODD,
             then="Start at an odd TXT address, such as "
-            f'source="TXT{_odd_txt_start(local.number, quantity if counted else None)}".',
+            f"{_odd_txt_span(send, local.number, quantity if counted else None)}.",
         )
     remote_bank = remote_addr.bank if remote_addr is not None else None
     default_fc = None
@@ -1263,7 +1400,10 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
                 says("FC{fc:02d} writes one element, not {quantity}", fc=fc, quantity=quantity),
                 Reason.CONFLICT,
                 code=Code.FUNCTION_CODE_MISMATCH,
-                then=f"Set quantity=1, or write with FC{many:02d}, such as function_code={many}.",
+                then=_such_as(
+                    f"Write with FC{many:02d}, such as function_code={many}, or send one element",
+                    None if local is None else _source_span(send, local, 1),
+                ),
             )
         if not bit and local is not None and not check.refused("function_code"):
             fc06 = fc == 6
@@ -1295,7 +1435,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         if local.bank in XY_BANKS and remote_addr is not None:
             xy_room = _remote_xy_room(local, remote_addr)
         if local.bank == "TXT" and (fc or default_fc) != 6:
-            _check_send_txt_count(check, quantity, local, _send_hex_room(remote, local))
+            _check_send_txt_count(check, send, quantity, local, _send_hex_room(remote, local))
         else:
             _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
         if local.bank == "C" and remote_addr is not None:
@@ -1304,7 +1444,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         _check_quantity_bounds(check, quantity, _SEND_CAPS, bit)
 
     if isinstance(remote, ModbusAddress) and remote.is_hex and local is not None:
-        _check_send_hex_room(check, remote, local, quantity if counted else None)
+        _check_send_hex_room(check, send, remote, local, quantity if counted else None)
 
     # Send: one C bit can't serve two status fields (OBJ-014).
     _check_status_bits(check, send, ("sending", "success", "error"), "OBJ-014")
@@ -1375,6 +1515,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
             BIT_BANKS | _RECEIVE_REMOTE_REGS,
             label=f"{who} remote_start",
             bank_id=_BANK_ID,
+            example=_receive_remote_example(receive),
         )
         if remote_addr is not None:
             bit = remote_addr.bank in BIT_BANKS
@@ -1425,7 +1566,14 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         dest_banks = _RECEIVE_LOCAL_BITS | _RECEIVE_LOCAL_REGS
     else:
         dest_banks = _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS
-    local = check("dest", check_address, dest_banks, label=f"{who} dest", bank_id=_BANK_ID)
+    local = check(
+        "dest",
+        check_address,
+        dest_banks,
+        label=f"{who} dest",
+        bank_id=_BANK_ID,
+        example=_local_example(remote_addr, _RECEIVE_REMOTE_FOR_DEST) or None,
+    )
     hex_pair = False
     if remote_addr is not None and bit is False and local is not None:
         check(

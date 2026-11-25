@@ -27,6 +27,7 @@ from laddercodec.instructions.send_receive import (
     ModbusTcpTarget,
     Receive,
     Send,
+    _parse_range_quantity,
     from_tags,
     parse_af_call,
 )
@@ -1280,9 +1281,14 @@ def test_send_hex_count_room(source, start, room) -> None:
         send(remote_start=remote, source=source, quantity=room + 1)
     error = caught.value
     assert (error.field, error.click_id) == ("Send.quantity", "OBJ-010")
+    bank = source.rstrip("0123456789")
+    then = (
+        f"Send one element, such as {source}."
+        if room == 1
+        else f"Lower the count, such as {source}..{bank}{room}."
+    )
     assert str(error) == (
-        f"Send.quantity: {room + 1} from hex {start} is outside 1-{room} (OBJ-010). "
-        f"Lower the count, such as quantity={room}."
+        f"Send.quantity: {room + 1} from hex {start} is outside 1-{room} (OBJ-010). {then}"
     )
 
 
@@ -1310,11 +1316,17 @@ def test_send_text_count_from_a_hex_start(start, quantity, click_id, message) ->
 
 
 def _suggested(error: FieldError) -> dict[str, Any]:
-    """Return the keyword that the message of *error* suggests, such as {"quantity": 2}."""
+    """Return the keywords that the message of *error* suggests. A keyword example such as
+    ``function_code=16`` is one keyword. A source such as ``DS1..DS4`` sets the source and
+    the count, as the CSV token reads them."""
     match = re.search(r'such as (\w+)=("?)([^".]+)\2\.$', str(error))
+    if match:
+        name, quoted, value = match.groups()
+        return {name: value if quoted else int(value)}
+    match = re.search(r"such as ([A-Z]+\d+(?:\.\.[A-Z]+\d+)?)\.$", str(error))
     assert match, str(error)
-    name, quoted, value = match.groups()
-    return {name: value if quoted else int(value)}
+    source, quantity = _parse_range_quantity(match.group(1), "Send.source")
+    return {"source": source, "quantity": quantity}
 
 
 @pytest.mark.parametrize(
@@ -1382,14 +1394,21 @@ def test_send_text_count_refused(source, quantity, click_id, message) -> None:
 
 @pytest.mark.parametrize(
     ("source", "quantity", "suggested"),
-    [("TXT1", 1, 2), ("TXT1", 250, 246), ("TXT1", 3, 4), ("TXT999", 3, 2)],
+    [
+        ("TXT1", 1, "TXT1..TXT2"),
+        ("TXT1", 250, "TXT1..TXT246"),
+        ("TXT1", 3, "TXT1..TXT4"),
+        ("TXT999", 3, "TXT999..TXT1000"),
+    ],
 )
 def test_send_text_count_message_suggests_a_count_that_fits(source, quantity, suggested) -> None:
+    """The refusal of a TXT count names a source range, which a CSV token can write, and not
+    a count."""
     with pytest.raises(FieldError) as caught:
         send(
             remote_start=ModbusAddress("400001"), source=source, quantity=quantity, function_code=16
         )
-    assert str(caught.value).endswith(f"such as quantity={suggested}.")
+    assert str(caught.value).endswith(f"such as {suggested}.")
 
 
 @pytest.mark.parametrize(
@@ -1397,12 +1416,12 @@ def test_send_text_count_message_suggests_a_count_that_fits(source, quantity, su
     [
         ("TXT1000", 1, 6, "TXT999"),
         ("TXT1000", 1, 16, "TXT999"),
-        ("TXT1000", 2, 16, "TXT999"),
-        ("TXT1000", 4, 16, "TXT997"),
-        ("TXT1000", 246, 16, "TXT755"),
+        ("TXT1000", 2, 16, "TXT999..TXT1000"),
+        ("TXT1000", 4, 16, "TXT997..TXT1000"),
+        ("TXT1000", 246, 16, "TXT755..TXT1000"),
         ("TXT998", 3, 16, "TXT997"),
-        ("TXT2", 2, 16, "TXT1"),
-        ("TXT2", 246, 16, "TXT1"),
+        ("TXT2", 2, 16, "TXT1..TXT2"),
+        ("TXT2", 246, 16, "TXT1..TXT246"),
     ],
 )
 def test_send_text_from_an_even_address_is_refused(
@@ -1410,7 +1429,7 @@ def test_send_text_from_an_even_address_is_refused(
 ) -> None:
     """A Send of TXT starts at an odd address. An even start is refused with OBJ-028, and the
     count is not checked against it. The message names an odd start from which the count
-    ends by TXT1000."""
+    ends by TXT1000. For an even count, it names the range of the count from that start."""
     with pytest.raises(FieldError) as caught:
         send(
             remote_start=ModbusAddress("400001"),
@@ -1426,12 +1445,11 @@ def test_send_text_from_an_even_address_is_refused(
         Reason.RANGE,
         "OBJ-028",
     )
-    assert str(error).endswith(f'(OBJ-028). Start at an odd TXT address, such as source="{odd}".')
+    assert str(error).endswith(f"(OBJ-028). Start at an odd TXT address, such as {odd}.")
     if quantity % 2 == 0 or function_code == 6:
         send(
             remote_start=ModbusAddress("400001"),
-            source=odd,
-            quantity=quantity,
+            **{"quantity": quantity, **_suggested(error)},
             function_code=function_code,
         )
 

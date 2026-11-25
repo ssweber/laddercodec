@@ -665,7 +665,7 @@ def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> 
 # character, write its $hh code. A single Copy's text accepts any 16-bit character that CLICK
 # keeps, as Compare's right side and Search's text do.
 _NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
-_PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
+_PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\)"
 _COPY_TEXT_RULE = r"text holds characters U\+0001 to U\+FFFF, no NUL and no surrogate"
 #: Texts that a single Copy refuses. NUL is refused because it ends a stored string. A
 #: surrogate and a character above U+FFFF are refused because neither is a 16-bit character.
@@ -677,6 +677,54 @@ def test_fill_text_is_printable_ascii(text: str) -> None:
     if len(text) == 3:  # a Fill value takes one character
         with pytest.raises(FieldError, match=rf"^Fill.value: .* {_PRINTABLE_RULE}"):
             Fill(text, "TXT2", "TXT5")
+
+
+@pytest.mark.parametrize(("text", "code"), [('"é"', "$E9"), ('"\x7f"', "$7F"), ('"\t"', "$09")])
+def test_printable_refusal_suggests_the_bare_code(text: str, code: str) -> None:
+    """The refusal of a character outside printable ASCII names its bare ``$hh`` code. A
+    Fill and Compare's Data A accept that code."""
+    then = f"Write it as its $hh code, such as {code}."
+    with pytest.raises(FieldError) as caught:
+        Fill(text, "TXT2", "TXT5")
+    assert str(caught.value).endswith(then)
+    Fill(code, "TXT2", "TXT5")
+    with pytest.raises(FieldError) as caught:
+        CompareContact("==", text, "TXT1")
+    assert str(caught.value).endswith(then)
+    CompareContact("==", code, "TXT1")
+
+
+_RULE_ONLY = "text holds printable ASCII only (space to ~)"
+_ONE_ALONE = (
+    "Write printable ASCII only. For one character outside ASCII, write its $hh code alone,"
+    " such as {}."
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "ending"),
+    [
+        ('"é1"', _ONE_ALONE.format("$E9")),
+        ('"A\tB"', _ONE_ALONE.format("$09")),
+        ('"\x85é"', _ONE_ALONE.format("$E9")),
+        ('"中1"', _RULE_ONLY),
+        ('"\x85"', _RULE_ONLY),
+        ('"\U0001f600"', _RULE_ONLY),
+    ],
+)
+def test_printable_refusal_names_a_code_only_where_one_exists(text: str, ending: str) -> None:
+    """Compare's Data A names the ``$hh`` code of the first character that has one. It names
+    no code for $80 to $9F, and none for a character above $FF."""
+    with pytest.raises(FieldError) as caught:
+        CompareContact("==", text, "TXT1")
+    assert str(caught.value).endswith(ending)
+
+
+def test_printable_refusal_names_no_code_outside_txt() -> None:
+    """A Fill into a bank other than TXT takes no character code, so its refusal names none."""
+    with pytest.raises(FieldError) as caught:
+        Fill('"é"', "DS1", "DS2")
+    assert "$" not in str(caught.value)
 
 
 @pytest.mark.parametrize("text", _NOT_COPY_TEXT)

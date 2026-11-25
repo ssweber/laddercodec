@@ -28,7 +28,7 @@ from __future__ import annotations
 import dataclasses
 import re
 import reprlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from string import Formatter
@@ -47,6 +47,7 @@ __all__ = [
     "from_parts",
     "named_addresses",
     "operand",
+    "or_list",
     "parts_of",
     "make_refusal",
     "says",
@@ -150,6 +151,12 @@ def type_name(value: object) -> str:
         return known
     name = type(value).__name__
     return f"{'an' if name[:1].lower() in 'aeiou' else 'a'} {name}"
+
+
+def or_list(names: Sequence[str]) -> str:
+    """Return ``names`` as words joined by commas and a last ``or``, such as ``DH, XD or
+    YD``. One name is returned as it is."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
 
 
 def wrong_type(value: object, wanted: str) -> Rule:

@@ -45,9 +45,7 @@ needs first, so that laddercodec does not hold up the export. That work is done.
 is left.
 1. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-2. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
-   and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
-   Later.
+2. The other follow-ups in item 1 and in Later.
 
 **Alongside these steps, and not steps of their own:**
 - pyrung's reports from adopting the API.
@@ -217,6 +215,19 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   than `""`, such as `None` or `0`. Both should refuse it with `OPTION_NOT_OFFERED`. The annotations
   `TimeUnit | Literal[""]` on `Drum.unit` and `OutVariantUnit | Literal[""]` on `OutVariant.unit` state that
   contract.
+- **Partner examples from tables (builder).** The example in a refusal of one field is picked from tables of
+  the banks that suit the other fields, in helpers such as `example_address`, `_own_bank_first`,
+  `_slave_example`, `_local_example` and `_receive_remote_example`. The instruction is not rebuilt with the
+  example, so a table that is wrong for some shape gives an example that the instruction refuses. Rebuild the
+  instruction with the example and fall back to a plainer one if it is refused, as `_source_span` does for a
+  Send's source range.
+- **An even TXT count that the slave address refuses (builder).** A Send from TXT1 to
+  `ModbusAddress("FFFEh")` with `function_code=16` is refused twice. FFFEh is past FFFDh for a TXT source
+  (OBJ-010). With `quantity=1` the count is below 2 (OBJ-010), and with `quantity=3` it is odd (OBJ-029).
+  Each count refusal says to send an even count of characters, and every even count is refused at FFFEh. It
+  should say to start lower, or say nothing.
+- **A one-digit `$` code in a Copy and a Fill (CLICK).** `Copy("$1", "TXT1")` is accepted as `$01`, and
+  `Fill("$1", "TXT1", "TXT2")` is refused. Does CLICK's Fill dialog accept `$1`, and how does it save it?
 
 ## 3. Canonical constants (CLICK)
 
@@ -285,6 +296,10 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   save it? Data B and a Search value keep `$1` as typed. The code still refuses it in Data A.
 - **Text outside printable ASCII in Compare's Data A:** does the dialog accept `compare "é" == TXT1` and a tab,
   and are they saved as typed? Data B keeps them. The code still refuses them in Data A.
+- **Which character a code from `$80` to `$9F` names.** A Fill and Compare's Data A accept the bare `$80`,
+  `$85` and `$9F`. cp1252 and latin-1 give different characters for these codes, and no capture shows which
+  one CLICK reads. The refusal of text outside printable ASCII names no code from $80 to $9F. On a PLC, fill
+  TXT1 with `$80` and see what the Data View shows in TXT1.
 - **`DH` as a hex constant elsewhere:** CLICK saves Compare's Data B empty when you type `DH`, and the code
   refuses it there opposite a hex Data A. Does CLICK blank a `DH` constant in a Search value, Compare's Data A,
   a Copy, a Fill or a Math, or as the hex remote address of a Send or Receive? The code accepts it in each of
@@ -521,28 +536,6 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 
 ## Later (nothing unless marked)
 
-- **A refusal's example from the partner field (builder).** A caller who follows the example in some
-  refusals gets another refusal, because the example is chosen from the field alone:
-  - the other end of a range: `Coil("Y001", range_end="$41")` suggests Y001;
-  - the other operand of a Copy, Block Copy, Pack, Unpack, Compare or Search;
-  - a Send's function code: FC06 suggests DD1 or DF1, which FC06 refuses.
-
-  The `_IGNORES_PARTNER` entries in `tests/test_refusal_details.py` list them. The branch `fix/msg-examples`
-  (not pushed, in the main checkout) adds an optional preferred example to `example_address`. Nothing calls
-  it yet.
-- **Math mode advice (builder).** "Set mode to hex" ignores the formula's constants, so the advised formula
-  can still be refused (`DH1 AND 3`). The same holds for "Set mode to decimal" with `SIN ( 2h )`. A SUM range
-  of bits (`C1 : C8`) is told to write "its registers as DH, XD or YD"; the message should say bits.
-- **`quantity=N` in Send and Receive messages (builder).** Some refusals advise `quantity=N`, which a CSV
-  token refuses. The message should name the source range instead.
-- **The `$hh` hint in Fill and Compare (nothing).** A Fill into TXT and Compare's Data A share one text
-  check. Each refuses a character outside ASCII, such as `"é"`, with `invalid-text-constant`, and the message
-  says to write the character as its `$hh` code. The bare `$E9` is accepted in both. The quoted form `"$E9"`
-  is not what the hint means:
-  - In a Fill it is refused again, with `constant-out-of-range`.
-  - In Compare's Data A it is accepted as the 3-character text `$E9`, so the compare matches other text.
-
-  The hint should show the bare form.
 - **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
   none or another. Add the ids, with no new codes:
   - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);
