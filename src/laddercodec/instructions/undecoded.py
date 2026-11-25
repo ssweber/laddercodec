@@ -128,15 +128,14 @@ class Undecoded(Instruction):
     def headline(self) -> str:
         """The first line of the marker rung's comment.
 
-        It reads ``UNDECODED: CLICK rung N, row R: <error>``, with the rung and the row
-        counted from 1 as CLICK shows them. It leaves out ``, row R`` when ``row`` is
-        ``None``. When ``to_the_end`` is True, the error is followed by
+        It reads ``UNDECODED: CLICK rung N, row R: <error>``. The rung and the row count
+        from 1. CLICK counts them the same way. The headline leaves out ``, row R`` when
+        ``row`` is ``None``. When ``to_the_end`` is True, the error is followed by
         ``; decoding stopped, so this marker stands for CLICK rung N to the end``.
         """
         rung = f"CLICK rung {self.rung + 1}"
         where = rung if self.row is None else f"{rung}, row {self.row + 1}"
-        note = f"; decoding stopped, so this marker stands for {rung} to the end"
-        return f"UNDECODED: {where}: {self.error}{note if self.to_the_end else ''}"
+        return f"UNDECODED: {where}: {self.error}{to_the_end_note(self, click=True)}"
 
     def refusal(self) -> str:
         """Return why ``encode()`` refuses the marker."""
@@ -163,6 +162,19 @@ class Undecoded(Instruction):
 
     def build_blob(self) -> bytes:
         raise NotImplementedError(self.refusal())
+
+
+def to_the_end_note(marker: Undecoded, *, click: bool = False) -> str:
+    """Return the note that follows *marker*'s error when ``to_the_end`` is True, else ``""``.
+
+    The note reads ``; decoding stopped, so this marker stands for rung N to the end``, with
+    N counted from 0. If *click* is True, it names ``CLICK rung N`` and counts from 1. The
+    headline uses that form.
+    """
+    if not marker.to_the_end:
+        return ""
+    rung = f"CLICK rung {marker.rung + 1}" if click else f"rung {marker.rung}"
+    return f"; decoding stopped, so this marker stands for {rung} to the end"
 
 
 def _is_index(value: object) -> bool:

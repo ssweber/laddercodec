@@ -21,7 +21,7 @@ from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from ._rtf import ANSI_CHARSET, default_font, font_table, join_surrogates, read_bytes
-from .instructions.undecoded import Undecoded, UndecodedStop
+from .instructions.undecoded import Undecoded, UndecodedStop, to_the_end_note
 from .topology import CONDITION_COLUMNS
 
 if TYPE_CHECKING:
@@ -63,14 +63,9 @@ class UndecodedRungWarning(UserWarning):
             super().__init__(text)
             return
         prefix = f"program {program!r}, " if program is not None else ""
-        note = (
-            f"; decoding stopped, so this marker stands for rung {marker.rung} to the end"
-            if marker.to_the_end
-            else ""
-        )
         super().__init__(
             f"{prefix}{marker.where} is not decoded, and an undecoded marker stands in for it: "
-            f"{marker.error}{note}"
+            f"{marker.error}{to_the_end_note(marker)}"
         )
 
 

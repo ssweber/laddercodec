@@ -732,6 +732,18 @@ def test_check_reports_the_marker_and_nothing_else() -> None:
     )
 
 
+def test_check_says_that_a_marker_stands_to_the_end() -> None:
+    """The finding for a marker with ``to_the_end`` set ends with the warning's note."""
+    marker = Undecoded("why", 3, 1, to_the_end=True)
+    (finding,) = check(marker_rung(marker))
+    note = "; decoding stopped, so this marker stands for rung 3 to the end"
+    assert finding.message == (
+        "row 0 from 0, column AF: an undecoded marker for rung 3, row 1, "
+        f"which encode() refuses: why{note}"
+    )
+    assert str(UndecodedRungWarning(marker)).endswith(f": why{note}")
+
+
 def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> None:
     """check() runs every layout check on a hand-built rung that holds a marker and more."""
     marker = Undecoded("why", 3, 1)

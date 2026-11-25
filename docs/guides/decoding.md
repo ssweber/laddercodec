@@ -281,9 +281,9 @@ for marker in program.undecoded:
 
 The marker rung is one row, wired from the rail into an `Undecoded` output. Its
 comment starts with the marker's headline, `UNDECODED: CLICK rung N, row R: <error>`.
-The headline counts the rung and the row from 1, as CLICK shows them. It leaves
-out `, row R` when the failure is not at one row. The rung's own comment follows,
-if that decoded.
+The headline counts the rung and the row from 1. CLICK counts them the same way.
+The headline leaves out `, row R` when the failure is not at one row. The rung's
+own comment follows, if that decoded.
 
 `Undecoded` has `error`, `rung`, `row`, `column`, `stop` and `to_the_end`.
 `rung`, `row` and `column` count from 0 (column 31 is AF). `row` and `column` are
@@ -291,8 +291,19 @@ if that decoded.
 marker stands for its rung and every rung after it. The warning carries the
 `marker`, and the `program` name for `decode_program()`.
 
-To build a marker rung yourself, pass an `Undecoded` to `marker_rung()`. Pass the
-rung's own comment as the second argument if you have it.
+You can build a marker rung yourself:
+
+```python
+from laddercodec import Undecoded, marker_rung
+
+rung = marker_rung(Undecoded("why", 3, 0), "the rung's own comment")
+print(rung.comment)
+# UNDECODED: CLICK rung 4, row 1: why
+# the rung's own comment
+```
+
+`marker_rung()` returns the one-row rung that holds the marker. The second
+argument is optional. Pass the rung's own comment there if you have it.
 
 The marker stops the program where the rung was. Its `stop` is `"end"` in the
 main program and `"return"` in a subroutine. A consumer that runs the program

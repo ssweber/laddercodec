@@ -31,7 +31,7 @@ from .encode import MAX_ROWS
 from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.timer import Timer
-from .instructions.undecoded import Undecoded
+from .instructions.undecoded import Undecoded, to_the_end_note
 from .model import PinnedInstruction
 
 if TYPE_CHECKING:
@@ -286,7 +286,7 @@ def _undecoded(index: int, rung: Rung) -> list[Finding]:
             row,
             AF_X,
             f"row {row} from 0, column {OUTPUT_COLUMN}: an undecoded marker for {token.where}, "
-            f"which encode() refuses: {token.error}",
+            f"which encode() refuses: {token.error}{to_the_end_note(token)}",
         )
         for row, token in enumerate(rung.instructions)
         if isinstance(token, Undecoded)

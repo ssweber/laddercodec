@@ -8,20 +8,19 @@
 
 ### Breaking changes
 
-- `encode()` now writes a rung comment's text outside ASCII as CLICK stores it, so the comment reaches CLICK as you wrote it, and the encoded bytes change. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK. A character outside ASCII counts as 4 to 16 bytes toward the 1400-byte limit, so a long comment that 0.5.0 encoded can now raise `EncodeError`.
-  - Shorten such a comment by the number of bytes that the message gives.
+- **`encode()` writes a comment's non-ASCII text as CLICK stores it.** The encoded bytes change. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK.
+  - A character outside ASCII counts as 4 to 16 bytes toward the 1400-byte limit, so a long comment that 0.5.0 encoded can now raise `EncodeError`. Shorten such a comment by the number of bytes that the message gives.
   - Update a test that expects the folded text, such as `-` for `—`, to expect the comment as you wrote it.
   - A CSV that 0.5.0's `write_csv` wrote can read differently where `__`, `*` or a backslash sits beside a letter outside ASCII or a full-width lookalike such as `＊`. Decode the clipboard again with this release and write the CSV again.
+- **A marker rung's comment counts from 1, and `Undecoded.error` no longer ends with a note.** A decoded marker rung's comment starts with the headline `UNDECODED: CLICK rung 2, row 1: <error>`. 0.5.0 wrote the headline for the same rung as `UNDECODED: rung 1, row 0: <error>`. 0.5.0 also ended `Undecoded.error` with `; decoding stopped, so this marker stands for rung N to the end`.
+  - To tell whether a marker stands for the rest of the program, read `Undecoded.to_the_end`. The headline of such a marker ends with `; decoding stopped, so this marker stands for CLICK rung N to the end`.
+  - To find the rung and the row, read `Undecoded.rung` and `row`. They still count from 0.
 
 ### Added
 
 - `UndecodedCommentWarning.partial` is True when the decoder read a comment but could not read some of the text in one of the comment's fonts. The decoder puts U+FFFD in place of that text. It reads fonts of charset 0 (Windows code page 1252) and 134 (GBK).
 - `Undecoded.to_the_end` is True when decoding stopped at the marker's rung. The marker then stands for that rung and every rung after it. `write_csv()` writes it as `to_the_end=1` at the end of the `undecoded(...)` token, and `read_csv()` reads it back.
-- `marker_rung()` is exported from `laddercodec`. It returns the one-row rung that stands in for an `Undecoded` marker.
-
-### Changed
-
-- The comment of a marker rung counts the rung and the row from 1, as CLICK shows them: `UNDECODED: CLICK rung 2, row 1: <error>`. 0.5.0 counted from 0 (`UNDECODED: rung 1, row 0: <error>`), and it ended `Undecoded.error` with `; decoding stopped, so this marker stands for rung N to the end`. If you matched that text, read `Undecoded.to_the_end`, and read `Undecoded.rung` and `row`, which still count from 0.
+- `marker_rung()` is exported from `laddercodec`. It returns the one-row rung that holds an `Undecoded` marker, with the marker's headline as its comment.
 
 ### Fixed
 
