@@ -17,6 +17,8 @@ A bundle with an expected finding:
 - `depth_4_in_subroutine`: Main calls Sub1 outside any loop. Sub1 holds four nested loops.
 - `oneshot_inner`: One Shot on the inner For of two.
 - `return_inside_loop`: a Return inside a loop in Sub1.
+- `return_in_unclosed_loop`: a For with no Next in Sub1, with two Returns after it. The For
+  gets `for-without-next`, and neither Return gets a finding.
 - `end_inside_loop`: an End inside a loop in Main.
 - `nested_call`: Sub1 calls Sub2.
 - `self_call`: Sub1 calls Sub1.
@@ -30,5 +32,11 @@ A bundle with no finding:
 - `oneshot_through_call`: a loop in Main around a Call to Sub1, whose own For has One Shot
   on. `check()` looks for an inner One Shot within one program only.
 - `return_after_loop`: a Return in Sub1 after its loop's Next.
-- `call_unknown`: a Call to a name that no subroutine has.
-- `call_other_case`: a Call to `sub1` in a project whose subroutine is `Sub1`.
+- `call_other_case`: three nested loops in Main around a Call to `sub1`, in a project whose
+  subroutine `Sub1` holds one loop. The Call names no subroutine, because the name differs in
+  case, so it adds no loops. If the Call named `Sub1`, the loops would nest 4 deep.
+
+A bundle for CLICK only:
+
+- `call_unknown`: a Call to a name that no subroutine has. `check()` reports nothing for it,
+  whatever subroutine the Call names. The bundle is here for CLICK's answer.

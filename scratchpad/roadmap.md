@@ -54,6 +54,11 @@ is left.
 **After 0.5.1 (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
 `NOP` (see Later).
 
+**Program check names (Sam).** Sam approves or renames the six codes of the program rules
+(`for-without-next`, `next-without-for`, `for-nesting-depth`, `for-oneshot-inside-loop`,
+`return-inside-loop`, `nested-call`) and the field `Finding.program`. The PR that adds them stays open until
+he does.
+
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
 
 pyrung learns what a field takes by building the object and reading the error. That is on `main`. A
@@ -419,17 +424,22 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   answers its exact shape. Then the code gets the id in `CLICK_IDS`, and the finding has `captured` True.
   Paste each case into a new CLICK v4.00 project and run Syntax Check. Record its output as printed, and the
   `Scr*.tmp` files that CLICK saves after it. `tests/fixtures/program_check/` holds the bundles for the first
-  six cases.
+  seven cases.
   - Pairing: a For with no Next, a Next with no For, a For in Main with its Next in a subroutine, and two Fors
     with one Next. Which For does CLICK name in the last case? What does CLICK mean when it says that a For
     and its Next must come from the same branch?
   - Depth: four nested loops in Main, and three loops in Main around a Call to a subroutine with one loop.
-    Which program and which rung does CLICK name? `check()` expects no error for two loops around the same
-    Call. For a subroutine with four loops that Main calls outside any loop, `check()` reports the
+    Which program and which rung does CLICK name? `check()` expects no error for two loops in Main around a
+    Call to a subroutine that holds one loop. For a subroutine with four loops that Main calls outside any loop, `check()` reports the
     subroutine's 4th For and not the Call.
   - One Shot: on the inner For of two, and on the outer For only. Also on the For of a subroutine that Main
     calls inside a loop. `check()` looks for an inner One Shot within one program only.
   - A Return inside a loop in a subroutine, and an End inside a loop in Main.
+  - A Return inside a For that has no Next. Main: `X003 → call("Sub1")`, `→ end()`. Sub1:
+    `X001 → for(2)`, `X002 → return()`, `→ out(Y001)`, `→ return()`. `check()` reports only the For, as
+    `for-without-next`, and neither Return. Does CLICK also report either Return as inside a loop? The
+    pairing case of a For with no Next (For, Out, End in Main) asks the same of an End.
+    `tests/fixtures/program_check/return_in_unclosed_loop/` holds this case.
   - A Call in a subroutine, and a subroutine that calls itself. Does the paste keep each Call?
   - A Call to a name that no subroutine has, and a Call to `sub1` when the subroutine is `Sub1`. Does CLICK
     match the name with case ignored? Until it answers, a Call names the subroutine whose name is the same
@@ -451,6 +461,11 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   to build. They wait for CLICK's answer on step numbers (Open CLICK questions). pyrung can use the check
   once its export goes through laddercodec, because only then does pyrung hold a laddercodec program to pass
   in. See the Syntax Check rules item in Later.
+  - pyrung and laddercodec differ in two places. CLICK's answers to the depth and the Return or End cases
+    in Open CLICK questions decide which side changes.
+    - pyrung reports `for-nesting-depth` at the outermost For of the nest. laddercodec reports it at each
+      For past the 3rd.
+    - pyrung reports a Return inside a loop, and not an End. laddercodec reports both.
 
 ## Waits on another repo
 

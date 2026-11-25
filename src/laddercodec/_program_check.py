@@ -8,11 +8,13 @@ it names:
 - Loops nest at most 3 deep.  A Call inside a loop adds the loops of the subroutine that it
   calls.
 - Only the outermost For of a nest can use One Shot.
-- No Return and no End between a For and its Next.
+- No Return and no End between a For and its Next.  A Return or End gets no finding when
+  the innermost loop around it has no Next.  That For gets its own finding.
 - Only the main program can call a subroutine.
 
-A program's walk stops at its first undecoded marker.  The marker can stand for the rungs to
-the end, so a For that is open there gets no finding.
+The rules read no For, Next, Return, End or Call after a program's first undecoded marker,
+because the rung that the marker stands for may hold a For or a Next.  A For that is open at
+the marker gets no finding.
 """
 
 from __future__ import annotations
@@ -65,11 +67,6 @@ def _walk(program: Program) -> Iterator[tuple[int, int, object]]:
             yield index, row, token
 
 
-def _stopped(program: Program) -> bool:
-    """Whether *program* holds an undecoded marker, where its walk stops."""
-    return any(isinstance(t, Undecoded) for rung in program.rungs for t in rung.instructions)
-
-
 class _Calls:
     """Finds the subroutine that a Call names, and the depth of the loops it runs."""
 
@@ -77,7 +74,6 @@ class _Calls:
         self._by_name: dict[str, Program] = {}
         for sub in project.subroutines:
             self._by_name.setdefault(sub.name, sub)
-        self._depth: dict[int, int] = {}
 
     def target(self, call: Call) -> Program | None:
         """Return the subroutine whose name is ``call.subroutine`` as stored, or ``None``."""
@@ -86,13 +82,11 @@ class _Calls:
 
     def depth(self, program: Program, visiting: frozenset[int] = frozenset()) -> int:
         """Return how deep loops nest when *program* runs, counting the loops of each
-        subroutine that it calls inside them.  A Call back into a program on the way there
-        counts no loops.
+        subroutine that it calls inside them.  A Call to a program that is already being
+        counted adds no loops.  Nothing is cached, because the depth of a subroutine depends on
+        which programs are already being counted.
         """
-        key = id(program)
-        if key in self._depth:
-            return self._depth[key]
-        visiting = visiting | {key}
+        visiting = visiting | {id(program)}
         open_loops = deepest = 0
         for _, _, token in _walk(program):
             if isinstance(token, ForLoop):
@@ -104,7 +98,6 @@ class _Calls:
                 sub = self.target(token)
                 if sub is not None and id(sub) not in visiting:
                     deepest = max(deepest, open_loops + self.depth(sub, visiting))
-        self._depth[key] = deepest
         return deepest
 
 
@@ -127,8 +120,9 @@ def check_program(
     found: list[ProgramFinding] = []
     #: The open Fors, outermost first, as (rung, row).
     loops: list[tuple[int, int]] = []
-    #: For each open For, the Returns and Ends inside it.  They are reported once its Next
-    #: closes the loop, because a For with no Next gets its own finding.
+    #: For each open For, the Returns and Ends that it is the innermost loop around.  They
+    #: are reported when its Next closes the loop.  A For with no Next gets its own finding,
+    #: and they get none.
     inside: list[list[ProgramFinding]] = []
 
     def add(rung: int, row: int, code: Code, what: str, then: str) -> None:
@@ -168,7 +162,7 @@ def check_program(
                     row,
                     Code.NEXT_WITHOUT_FOR,
                     "this Next has no For before it",
-                    "Delete the Next, or add a For rung before the loop, such as for(2).",
+                    "Delete the Next, or add a For rung before it, such as for(2).",
                 )
         elif isinstance(token, (Return, End)):
             if loops:
@@ -200,13 +194,13 @@ def check_program(
                         rung,
                         row,
                         Code.FOR_NESTING_DEPTH,
-                        f"this Call runs {sub.name}, whose loops nest {inner} deep, inside "
-                        f"{len(loops)} loop{'' if len(loops) == 1 else 's'}, so loops nest "
-                        f"{len(loops) + inner} deep",
+                        f"this Call to {sub.name} is inside {len(loops)} "
+                        f"loop{'' if len(loops) == 1 else 's'}, and {sub.name}'s own loops nest "
+                        f"{inner} deep, so the loops nest {len(loops) + inner} deep",
                         f"Loops nest at most {MAX_NESTING} deep. Call {sub.name} outside the loop "
                         f"that starts on rung {loops[0][0]} from 0.",
                     )
-    if not _stopped(program):
+    if not program.undecoded:
         for rung, row in loops:
             add(
                 rung,

@@ -59,6 +59,7 @@ EXPECTED: dict[str, list[tuple[str, int, Code]]] = {
     "oneshot_outer": [],
     "oneshot_through_call": [],
     "return_inside_loop": [("Sub1", 1, Code.RETURN_INSIDE_LOOP)],
+    "return_in_unclosed_loop": [("Sub1", 0, Code.FOR_WITHOUT_NEXT)],
     "end_inside_loop": [(MAIN, 1, Code.RETURN_INSIDE_LOOP)],
     "return_after_loop": [],
     "nested_call": [("Sub1", 0, Code.NESTED_CALL)],
@@ -119,7 +120,13 @@ def test_messages() -> None:
     assert message("oneshot_inner").endswith("Write it as for(2).")
     assert message("nested_call") == "Call Sub2 from Main Program."
     (depth,) = check(read_bundle(FIX / "depth_4_through_call"))
-    assert "this Call runs Sub1, whose loops nest 1 deep, inside 3 loops" in depth.message
+    assert (
+        "this Call to Sub1 is inside 3 loops, and Sub1's own loops nest 1 deep, so the loops "
+        "nest 4 deep" in depth.message
+    )
+    assert message("next_without_for") == (
+        "Delete the Next, or add a For rung before it, such as for(2)."
+    )
     assert message("return_inside_loop") == "Move the return() rung after the loop's next() rung."
     assert message("end_inside_loop") == "Move the end() rung after the loop's next() rung."
 
@@ -183,6 +190,33 @@ def test_calls_that_loop_back_end_the_walk() -> None:
     assert _found(check(_project(main, Sub1=own))) == [("Sub1", 1, Code.NESTED_CALL)]
 
 
+@pytest.mark.parametrize("first", ["Sub1", "Sub2"])
+def test_subroutines_that_call_each_other_count_the_same_in_either_order(first: str) -> None:
+    second = "Sub2" if first == "Sub1" else "Sub1"
+    main = [_for("X001"), _call(first), NEXT, _for(), _call(second), NEXT, END]
+    sub1 = [_for(), _call("Sub2"), NEXT, RET]
+    sub2 = [_for(), _for(), _call("Sub1"), NEXT, NEXT, RET]
+    assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
+        (MAIN, 1, Code.FOR_NESTING_DEPTH),
+        (MAIN, 4, Code.FOR_NESTING_DEPTH),
+        ("Sub1", 1, Code.NESTED_CALL),
+        ("Sub2", 2, Code.NESTED_CALL),
+    ]
+
+
+def test_a_subroutine_called_from_two_loops() -> None:
+    main = [_for("X001"), _call("Sub1"), NEXT, _for(), _for(), _call("Sub1"), NEXT, NEXT, END]
+    sub1 = [_for(), _for(), OUT, NEXT, NEXT, RET]
+    findings = check(_project(main, Sub1=sub1))
+    assert _found(findings) == [(MAIN, 5, Code.FOR_NESTING_DEPTH)]
+    assert "so the loops nest 4 deep" in findings[0].message
+
+
+def test_a_call_to_a_subroutine_with_no_loops_adds_none() -> None:
+    main = [_for("X001"), _for(), _for(), _call("Sub1"), NEXT, NEXT, NEXT, END]
+    assert check(_project(main, Sub1=[OUT, RET])) == []
+
+
 def test_each_for_past_the_third_gets_a_finding() -> None:
     main = [_for("X001"), _for(), _for(), _for(), _for(), OUT, *[NEXT] * 5, END]
     assert _found(check(_project(main))) == [
@@ -191,7 +225,7 @@ def test_each_for_past_the_third_gets_a_finding() -> None:
     ]
 
 
-def test_a_return_after_an_unclosed_for_gets_no_finding() -> None:
+def test_a_return_in_a_loop_with_no_next_gets_no_finding() -> None:
     main = [_for("X001"), _for("X002"), _rung(End(), "X003"), NEXT, END]
     assert _found(check(_project(main))) == [
         (MAIN, 0, Code.FOR_WITHOUT_NEXT),

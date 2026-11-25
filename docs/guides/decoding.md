@@ -537,18 +537,19 @@ and `captured` `False`. Its message ends with what to change.
   program findings.
 - **Depth.** A For past the 3rd of a nest gets a `for-nesting-depth` finding. In a
   `Project`, a Call inside a loop adds the loops of the subroutine that it calls. The
-  Call gets the finding when those loops take the nest past 3. A `Program` alone
-  follows no Call.
+  Call gets the finding when those loops take the nest past 3. On a `Program` alone,
+  `check()` does not count the loops of a subroutine that it calls.
 - **Calls.** A Call names the subroutine whose `Program.name` equals
   `Call.subroutine`, with the same case and spaces. A Call to a name that no
-  subroutine has counts no loops and gets no finding. In a `Project`, the main
-  program is `project.main`. For a `Program` alone, it is the program with
-  `prog_idx` 1.
-- **Unclosed loops.** A Return or End after a For with no Next gets no finding. The
-  For gets `for-without-next`.
-- **Undecoded markers.** Each program's walk stops at its first undecoded marker,
-  because the marker can stand for every rung to the end. A For that is open there
-  gets no `for-without-next` finding.
+  subroutine has counts no loops and gets no finding.
+- **Main.** In a `Project`, the main program is `project.main`. For a `Program`
+  alone, it is the program with `prog_idx` 1.
+- **Unclosed loops.** A Return or End gets no finding when the innermost loop around
+  it has no Next. That For gets `for-without-next`.
+- **Undecoded markers.** `check()` reads no For, Next, Return, End or Call after a
+  program's first undecoded marker, because the rung that the marker stands for may
+  hold a For or a Next. A For that is open at the marker gets no `for-without-next`
+  finding.
 
 ## Round-trip identity
 

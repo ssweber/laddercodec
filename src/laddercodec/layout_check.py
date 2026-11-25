@@ -135,7 +135,8 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       it calls, and the finding is at the Call.
     - ``"for-oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
     - ``"return-inside-loop"``: no Return and no End between a For and its Next.  A Return
-      or End after a For with no Next gets no finding.  The For gets ``"for-without-next"``.
+      or End gets no finding when the innermost loop around it has no Next.  That For gets
+      ``"for-without-next"``.
     - ``"nested-call"``: only the main program can call a subroutine.  In a ``Project``,
       that is ``project.main``.  For a ``Program`` alone, it is the program with
       ``prog_idx`` 1.
@@ -143,9 +144,10 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     A Call names the subroutine whose ``Program.name`` equals ``Call.subroutine``, with the
     same case and spaces.  A Call to a name that no subroutine of the project has counts no
     loops.  A program finding is at the instruction's AF cell, with ``click_id`` ``None`` and
-    ``captured`` ``False``.  Its message ends with what to change.  Each program's walk stops
-    at its first undecoded marker, because the marker can stand for every rung to the end.
-    A For that is open there gets no ``"for-without-next"`` finding.
+    ``captured`` ``False``.  Its message ends with what to change.  ``check()`` reads no For,
+    Next, Return, End or Call after a program's first undecoded marker, because the rung that
+    the marker stands for may hold a For or a Next.  A For that is open at the marker gets no
+    ``"for-without-next"`` finding.
 
     A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
     Within a program, the findings come in rung order.  A rung's own findings come first, then
