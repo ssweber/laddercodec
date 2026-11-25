@@ -48,7 +48,7 @@ NOP:
 
 Comment:
     Text attached to a rung. The encoder stores it as RTF: a fixed
-    prefix, the cp1252 body and a fixed suffix. The RTF goes in the
+    prefix, the ASCII body and a fixed suffix. The RTF goes in the
     payload region at 0x0298, and its 4-byte length goes at 0x0294.
     With no comment the cell grid starts at 0x0A60. A comment moves the
     grid forward by the length of the RTF. The body is at most 1400
@@ -147,7 +147,7 @@ _TOKEN_FLAGS: dict[str, tuple[int, int, int]] = {
 SUPPORTED_CONDITION_TOKENS = frozenset(_TOKEN_FLAGS)
 
 # RTF comment envelope.
-# Prefix (105 bytes) + cp1252 body + suffix (11 bytes).
+# Prefix (105 bytes) + ASCII body + suffix (11 bytes).
 _PREFIX = (
     b"{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033"
     b"{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\r\n"
@@ -156,6 +156,24 @@ _PREFIX = (
 _SUFFIX = b"\r\n\\par }\r\n\x00"
 
 _PAGE_SIZE = 0x1000
+
+
+def _comment_body(comment: str, rung: int | None = None) -> bytes:
+    """Return the RTF body that ``encode()`` writes for the Markdown *comment*.
+
+    Raise :class:`EncodeError` if the body is longer than :data:`COMMENT_MAX_BYTES`. The
+    message names rung *rung* if it is given.
+    """
+    body = _build_rtf_body(comment).encode("ascii")
+    if len(body) > COMMENT_MAX_BYTES:
+        which = "The comment" if rung is None else f"The comment of rung {rung}"
+        raise EncodeError(
+            f"{which} is too long: CLICK would store {len(body)} bytes, and the limit is "
+            f"{COMMENT_MAX_BYTES}. A character outside ASCII takes more than one byte: "
+            f"é takes 4 (\\'e9), and a character that code page 1252 lacks takes 6 or "
+            f"more. Shorten the comment by at least {len(body) - COMMENT_MAX_BYTES} bytes."
+        )
+    return body
 
 
 def _pad_to_page(data: bytearray) -> bytes:
@@ -317,13 +335,7 @@ def encode_rung(
     has_comment = comment is not None and comment != ""
     if has_comment:
         assert comment is not None
-        encoded = _build_rtf_body(comment).encode("cp1252")
-        if len(encoded) > COMMENT_MAX_BYTES:
-            raise EncodeError(
-                f"Comment body exceeds {COMMENT_MAX_BYTES} bytes after RTF encoding "
-                f"(got {len(encoded)}). Shorten the comment."
-            )
-        payload = _PREFIX + encoded + _SUFFIX
+        payload = _PREFIX + _comment_body(comment) + _SUFFIX
 
         # Slice-insert pushes everything at 0x0298+ forward by len(payload).
         # The cell grid (at 0x0A60 before insert) lands at 0x0A60+len(payload).

@@ -536,6 +536,11 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   `\ucN` in the header, before `\fsN`, and `recover_text` reads it. A `\uN` above 0xFFFF reads as that
   character in `_decode_rtf` and as nothing in `recover_text`. A brace as the fallback character of a `\uN`
   opens or closes a group in `recover_text`, and `_decode_rtf` drops it.
+- **Code page 936 text that Python's `gbk` codec cannot read.** Windows code page 936 reads the
+  byte 0x80 as `€`. It also reads 2,149 user-defined two-byte codes, as U+E000 to U+E864. Python's `gbk`
+  codec has no character for any of them. The decoder reads each as U+FFFD and warns with `partial`. No
+  capture shows CLICK writing them. A table like the code page 1252 one in `_rtf.py` would let the decoder
+  read them.
 - **The `.python-version` pin.** It sets Python 3.13 for a fresh venv, because pyyaml has no wheel for
   3.15 and `make docs-build` fails without it. Delete the file when pyyaml ships a 3.15 wheel.
 - **Small cleanups.** `tests/csv/test_flag_keywords.py` has no `read_csv(unchecked=True)` case with a

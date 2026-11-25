@@ -6,13 +6,20 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `encode()` now writes a rung comment's text outside ASCII as CLICK stores it, so the comment reaches CLICK as you wrote it, and the encoded bytes change. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK. A character outside ASCII counts as 4 to 16 bytes toward the 1400-byte limit, so a long comment that 0.5.0 encoded can now raise `EncodeError`.
+  - Shorten such a comment by the number of bytes that the message gives.
+  - Update a test that expects the folded text, such as `-` for `—`, to expect the comment as you wrote it.
+  - A CSV that 0.5.0's `write_csv` wrote can read differently where `__`, `*` or a backslash sits beside a letter outside ASCII or a full-width lookalike such as `＊`. Decode the clipboard again with this release and write the CSV again.
+
 ### Added
 
-- `UndecodedCommentWarning.partial` is True when the decoder read a comment but read some of its text as U+FFFD. That happens to text in a font whose charset the decoder does not read, and to bytes that GBK cannot read. The decoder reads charsets 0 (Windows code page 1252) and 134 (GBK).
+- `UndecodedCommentWarning.partial` is True when the decoder read a comment but could not read some of the text in one of the comment's fonts. The decoder puts U+FFFD in place of that text. It reads fonts of charset 0 (Windows code page 1252) and 134 (GBK).
 
 ### Fixed
 
-- `decode()` and `decode_program()` now read each rung comment as CLICK shows it. 0.5.0 lost the text up to the first space, or the whole comment if it had no space, when the comment started with a character outside ASCII such as `€`, `中` or an emoji, and it read an emoji later in a comment as two lone surrogates and text in a GBK font as Windows code page 1252. Decode the clipboard or program file again with this release to get the text back.
+- `decode()` and `decode_program()` now read each rung comment as CLICK shows it. 0.5.0 dropped the start of a comment that began with a character outside ASCII, such as `€`, `中` or an emoji, and misread emoji and GBK text elsewhere in a comment. Decode the clipboard or program file again with this release to get the text back.
 
 ## 0.5.0 (2026-11-20)
 

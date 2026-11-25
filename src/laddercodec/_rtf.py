@@ -1,4 +1,4 @@
-"""Read the text bytes of a rung comment's RTF.
+"""Read the text bytes of a rung comment's RTF, and find the code page 1252 byte for a character.
 
 A byte of comment text, raw or written as ``\\'hh``, is read in the code page of the font
 that is current where the byte stands. The RTF starts with a font table, and each font in
@@ -12,7 +12,8 @@ as U+FFFD. In a GBK font, each byte that GBK cannot read reads as U+FFFD. The de
 in both cases.
 
 Both readers of comment RTF use this module: ``decode._decode_rtf`` and
-``undecoded.recover_text``.
+``undecoded.recover_text``. The writer, ``_comment.rtf_body``, calls :func:`cp1252_byte`
+so that it writes each character as the byte that the readers read back.
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ READ_CHARSETS = frozenset({ANSI_CHARSET, GBK_CHARSET})
 _CP1252_TABLE = "".join(
     bytes([byte]).decode("cp1252", errors="ignore") or chr(byte) for byte in range(256)
 )
+# For each character that the table reads from a byte of 0x80 or more, that byte.
+_CP1252_BYTE = {char: byte for byte, char in enumerate(_CP1252_TABLE) if byte >= 0x80}
 
 _FONT_TABLE = b"{\\fonttbl"
 # A font number, or the charset of the font named before it. A number longer than six
@@ -52,6 +55,14 @@ def decode_cp1252(data: bytes) -> str:
     U+009D. Every other byte reads as in Python's cp1252 codec.
     """
     return codecs.charmap_decode(data, "strict", _CP1252_TABLE)[0]
+
+
+def cp1252_byte(char: str) -> int | None:
+    """Return the byte from 0x80 up that :func:`decode_cp1252` reads as *char*.
+
+    Return None if *char* is ASCII or if no byte reads as it.
+    """
+    return _CP1252_BYTE.get(char)
 
 
 def read_bytes(data: bytes, charset: int, *, ansi: str = "cp1252", errors: str = "strict") -> str:

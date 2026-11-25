@@ -90,8 +90,7 @@ from .empty_multirow import synthesize_empty_multirow
 from .encode import (
     _PREFIX,
     _SUFFIX,
-    COMMENT_MAX_BYTES,
-    _build_rtf_body,
+    _comment_body,
 )
 from .errors import EncodeError
 from .topology import (
@@ -163,15 +162,11 @@ def encode_rungs(
     for r_idx, (logical_rows, condition_rows, af_tokens) in enumerate(rungs):
         _validate_rung(logical_rows, condition_rows, af_tokens, label=f"Rung {r_idx}")
 
-    # Validate comment lengths up front.
-    for r_idx, cmt in enumerate(comments_list):
-        if cmt is not None and cmt != "":
-            encoded = _build_rtf_body(cmt).encode("cp1252")
-            if len(encoded) > COMMENT_MAX_BYTES:
-                raise EncodeError(
-                    f"Rung {r_idx}: comment body exceeds {COMMENT_MAX_BYTES} bytes "
-                    f"after RTF encoding (got {len(encoded)}). Shorten the comment."
-                )
+    # Build each comment's body up front, so that a comment that is too long raises first.
+    bodies = [
+        _comment_body(cmt, r_idx) if cmt is not None and cmt != "" else None
+        for r_idx, cmt in enumerate(comments_list)
+    ]
 
     # --- Step 1: Header — load template, patch row_word ---
 
@@ -226,16 +221,16 @@ def encode_rungs(
 
     # --- Step 4: Comments — insert back-to-front ---
 
-    any_comment = any(c is not None and c != "" for c in comments_list)
+    any_comment = any(body is not None for body in bodies)
     if any_comment:
         # Process in reverse order so earlier inserts don't shift later
         # rung addresses.
         for r_idx in range(N - 1, -1, -1):
-            cmt = comments_list[r_idx]
-            if cmt is None or cmt == "":
+            body = bodies[r_idx]
+            if body is None:
                 continue
 
-            payload = _PREFIX + _build_rtf_body(cmt).encode("cp1252") + _SUFFIX
+            payload = _PREFIX + body + _SUFFIX
             preamble = preamble_bases[r_idx]
             insert_offset = preamble + PREAMBLE_COMMENT_BODY
             length_offset = preamble + PREAMBLE_COMMENT_LENGTH
