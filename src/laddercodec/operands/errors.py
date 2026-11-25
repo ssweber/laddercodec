@@ -79,6 +79,15 @@ class FieldError(LaddercodecError):
         when there is one refusal.
     obj:
         The instruction being built when its checks refused the value, or None.
+    span:
+        Where a refusal of a Math formula is in the formula: a ``(start, end)`` pair of
+        character offsets into ``Math.expression`` as it was passed, before any trimming or
+        change of case.  ``expression[start:end]`` is the refused text, and ``end`` is not
+        part of it.  For a Math that a decoder built, the offsets index into the decoded
+        Math's ``expression``, not into the display text that CLICK stored.  ``span`` is
+        None for a refusal of any other field.  It is also None for a formula refusal that
+        no one stretch of the formula causes: a blank formula, a formula that is too long,
+        a ``(`` with no ``)``, and a key that only the other mode takes.
     """
 
     field: str | None
@@ -88,6 +97,7 @@ class FieldError(LaddercodecError):
     click_id: str | None
     errors: tuple[FieldError, ...]
     obj: Any
+    span: tuple[int, int] | None
 
     def __init__(
         self,
@@ -107,6 +117,7 @@ class FieldError(LaddercodecError):
         self.click_id = click_id
         self.errors = (self,)
         self.obj = obj
+        self.span = None
 
     def __reduce__(self) -> tuple[Any, ...]:
         # Unpickling calls the class with args alone. FieldError requires code, so pass it too.
