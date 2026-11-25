@@ -87,7 +87,8 @@ class FieldError(LaddercodecError):
         Math's ``expression``, not into the display text that CLICK stored.  ``span`` is
         None for a refusal of any other field.  It is also None for a formula refusal that
         no one stretch of the formula causes: a blank formula, a formula that is too long,
-        a ``(`` with no ``)``, and a key that only the other mode takes.
+        a ``(`` with no ``)``, a key that only the other mode takes, and a formula that is
+        not a string, such as ``Math(5, "DS1")``.
     """
 
     field: str | None

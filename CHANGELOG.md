@@ -22,7 +22,7 @@
 
 - `UndecodedCommentWarning.partial` is True when the decoder read a comment but could not read some of the text in one of the comment's fonts. The decoder puts U+FFFD in place of that text. It reads fonts of charset 0 (Windows code page 1252) and 134 (GBK).
 - `Undecoded.to_the_end` is True when decoding stopped at the marker's rung. The marker then stands for that rung and every rung after it. `write_csv()` writes it as `to_the_end=1` at the end of the `undecoded(...)` token, and `read_csv()` reads it back.
-- `FieldError.span` is the place in a Math formula of the text that a refusal names, as a `(start, end)` pair of offsets into the formula that you passed. You can use `formula[start:end]` to show which part is wrong, and to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` for a refusal of any other field.
+- `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
 - `marker_rung()` is exported from `laddercodec`. It returns the one-row rung that holds an `Undecoded` marker, with the marker's headline as its comment.
 
 ### Fixed

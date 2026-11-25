@@ -61,6 +61,8 @@ def _at_fault(expression: str, error: FieldError) -> str | None:
         ("DS1 + FOO", "decimal", Code.MATH_INVALID_TOKEN, "FOO"),
         ("DS1 + DS0", "decimal", Code.ADDRESS_OUT_OF_RANGE, "DS0"),
         ("DS1 + FFh", "decimal", Code.MATH_CONSTANT_KIND, "FFh"),
+        # A sign that the message does not name is not part of the span.
+        ("DS1 * ( - FFh )", "decimal", Code.MATH_CONSTANT_KIND, "FFh"),
         ("DH1 + 12345h", "hex", Code.MATH_CONSTANT_OUT_OF_RANGE, "12345h"),
         ("DH1 + 5", "hex", Code.MATH_CONSTANT_KIND, "5"),
         ("DH1 + 1.5", "hex", Code.MATH_CONSTANT_KIND, "1.5"),
@@ -77,7 +79,8 @@ def _at_fault(expression: str, error: FieldError) -> str | None:
         ("DS1 + 007", "decimal", Code.MATH_CONSTANT_OUT_OF_RANGE, "007"),
         ("DS1 * ( - 007 )", "decimal", Code.MATH_CONSTANT_OUT_OF_RANGE, "- 007"),
         ("DS1 + 1.23456789", "decimal", Code.MATH_CONSTANT_OUT_OF_RANGE, "1.23456789"),
-        # The order: two tokens that may not stand together span both.
+        # The order: two tokens that may not stand together span both. A refusal of one
+        # token spans that token.
         ("DS1 DS2", "decimal", Code.MATH_SYNTAX_ERROR, "DS1 DS2"),
         ("DS1 + * DS2", "decimal", Code.MATH_SYNTAX_ERROR, "+ *"),
         ("DS1 + ( )", "decimal", Code.MATH_SYNTAX_ERROR, "( )"),
@@ -136,6 +139,12 @@ def test_span_names_the_text_at_fault(expression: str, mode: str, code: str, tex
 def test_no_span_where_no_one_stretch_is_at_fault(expression: str, mode: str, code: str) -> None:
     (error,) = _formula(expression, mode)
     assert error.code == code
+    assert error.span is None
+
+
+def test_no_span_for_a_formula_that_is_not_a_string() -> None:
+    (error,) = _refusals(lambda: Math(5, "DS1"))  # type: ignore[arg-type]
+    assert (error.field, error.code) == ("Math.expression", Code.MATH_INVALID_TOKEN)
     assert error.span is None
 
 

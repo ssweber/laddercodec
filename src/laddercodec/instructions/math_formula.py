@@ -46,12 +46,25 @@ the ranges. If a constant or such a word is refused, the parse does not check th
 because neither has an internal form to count.
 
 Each refusal sets :attr:`~FieldError.span` to the place of the refused text in the formula
-as it was passed. A refusal of a word, a constant, an address or a RAND bound spans that
-token, and a sign that joins a constant is part of it. A refusal of a range, SUM's bank
-refusal included, spans ``a : b``. A refusal of a call's form spans the call, from the
-function's name to its ``)``. A refusal of the order spans the two tokens that may not stand
-together. Four refusals have no span: a blank formula, a formula that is too long, a ``(``
-with no ``)``, and a key that only the other mode takes.
+as it was passed:
+
+- A refusal of a word, a constant, an address or a RAND bound spans that token. A sign is
+  part of the span when the message names it, as in ``- 007``.
+- A refused character spans that one character: ``~``, a pointer's ``[``, or the ``"`` or
+  ``$`` that starts a text constant.
+- A ``)`` with no ``(`` spans that ``)``. Parentheses nested too deep span the ``(`` that
+  opens the ninth level.
+- A refusal of a range, SUM's bank refusal included, spans ``a : b``.
+- A refusal of a call's form spans the call, from the function's name to its ``)``. A RAND
+  with equal bounds spans its call too.
+- A refusal of the order spans the two tokens that may not stand together (``DS1 DS2``), or
+  the one token at fault (the ``+`` at the end of ``DS1 +``).
+
+Any other refusal spans the character or token at fault. These refusals have no span: a
+blank formula, a formula that is too long, a ``(`` with no ``)``, and a key that only the
+other mode takes. :class:`~laddercodec.instructions.math.Math` refuses two more forms of
+formula before it calls :func:`parse`. A ``<nickname>`` spans its ``<...>``, and a formula
+that is not a string, such as ``5``, has no span.
 
 :class:`Formula` holds the tokens. Its properties and :meth:`Formula.internal` print the
 display formula, the template, the nickname display, and the internal formula and internal
@@ -264,8 +277,10 @@ class Token:
     ``real`` is set for a real constant that the parser accepts. The token's ``text`` and
     ``internal`` are then :attr:`MathReal.stored` and :attr:`MathReal.internal`. Two tokens
     that store the same text are equal, however the real was typed. ``span`` is where the
-    token was typed in the formula. A sign that joins a constant is part of its span. Two
-    tokens in different places are equal if the rest is equal.
+    token was typed in the formula. When :func:`_merge_signs` joins a sign to a constant,
+    the sign is part of the token's span. A refusal of that constant spans the sign only
+    when its message names the sign. Two tokens in different places are equal if the rest
+    is equal.
     """
 
     kind: str
