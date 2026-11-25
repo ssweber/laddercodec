@@ -6,9 +6,11 @@
 
 ## Unreleased
 
+`encode()` now writes text outside ASCII in a rung comment, such as `é`, `中` or an emoji, as CLICK stores it. `decode()` reads it back. The comment of an undecoded marker rung now numbers its rung from 1, the same as CLICK, and `Undecoded` has a new field, `to_the_end`. Read Breaking changes before you upgrade.
+
 ### Breaking changes
 
-- **`encode()` writes a comment's non-ASCII text as CLICK stores it.** The encoded bytes change. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK.
+- **`encode()` writes a comment's text outside ASCII as CLICK stores it.** The comment reaches CLICK as you wrote it. The encoded bytes change. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK.
   - A character outside ASCII counts as 4 to 16 bytes toward the 1400-byte limit, so a long comment that 0.5.0 encoded can now raise `EncodeError`. Shorten such a comment by the number of bytes that the message gives.
   - Update a test that expects the folded text, such as `-` for `—`, to expect the comment as you wrote it.
   - A CSV that 0.5.0's `write_csv` wrote can read differently where `__`, `*` or a backslash sits beside a letter outside ASCII or a full-width lookalike such as `＊`. Decode the clipboard again with this release and write the CSV again.

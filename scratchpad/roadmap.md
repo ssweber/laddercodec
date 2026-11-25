@@ -9,7 +9,7 @@ sandbox runner or Sam. **PLC** means a real PLC. **Sam** means his judgment. **a
 in a sibling repo. Work that needs nothing is never queued behind work that needs Sam.
 
 
-Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it. Updated 2026-11-20.
+Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it. Updated 2026-11-25.
 
 ## How work runs here
 
@@ -36,26 +36,43 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Next steps
 
-Sam tags laddercodec first, then pyrung. laddercodec makes no release before that. The API stays open to change
-from pyrung's feedback until the two release together (Sam, 2026-11-17).
-
 **Before the tag.** Nothing waits on Sam except the tag itself.
-1. The laddercodec session merges the release tidy (the roadmap, the CHANGELOG layout and the release notes).
-2. Sam tags laddercodec.
+1. The laddercodec session merges the CHANGELOG and this roadmap, and hands Sam the release notes.
+2. Sam tags 0.5.1. ClickNick 0.26.1 pins it, together with pyclickplc 0.11.3 and pyrung's next release.
 
-**After the joint release, in this order:**
-1. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
-2. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
+**After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds the three things that
+pyrung's export needs while pyrung changes its builder to parse each operand once, so that laddercodec does
+not hold up the export. So they come first. Two of them wait on a capture. The steps after them do not wait.
+1. The three things that pyrung's export needs:
+   - `lay_out` accepts a box after a box with pins (CLICK). It refuses one today, because no capture shows
+     how CLICK draws it. ClickNick's runner captures one first.
+   - A `Box` in `lay_out` accepts wired pins on a `RawInstruction`, so that Email, Home, Position and
+     Velocity can have their pins wired (CLICK). Today `circuit._check_pin` refuses a pin on any box that is
+     not a `PinnedInstruction`. Each capture of these four classes is a box of one part, so no capture shows
+     where their pins sit. ClickNick's runner captures each with its pins wired first. The field-map
+     captures in "Captures for motion and Email" do not ask for pins, so add them to that round.
+   - A public way to build one instruction that the checks refuse. The `allow=` form exists only for
+     `read_csv` and `read_bundle`. Sam approves the name of each new public function or parameter.
+2. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
+3. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-3. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
-   and `quantity=N` in Send and Receive messages (see Later).
-4. The other follow-ups in item 1 and in Later.
+4. A finding for a comment that is too long. This session proposed it on 2026-11-25, and pyrung asked for
+   it. Build it together with the whole-program check. `check()` reports a rung comment whose RTF body is
+   over 1400 bytes as a Finding, and the finding names the rung and how many bytes to cut. pyrung's
+   validation then reads that finding in place of its own 1400-character cap. Sam approves the code name,
+   `comment-too-long`, before it merges.
+   - The comment's length is a limit of `encode()`, not a shape that CLICK's syntax check refuses. So
+     `check()` reports more than its docstring says (`layout_check.py`), and the docstring changes too.
+     `undecoded-rung` and `layout-too-tall` are earlier findings of the same kind.
+5. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
+   and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
+   Later.
 
 **Alongside these steps, and not steps of their own:**
 - pyrung's reports from adopting the API.
 - The field rules (item 2), tightened to each grid as ClickNick's runner returns it.
 
-**Waits for the next release (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
+**After 0.5.1 (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
 `NOP` (see Later).
 
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
@@ -68,7 +85,7 @@ rule-description API (`field_rules(Copy)["source"]`) is not built.
 
 - **Where in a formula (Sam, 2026-11-19).** Two identical refusals in one formula
   (`DS0 + DS0`) can't be told apart. The proposal is `FieldError.span`, a half-open `(start, end)` character
-  offset into the expression as typed. It is new public API, and it comes after the joint release.
+  offset into the expression as typed. It is new public API. It is step 2 of Next steps.
   - It is None where no single stretch is at fault: an empty formula, the length, a `(` left open, the mode
     conflict.
   - A range refusal spans its `A : B`.
@@ -90,8 +107,8 @@ rule-description API (`field_rules(Copy)["source"]`) is not built.
   for `copy("A",B",TXT1)`, which `read_csv` reads). Route every `from_csv_token` through
   `parse_af_token` and `parse_af_call`, and the condition tokens through their equivalent, so that one parser
   reads each token.
-- **Token-syntax class split.** Some token-syntax errors are a `CsvReadError` and others are a `FieldError` with no
-  field. Pick one class for a token that is not syntax.
+- **Token-syntax class split.** Some token-syntax errors are a `CsvReadError` and others are a `FieldError`
+  with no field. Pick one class for a token that is not syntax.
 - **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
 - **Falsy Send and Receive status fields.** A Send or Receive accepts a status field (`sending`, `receiving`,
   `success`, `error`, `exception_response`) that is falsy, such as `0`, `None` or `[]`, without a refusal. It
@@ -117,11 +134,28 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   (banks, constant kinds, modes). They take the shape of ClickNick's `devtools/editor_cases.json`. click's
   runner runs them and returns the answers. `make editor-grids` writes the cases to
   `tests/fixtures/editor_grids/`, with laddercodec's verdict beside each. The runner has answered every grid
-  there except nine (CLICK): `preflight_counter`, `preflight_drum`, `preflight_fill`, `preflight_for`,
-  `preflight_send`, `preflight_shift`, `preflight_timer`, `receive_click_count1` and `drum_events_padded2`.
+  there. Some answers are in another grid's file. The `preflight_<dialog>` cases are in the answers of the
+  full grid for that dialog, such as `counter.answers.json`. The `receive_click_count1` cases are in
+  `receive_click.answers.json`, and the `drum_events_padded2` cases are in `drum_events_padded.answers.json`.
+  The next grids are the ones that laddercodec writes for the open questions in this item.
   `tests/test_editor_answers.py` compares the answers with the rules and lists each difference in
   `DISAGREEMENTS`, grouped by what is to be done. A new grid is new work for the runner. Tighten a field's rule
   when its answers arrive.
+- **CLICK's saves of 25 Fill, Math and Copy cases (nothing).** ClickNick's runner has recorded CLICK v4.00's
+  saves of 25 cases, which ClickNick's runner results call J4. CLICK accepted all 25. Commit the cases and
+  the saves under `tests/fixtures/editor_grids/`, with no local paths, and add them to
+  `tests/test_editor_answers.py`. Fix the one Fill save that differs from what laddercodec writes.
+  `fill(1234567.8,TXT1..TXT2)` is saved as `1234568.0`, and laddercodec writes `1234567.8`. Refuse it and
+  name the saved text, as a single Copy does. One Math save differs too. It is a CLICK question in "Math
+  real stored type", and it is not part of this item.
+
+  Then update the items that the saves settle: "Fill text and a bare number", "Reals in exponent form in a
+  Math", "A typed + on a real", "Math real form", "A pointer on both sides of a single Copy" and "Pointer on
+  both sides of a Copy". CLICK saves Copy type 7 for every plain case, the four in "A pointer on both sides
+  of a single Copy" among them. It saves type 8 with 0x2206 `1` for Copy Binary. laddercodec writes the
+  same, except that it writes 0x2206 `0` in a plain copy, which CLICK leaves out. Decode reads both forms.
+  The saves also answer the open Fill question in "Quoted text with an E". CLICK saves
+  `fill("HELLO",TXT1..TXT2)` as `0.0`.
 - **Open order of checks in a Math range (CLICK).** The rules check every range's banks and order before any
   address's bank, then a median's size and the X/Y option-slot ends. No answer covers these cases:
   - A reversed or two-bank `MAX`, `MIN`, `MDN` or `AVG` range over a refused bank (`MAX ( DH2 : DH1 )` in
@@ -340,11 +374,18 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   | `1E5` | `W100000` | `F100000.0` |
   | `1.5E+3`, `1.5E3` | `H1500` | `F1500.0` |
   | `1234567.0` | `W1234567` (shown `1234567`) | `F1234567.0` |
+  | `1e6` (into DF1) | `W1000000` | `F1000000.0` |
 
   An integral real typed with an `E`, and `1234567.0`, are stored as integers (H in int16, else W). `1e5`
   (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
-  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type
-  changes what the Math computes, and which other positional reals CLICK stores as integers.
+  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type changes what the Math computes, and which
+  other positional reals CLICK stores as integers.
+
+  **A lowercase `e` (CLICK).** CLICK v4.00 stored `1e5` as the real `F100000.0` and `1e6` as the integer
+  `W1000000`. Two saves do not give a rule, so laddercodec fits none yet. ClickNick's runner answers a grid of
+  lowercase-`e` reals from about 1e5 to 1e7 first, such as `1e5`, `5e5`, `1e6`, `2.5e6` and `1e7`. The grid
+  also holds `1.5e3`, because CLICK stores it as `H1500` when it is typed with an uppercase `E`.
+  laddercodec writes that grid. The encoder changes after CLICK answers.
 - **Send Word Swap after a change of function code.** With FC16 and Word Swap on, switch the Send to FC06.
   Does CLICK keep Word Swap stored, or clear it? A runner case types `send fc16 984 400001 <- DS1 x2
   word_swap=ON`, then picks FC06 and saves. The code refuses Word Swap with any code but FC16, so a stored
@@ -378,8 +419,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
   offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
-  Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
-  stay `raw(...)`.
+  Cc, Bcc, Subject and both body modes filled, each field a distinct value, with their pins wired. Their field
+  maps are inferred and stay `raw(...)`.
 - **ASCII Send and Receive** (static, dynamic, fixed, variable), and Home, Velocity, Position and Email with
   every status field set to a distinct address: native blobs to model later.
 - **Other non-pinned boxes in a compact OR layout.** `read_csv` lays them out as it does stacked 2-row
@@ -403,7 +444,7 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   `decode()` reads with what the editor shows. Typing `中` with an IME is not tested either. CLICK wrote it
   under a SimSun font when it was set as UTF-16.
 
-## For pyrung's export (after the joint release; another repo first)
+## For pyrung's export (another repo first)
 
 This comes from the ecosystem plan's item 2. It waits until pyrung's export goes through laddercodec.
 
@@ -414,8 +455,6 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   Later.
 
 ## Waits on another repo
-
-- **`docs/guides/csv-format.md`:** delete the pyrung-specific sections after pyrung has its copy.
 
 **For pyrung** (one line each; unchecked against pyrung's current source):
 - Send/Receive: `device_id` accepts 248-255 on RTU and 0 on Receive RTU. There is no `com_port` for CPU Port 3
@@ -495,14 +534,15 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **A last rung of only wires in an SCR save.** It can't be told from CLICK's own trailing empty rungs. Both
   are records with no instruction and no comment, byte-identical, and CLICK keeps 1 to 4 trailing empties. So
   `decode_program` drops it. Nothing to do unless CLICK's save differs somewhere not yet seen.
-- **A padded TCP address (Sam, 2026-11-20):** laddercodec accepts `010.2.3.4` and writes `10.2.3.4`. Each part is
-  read as decimal.
+- **A padded TCP address (Sam, 2026-11-20):** laddercodec accepts `010.2.3.4` and writes `10.2.3.4`. Each
+  part is read as decimal.
 - **A space in an address (Sam, 2026-11-17):** an edge space, or a space inside an address (`DS 1`), stays
   refused on purpose, though CLICK's dialog accepts it. An instruction holds the address in display form. Decode
   reads CLICK's saves of such an address, and a decoded Compare whose Data B holds `DS 1` keeps the refusal.
 - **Quoted text with an E into TXT (Sam, 2026-11-17):** the rules keep accepting it, and the encoder keeps
   writing it as text, though CLICK stores it as its float value. A Copy `"HELLO"` into TXT1 saves the source
-  `0.0`, ends in TXT3 and has conversion type 3. Decode reads that save as `copy(0.0,TXT1,convert=to_text(...))`.
+  `0.0`, ends in TXT3 and has conversion type 3. Decode reads that save as
+  `copy(0.0,TXT1,convert=to_text(...))`.
 
 ## Later (nothing unless marked)
 
@@ -520,6 +560,14 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   of bits (`C1 : C8`) is told to write "its registers as DH, XD or YD"; the message should say bits.
 - **`quantity=N` in Send and Receive messages (builder).** Some refusals advise `quantity=N`, which a CSV
   token refuses. The message should name the source range instead.
+- **The `$hh` hint in Fill and Compare (nothing).** A Fill into TXT and Compare's Data A share one text
+  check. Each refuses a character outside ASCII, such as `"é"`, with `invalid-text-constant`, and the message
+  says to write the character as its `$hh` code. The bare `$E9` is accepted in both. The quoted form `"$E9"`
+  is not what the hint means:
+  - In a Fill it is refused again, with `constant-out-of-range`.
+  - In Compare's Data A it is accepted as the 3-character text `$E9`, so the compare matches other text.
+
+  The hint should show the bare form.
 - **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
   none or another. Add the ids, with no new codes:
   - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);
@@ -531,6 +579,9 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
+- **An RTU Send or Receive (nothing).** The encoder writes `...` in tag 0x622B of an RTU Send or Receive. A
+  decoded one whose 0x622B holds anything else does not keep its stored blob, so `encode()` writes `...`
+  there.
 - **Three RTF forms that the comment readers disagree on.** `_decode_rtf` and `undecoded.recover_text` read
   three RTF forms differently. CLICK writes none of them, so nothing waits on this. `_decode_rtf` ignores a
   `\ucN` in the header, before `\fsN`, and `recover_text` reads it. A `\uN` above 0xFFFF reads as that
@@ -541,6 +592,10 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   codec has no character for any of them. The decoder reads each as U+FFFD and warns with `partial`. No
   capture shows CLICK writing them. A table like the code page 1252 one in `_rtf.py` would let the decoder
   read them.
+- **The comment fuzz check (nothing).** `tests/ladder/test_comment_markdown.py` decides whether an underline
+  touches a word by calling the code's own `_is_alnum`. Write the rule in the test instead
+  (`ch.isalnum() or unicodedata.category(ch).startswith("M")`), so that the test does not depend on the code
+  that it checks.
 - **The `.python-version` pin.** It sets Python 3.13 for a fresh venv, because pyyaml has no wheel for
   3.15 and `make docs-build` fails without it. Delete the file when pyyaml ships a 3.15 wheel.
 - **Small cleanups.** `tests/csv/test_flag_keywords.py` has no `read_csv(unchecked=True)` case with a
@@ -585,10 +640,10 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   - a pin row of wires that no rail or contact reaches: C0202 at AF, as for an empty row, or elsewhere;
   - two groups of boxes that share nets in one rung: one C000A line or two;
   - C0206-C0214.
-- **`read_csv` and CLICK's check rewrite of a wires-only rung (Sam; waits for the next release).** CLICK's check wires a rung of only
-  wires through AF, and the rung then decodes as wires into a `NOP` (`tests/test_check_shapes.py`, rung 14).
-  `read_csv` keeps the rung as drawn, with no `NOP`. Should it return the post-check form? A `NOP` in a rung
-  of wires is a token that the CSV does not hold.
+- **`read_csv` and CLICK's check rewrite of a wires-only rung (Sam; after 0.5.1).** CLICK's
+  check wires a rung of only wires through AF, and the rung then decodes as wires into a `NOP`
+  (`tests/test_check_shapes.py`, rung 14). `read_csv` keeps the rung as drawn, with no `NOP`. Should it
+  return the post-check form? A `NOP` in a rung of wires is a token that the CSV does not hold.
 
   **CLICK question.** CLICK's answers are known only for a rail-fed `NOP` beside coils. The layout drops it
   beside every kind of box. What does CLICK's check do with a rail-fed `NOP` beside a counter with
