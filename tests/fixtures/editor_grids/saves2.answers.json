@@ -1,0 +1,1255 @@
+{
+ "grid": "saves2.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "none: an offline project for a C2-03CPU",
+ "runs": [
+  "live-1",
+  "live-2",
+  "live-3-case27"
+ ],
+ "cases": [
+  {
+   "row": "saves.copy_fill",
+   "case": "fill 1E -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1E",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: C2-03CPU - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nC2-03CPU - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "C2-03CPU",
+    "lines": []
+   },
+   "seconds": 6.608,
+   "read_back": {
+    "source": "1E",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(1.0,DS10..DS11)\""
+   ],
+   "save": "saves2/case01.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill E5 -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "E5",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.267,
+   "read_back": {
+    "source": "E5",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(0.0,DS10..DS11)\""
+   ],
+   "save": "saves2/case02.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill \"HELLO\" -> TXT999..TXT1000",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"HELLO\"",
+    "destination": "TXT999",
+    "destination_end": "TXT1000"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.491,
+   "read_back": {
+    "source": "\"HELLO\"",
+    "destination": "TXT999",
+    "destination_end": "TXT1000"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(0.0,TXT999..TXT1000)\""
+   ],
+   "save": "saves2/case03.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill DS 1 -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "DS 1",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.416,
+   "read_back": {
+    "source": "DS 1",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(DS1,DS10..DS11)\""
+   ],
+   "save": "saves2/case04.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill 1234567.8 -> DF1..DF2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1234567.8",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.655,
+   "read_back": {
+    "source": "1234567.8",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(1234568.0,DF1..DF2)\""
+   ],
+   "save": "saves2/case05.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill 1.2345678 -> DF1..DF2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1.2345678",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case05 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase05 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case05",
+    "lines": []
+   },
+   "seconds": 6.129,
+   "read_back": {
+    "source": "1.2345678",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(1.234568,DF1..DF2)\""
+   ],
+   "save": "saves2/case06.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill 0.33333334 -> DF1..DF2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "0.33333334",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case06 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase06 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case06",
+    "lines": []
+   },
+   "seconds": 6.124,
+   "read_back": {
+    "source": "0.33333334",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(0.3333333,DF1..DF2)\""
+   ],
+   "save": "saves2/case07.scr"
+  },
+  {
+   "row": "saves.copy_fill",
+   "case": "fill 3.4028235E+38 -> DF1..DF2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "3.4028235E+38",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case07 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase07 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case07",
+    "lines": []
+   },
+   "seconds": 5.937,
+   "read_back": {
+    "source": "3.4028235E+38",
+    "destination": "DF1",
+    "destination_end": "DF2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(3.402823E+38,DF1..DF2)\""
+   ],
+   "save": "saves2/case08.scr"
+  },
+  {
+   "row": "saves.counter",
+   "case": "count_up CT1 preset=--5",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "--5"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "case08",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 6.668,
+   "read_back": {
+    "done": "CT1",
+    "preset": "--5",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"count_up(CT1,CTD1,preset=--5)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case09.scr"
+  },
+  {
+   "row": "saves.counter",
+   "case": "count_up CT 1 preset=10",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT 1",
+    "preset": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "case09",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 6.164,
+   "read_back": {
+    "done": "CT 1",
+    "preset": "10",
+    "accumulator": "CTD 1",
+    "completion_bit": "CT 1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"count_up(CT1,CTD1,preset=10)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case10.scr"
+  },
+  {
+   "row": "saves.counter",
+   "case": "count_up CT1 preset=DS 1",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "DS 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case10 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase10 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "case10",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 6.371,
+   "read_back": {
+    "done": "CT1",
+    "preset": "DS 1",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"count_up(CT1,CTD1,preset=DS 1)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case11.scr"
+  },
+  {
+   "row": "saves.drum",
+   "case": "event_drum events[0]=X 001",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X 001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case11 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase11 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "case11",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 7.179,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X 001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"event_drum(outputs=[Y001,Y002],events=[X 001,X002],pattern=[[0,0],[0,0]],current_step=DS1,completion_flag=C1)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case12.scr"
+  },
+  {
+   "row": "saves.drum",
+   "case": "time_drum jump_enabled=1 jump_step=DS 1",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": "DS 1"
+   },
+   "choices": {
+    "unit": "sec"
+   },
+   "options": {
+    "jump_enabled": 1
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "case12",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.694,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": "DS 1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16,
+    "jump_step": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"time_drum(outputs=[Y001,Y002],presets=[1000,1000],unit=Ts,pattern=[[0,0],[0,0]],current_step=DS1,accumulator=TD1,completion_flag=C1)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.jump(DS1)"
+   ],
+   "save": "saves2/case13.scr"
+  },
+  {
+   "row": "saves.drum",
+   "case": "time_drum outputs[0]=Y 001",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y 001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "choices": {
+    "unit": "sec"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "case13",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.389,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y 001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"time_drum(outputs=[Y 001,Y002],presets=[1000,1000],unit=Ts,pattern=[[0,0],[0,0]],current_step=DS1,accumulator=TD1,completion_flag=C1)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case14.scr"
+  },
+  {
+   "row": "saves.drum",
+   "case": "time_drum presets[0]=DS 1",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "DS 1",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "choices": {
+    "unit": "sec"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "case14",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.405,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "DS 1",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"time_drum(outputs=[Y001,Y002],presets=[DS 1,1000],unit=Ts,pattern=[[0,0],[0,0]],current_step=DS1,accumulator=TD1,completion_flag=C1)\"",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case15.scr"
+  },
+  {
+   "row": "saves.for",
+   "case": "for 1 2",
+   "instruction": "for",
+   "fields": {
+    "count": "1 2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case15 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase15 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case15",
+    "lines": []
+   },
+   "seconds": 5.791,
+   "read_back": {
+    "count": "1 2"
+   },
+   "limits": {
+    "count": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,for(1 2)"
+   ],
+   "save": "saves2/case16.scr"
+  },
+  {
+   "row": "saves.for",
+   "case": "for DS 1",
+   "instruction": "for",
+   "fields": {
+    "count": "DS 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case16 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase16 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case16",
+    "lines": []
+   },
+   "seconds": 5.977,
+   "read_back": {
+    "count": "DS 1"
+   },
+   "limits": {
+    "count": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,for(DS1)"
+   ],
+   "save": "saves2/case17.scr"
+  },
+  {
+   "row": "saves.risky_counter",
+   "case": "count_up CT1 preset= DS1",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case17 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase17 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "case17",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 6.302,
+   "read_back": {
+    "done": "CT1",
+    "preset": " DS1",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Cnt,0x2719,3,rows=3,sub=3,pins=1/2,606b=CT1,606a= DS1,606c=CTD1,606d=CT1,21fc=0,3a05:00000000=8710,3a05:01000000=0,3a05:02000000=8711,0000=)\""
+   ],
+   "save": "saves2/case18.scr"
+  },
+  {
+   "row": "saves.risky_fill",
+   "case": "fill \"€\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"€\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case18 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase18 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case18",
+    "lines": []
+   },
+   "seconds": 6.513,
+   "read_back": {
+    "source": "\"€\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(\"\"€\"\",TXT1..TXT2)\""
+   ],
+   "save": "saves2/case19.scr"
+  },
+  {
+   "row": "saves.risky_timer",
+   "case": "on_delay T1 preset=DS1  unit=ms",
+   "instruction": "timer",
+   "mode": "on_delay",
+   "fields": {
+    "done": "T1",
+    "preset": "DS1 "
+   },
+   "choices": {
+    "unit": "ms"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case19 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase19 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case19",
+    "lines": []
+   },
+   "seconds": 6.294,
+   "read_back": {
+    "done": "T1",
+    "preset": "DS1 ",
+    "accumulator": "TD1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 30000,
+    "accumulator": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Tmr,54006d007200000018270000020001090000006860ffffffff5400310000006a60ffffffff440053003100200000006960ffffffff5400440031000000f921ffffffff30000000fa21ffffffff30000000fb21ffffffff30000000053a0000000038003700310037000000053a01000000300000000000ffffffff0000,rows=2,sub=3)\""
+   ],
+   "save": "saves2/case20.scr"
+  },
+  {
+   "row": "saves.send",
+   "case": "send fc05 984 1 <- C 1",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": "C 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port2",
+    "function": "05 - Write Single Coil",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case20 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase20 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case20",
+    "lines": []
+   },
+   "seconds": 7.382,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": "C 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusRtuTarget(name=\"\"rtu\"\",com_port=\"\"cpu2\"\",device_id=1),remote_start=ModbusAddress(address=1),function_code=5,source=C 1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ],
+   "save": "saves2/case21.scr"
+  },
+  {
+   "row": "saves.send",
+   "case": "send fc06 984 400001 <- DS 1",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case21 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase21 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case21",
+    "lines": []
+   },
+   "seconds": 6.453,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusRtuTarget(name=\"\"rtu\"\",com_port=\"\"cpu2\"\",device_id=1),remote_start=ModbusAddress(address=400001),function_code=6,source=DS 1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ],
+   "save": "saves2/case22.scr"
+  },
+  {
+   "row": "saves.send",
+   "case": "send fc06 984 400001 <- DS1 exception=DS 1",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS 1"
+   },
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case22 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase22 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case22",
+    "lines": []
+   },
+   "seconds": 6.415,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS 1"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusRtuTarget(name=\"\"rtu\"\",com_port=\"\"cpu2\"\",device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C100,success=C101,error=C102,exception_response=DS 1)\""
+   ],
+   "save": "saves2/case23.scr"
+  },
+  {
+   "row": "saves.send",
+   "case": "send fc06 984 400001 <- DS1 sending=C 1",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C 1",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case23 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase23 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case23",
+    "lines": []
+   },
+   "seconds": 6.366,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C 1",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusRtuTarget(name=\"\"rtu\"\",com_port=\"\"cpu2\"\",device_id=1),remote_start=ModbusAddress(address=400001),source=DS1,sending=C 1,success=C101,error=C102,exception_response=DS100)\""
+   ],
+   "save": "saves2/case24.scr"
+  },
+  {
+   "row": "saves.send",
+   "case": "send fc06 click DS 1 <- DS1",
+   "instruction": "send",
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "DS 1",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "CLICK Addressing"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case24 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase24 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case24",
+    "lines": []
+   },
+   "seconds": 6.48,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "DS 1",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"send(target=ModbusRtuTarget(name=\"\"rtu\"\",com_port=\"\"cpu2\"\",device_id=1),remote_start=\"\"DS 1\"\",function_code=6,source=DS1,sending=C100,success=C101,error=C102,exception_response=DS100)\""
+   ],
+   "save": "saves2/case25.scr"
+  },
+  {
+   "row": "saves.shift",
+   "case": "shift C 1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C 1",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case25 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase25 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "case25",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 6.402,
+   "read_back": {
+    "start_bit": "C 1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,shift(C1..C8)",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.clock()",
+    ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()"
+   ],
+   "save": "saves2/case26.scr"
+  },
+  {
+   "row": "saves.shift",
+   "case": "shift C1..C 1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C 1"
+   },
+   "outcome": "crashed",
+   "code": null,
+   "message": "CLICK exited while waiting for CLICK's answer to case 27 (saves.shift shift C1..C 1)",
+   "syntax_check": null,
+   "seconds": 0.712,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C 1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   },
+   "stops": [
+    {
+     "out": "live-1",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 27 (saves.shift shift C1..C 1)",
+     "crashed": true
+    },
+    {
+     "out": "live-3-case27",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 1 (saves.shift shift C1..C 1)",
+     "crashed": true
+    }
+   ]
+  },
+  {
+   "row": "saves.timer",
+   "case": "on_delay T 1 preset=100 unit=ms",
+   "instruction": "timer",
+   "mode": "on_delay",
+   "fields": {
+    "done": "T 1",
+    "preset": "100"
+   },
+   "choices": {
+    "unit": "ms"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: C2-03CPU - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nC2-03CPU - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "C2-03CPU",
+    "lines": []
+   },
+   "seconds": 6.394,
+   "read_back": {
+    "done": "T 1",
+    "preset": "100",
+    "accumulator": "TD 1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 30000,
+    "accumulator": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"on_delay(T1,TD1,preset=100,unit=Tms)\""
+   ],
+   "save": "saves2/case28.scr"
+  },
+  {
+   "row": "saves.timer",
+   "case": "on_delay T1 preset=DS 1 unit=ms",
+   "instruction": "timer",
+   "mode": "on_delay",
+   "fields": {
+    "done": "T1",
+    "preset": "DS 1"
+   },
+   "choices": {
+    "unit": "ms"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case28 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase28 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case28",
+    "lines": []
+   },
+   "seconds": 8.225,
+   "read_back": {
+    "done": "T1",
+    "preset": "DS 1",
+    "accumulator": "TD1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 30000,
+    "accumulator": 30000
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Tmr,0x2718,2,rows=2,sub=3,pins=1,6068=T1,6069=TD1,0000=)\""
+   ],
+   "save": "saves2/case29.scr"
+  }
+ ]
+}
