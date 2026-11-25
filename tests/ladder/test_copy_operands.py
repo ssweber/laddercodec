@@ -522,7 +522,7 @@ def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) ->
 def test_fill_refuses_a_real_beyond_seven_significant_digits(
     tmp_path: Path, typed: str, start: str, end: str, count: int, saved: str
 ) -> None:
-    """A Fill refuses a real with more than 7 significant digits into every bank.
+    """A Fill refuses a real with more than 7 significant digits into each of four banks.
 
     CLICK keeps 7 significant digits of a Fill's value, so it saves a longer real as another
     value. A single Copy refuses such a source with the same code. The message names the

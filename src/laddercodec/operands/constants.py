@@ -246,8 +246,8 @@ def real_beyond_kept_digits(text: str, digits: int = REAL_DIGITS) -> str | None:
     """Return the real constant ``text`` rounded to ``digits`` significant digits, when it
     is typed with more.  Return None when it is typed with at most that many.
 
-    CLICK keeps 7 significant digits of a real in a single Copy source
-    (:data:`REAL_DIGITS`).  It saves ``3.4028235E+38`` copied into DF1 as
+    CLICK keeps 7 significant digits of a real in a single Copy source and in a Fill
+    value (:data:`REAL_DIGITS`).  It saves ``3.4028235E+38`` copied into DF1 as
     ``3.402823E+38``.  The text returned is the constant to write instead.  It is the float32
     value printed with ``digits`` significant digits.  From 1E-04 to below 1E+07 the print
     is positional, as :func:`real_display` prints (``1234570.0``).  ``.0`` is added where
@@ -287,13 +287,13 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
       as it is, so ``'A"B'`` is ``"A"B"``.  A ``str`` of one character outside printable
       ASCII is that character's code, ``$`` and two hex digits (``$0D``).
 
-    A single Copy accepts the text for a real of at most 7 significant digits.  CLICK keeps
-    7 digits in a Copy, and saves a real with more digits cut to 7.  A Math accepts the
-    text for a real that CLICK's Math saves as the same value
+    A single Copy and a Fill accept the text for a real of at most 7 significant digits.
+    CLICK keeps 7 digits in a Copy and a Fill, and saves a real with more digits cut to 7.
+    A Math accepts the text for a real that CLICK's Math saves as the same value
     (:attr:`~laddercodec.operands.math_real.MathReal.kept`).  A
-    Math or a Copy refuses any other real, and its message names the constant to write.
-    The largest float32 value is ``3.402823466E+38``.  Write it as ``3.402823E+38`` in a
-    Math and in a Copy.
+    Math, a Copy or a Fill refuses any other real, and its message names the constant to
+    write.  The largest float32 value is ``3.402823466E+38``.  Write it as
+    ``3.402823E+38`` in a Math, a Copy and a Fill.
 
     Two choices are provisional until CLICK's behaviour is captured.  A real that 7
     significant digits print in exponent form, from 1E+07 up or below 1E-04, is written in

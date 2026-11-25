@@ -259,14 +259,14 @@ FILL_TXT_CHAR_UNSAVED = (
     "what a PLC writes into one TXT register for it is not known, so laddercodec refuses it"
 )
 FILL_REAL_DIGITS = (
-    "kept: CLICK keeps 7 significant digits of a Fill's value and saves 1234567.8 as "
-    "1234568.0, another value. laddercodec refuses a real of more than 7 in every bank, as a "
-    "single Copy does, and names the form that CLICK saves (settled)"
+    "kept: CLICK saves a Fill of 1234567.8 into TXT1..TXT2 as 1234568.0, another value. "
+    "laddercodec refuses a real of more than 7 significant digits in every bank, as a single "
+    "Copy does, and names the form to write. Only the save into TXT is recorded (settled)"
 )
 MATH_LOWER_E = (
-    "kept: CLICK saves a real typed with a lowercase e and more digits than it keeps as "
-    "another value: 1.2345e-04 as 0.000123 and 1.2345678e15 as 1.234568E+15. laddercodec "
-    "refuses the real (settled)"
+    "kept: CLICK saves 1.2345e-04 as 0.000123 and 1.2345678e15 as 1.234568E+15. A real typed "
+    "with a lowercase e keeps 6 digits after the point, so CLICK saves these as other values. "
+    "laddercodec refuses them (settled)"
 )
 MATH_STORED_TYPE = (
     "open (CLICK): CLICK's Math stores the real 1e6 as the integer W1000000, and laddercodec "
@@ -1537,19 +1537,22 @@ def test_each_save_decodes_as_its_stored_row() -> None:
         assert saved_tokens(case) == [box], (grid, case["case"])
 
 
-#: The tags that the encoder may write another way than CLICK's program file stores them.
-#: CLICK v4 sets the text flag 0x1201 on every Copy that it saves and ignores it on load. The
-#: encoder sets it only for a termination code or a text constant. 0x0000 ends the tags.
-OTHER_FORM_TAGS = frozenset({0x1201, 0x0000})
+#: CLICK v4 sets the flag 0x1201 in every Copy and Fill that it saves. The encoder writes the
+#: older form, 0, except for a termination code or a text constant (roadmap: Open (CLICK
+#: v3.92)). The tag, the value in CLICK's program file and the value that the encoder writes.
+OLDER_FORM_FLAG = (0x1201, "", "0")
+#: 0x0000 ends the tags in the program file, and the blob has no such tag.
+END_TAG = 0x0000
 
 
 def test_the_encoder_writes_the_tags_that_click_saves(generator: Any) -> None:
     """For each saved case that the rules accept, the encoder writes each tag that CLICK's
-    program file stores, with the same value, except the tags in ``OTHER_FORM_TAGS``.
+    program file stores, with the same value. It writes the flag 0x1201 in the older form
+    (``OLDER_FORM_FLAG``).
 
-    That holds the conversion type 0x2227 of a single Copy: 7 for a plain copy, and 8 for
-    Copy Binary with 0x2206 set to 1. A case that ``DISAGREEMENTS`` lists as saved in
-    another form is skipped."""
+    The tags compared include a single Copy's conversion type 0x2227: 7 for a plain copy,
+    and 8 for Copy Binary with 0x2206 set to 1. A case that ``DISAGREEMENTS`` lists as saved
+    in another form is skipped."""
     compared = 0
     for grid, case in _saved_cases():
         if case["outcome"] != "accepted" or not rules_verdict(generator, case)[0]:
@@ -1558,8 +1561,12 @@ def test_the_encoder_writes_the_tags_that_click_saves(generator: Any) -> None:
             continue
         blob = rules_build(generator, case).build_blob()
         written = {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
+        flag, saved_flag, written_flag = OLDER_FORM_FLAG
         for tag, value in saved_tags(case).items():
-            if tag not in OTHER_FORM_TAGS:
-                assert written[tag] == value, (grid, case["case"], hex(tag))
+            where = (grid, case["case"], hex(tag))
+            if tag == flag:
+                assert (value, written[tag]) == (saved_flag, written_flag), where
+            elif tag != END_TAG:
+                assert written[tag] == value, where
         compared += 1
     assert compared == 18

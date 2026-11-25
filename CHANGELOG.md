@@ -6,15 +6,15 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `Fill()` and `read_csv()` now raise `FieldError` (a `ValueError`) with the code `invalid-constant` for a real with more than 7 significant digits, the same as a single `Copy`. CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. 0.5.1 encoded such a real as typed. Write the real that the message names.
+
 ### Added
 
 - The constructor of each instruction class, Modbus target and `ModbusAddress` now accepts `allow=`, a list of refusal codes, with the same limits as `read_csv(path, allow=...)`. It builds an instruction whose refusals all have a listed code instead of raising, and `encode()` writes it: `Coil("X001", allow=["bank-not-allowed"])`.
 - `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
 - `check()` now reports a rung comment that `encode()` refuses as too long, with the new code `comment-too-long`. The message says how many bytes to cut. In 0.5.1, `check()` returned no finding for such a comment, and you learned of it only when `encode()` raised `EncodeError`.
-
-### Changed
-
-- `Fill` now refuses a real value with more than 7 significant digits, as a single `Copy` does. CLICK saves `fill(1234567.8,DF1..DF2)` as `1234568.0`, which is another value. `Fill()` and `read_csv()` raise `FieldError` (a `ValueError`) with the code `invalid-constant`, and the message names the real to write. 0.5.1 wrote such a real as typed.
 
 ## 0.5.1 (2026-11-25)
 

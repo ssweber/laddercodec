@@ -234,7 +234,8 @@ encoder keeps the older form and writes 0, except -1 for a termination code and 
 constant source. Paste a single Copy from v4 that has a numeric source and no termination code, so that it holds
 0x1201 = -1. Does v3.92 read it as it reads the same Copy with 0? If it does, the encoder could write -1 in
 every single Copy and Block Copy. That would change 19 golden `.bin` files, and each would need a paste check
-(CLICK). No capture shows a Fill, Pack or Unpack that v4's dialog saved.
+(CLICK). CLICK v4's dialog sets 0x1201 in a Fill too. No capture shows a Pack or Unpack that v4's dialog
+saved.
 
 **Question for CLICK:** what does each other dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into?
 Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
@@ -261,20 +262,14 @@ Modbus hex addresses are already canonical.
 - **`MAX ( DS1 , DS2 )`:** which id does the dialog report? The code refuses it with no id.
 
 **Answered by the full Copy and Math grids.** In these cases CLICK stores another form than the code writes
-now. Each case is in the `copy_single`, `math_decimal` or `saves` answers. The code is unchanged until a
-branch adopts them.
+now. Each case is in the `copy_single` and `math_decimal` answers. The code is unchanged until a branch
+adopts them.
 - A decimal Math `1E5` is stored `100000`. `1.5E+3` and `1.5E3` are stored `1500` (alone and as `DS1 + ...`).
   The code writes `100000.0` and `1500.0`.
 - A lowercase `1e5` in a decimal Math, alone and as `DS1 + 1e5`, is stored `100000.0`, as the code writes.
 - A Copy stores both `1E5` and `1e5` as `100000.0`, as the code writes.
 - As the code writes: `1E-45` and `1E-50` are kept as typed in a Copy (and `1E-45` in a Math). `1.5e-3` is
   `0.0015`. `1.` is `1.0`. `1.50` is `1.5`.
-- A decimal Math saves a real positionally below 1E+07, and in exponent form from 1E+07 up, as the code
-  writes. It saves `1e6` as `1000000`, `9999999` as typed, `1e7` to `1e9` as `1E+07` to `1E+09` and `1.5e10`
-  as `1.5E+10`. It saves `1e-5` as `1E-05` and `1.0E-10` as `1E-10`. Only the type of `1e6` differs (see
-  Math real stored type).
-- A decimal Math keeps the `+` of a real and drops its trailing zeros: it saves `+2.50` as `+2.5`, as the
-  code writes.
 
 ## Open CLICK questions (CLICK)
 
@@ -355,8 +350,11 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
   CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
   CLICK's saves with the blobs that the encoder writes.
-- **Fill text outside ASCII.** CLICK accepts `"é"` and a tab as a Fill into TXT, and saves each as typed.
-  What does a PLC write into one TXT register for them? The code refuses both.
+- **Fill text outside ASCII (PLC).** CLICK accepts `"é"` and a tab as a Fill into TXT, and saves each as
+  typed. What does a PLC write into one TXT register for them? The code refuses both.
+- **A Fill of a long real outside TXT:** rerun `fill 1234567.8 -> DF1..DF2` and
+  `fill 3.4028235E+38 -> DS10..DS11` from `copy_fill` with the save kept. Does CLICK cut the real to 7
+  significant digits in these banks, as it does in TXT? The rules refuse it in every bank.
 - **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
   a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
   accepts a tab in a Compare Data B and in a Fill into TXT.
@@ -501,13 +499,24 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   `0.0`, ends in TXT3 and has conversion type 3. Decode reads that save as
   `copy(0.0,TXT1,convert=to_text(...))`. A Fill of `"HELLO"` into TXT1..TXT2 saves `0.0` too. The rules
   refuse it as text of more than one character.
-- **A pointer in a single Copy (CLICK v4.00, 2026-11-25):** CLICK saves a plain Copy with a pointer on one
-  side or both as conversion type 7: `DF[DS1]` into `DD[DS1]`, `DF1` into `DD[DS1]`, `DD1` into `DF[DS1]`,
-  `DF[DS1]` into CTD1 and CTD1 into `DF[DS1]`. Its dialog offers Copy Binary for `DF[DS1]` into `DD[DS1]`,
-  and saves it as type 8 with 0x2206 `1`. The encoder writes the same, and decode reads both.
-- **A Fill into TXT (CLICK v4.00, 2026-11-25):** CLICK saves `fill(5,TXT1..TXT2)` as `5` and
-  `fill(1.5,TXT1..TXT2)` as `1.5`, with no conversion option. It keeps 7 significant digits of a real, as
-  in a single Copy. The encoder writes the same.
+- **A pointer in a single Copy (CLICK):** CLICK saves a plain Copy with a pointer on one side or both as
+  conversion type 7: `DF[DS1]` into `DD[DS1]`, `DF1` into `DD[DS1]`, `DD1` into `DF[DS1]`, `DF[DS1]` into
+  CTD1 and CTD1 into `DF[DS1]`. It also saves type 7 for `DF[DS1]` into DD1, for `DD[DS1]` and `CTD[DS1]`
+  into DF1, and for DF1 into `CTD[DS1]`. Its dialog offers Copy Binary for `DF[DS1]` into `DD[DS1]`, and
+  saves it as type 8 with 0x2206 `1`. The encoder writes these tags, and 0x2206 `0` in a plain copy, which
+  CLICK's save leaves out. It writes 0x1201 in the older form (see Open (CLICK v3.92)). Decode reads either
+  form.
+- **A Fill into TXT (CLICK):** CLICK saves `fill(5,TXT1..TXT2)` as `5` and `fill(1.5,TXT1..TXT2)` as
+  `1.5`, with no conversion option. The encoder writes the same tags, except 0x1201, which it writes in the
+  older form (see Open (CLICK v3.92)). CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`, so it
+  keeps 7 significant digits of a Fill's value, as of a single Copy's source. Only the save into TXT is
+  recorded. The rules refuse such a real in every bank, because a Fill's value is typed into the single
+  Copy source field, and CLICK cuts a real in that field in every bank where its save is recorded.
+- **Math reals in exponent form (CLICK):** a decimal Math saves a real positionally from 1E-04 to below
+  1E+07, and in exponent form otherwise, as the code writes. It saves `9999999` as typed, `1e7` to `1e9` as
+  `1E+07` to `1E+09`, `1.5e10` as `1.5E+10`, `1e-5` as `1E-05` and `1.0E-10` as `1E-10`. It keeps the `+` of
+  a real and drops its trailing zeros, so it saves `+2.50` as `+2.5`. CLICK saves `1e6` as the integer
+  `1000000` (`W1000000`), and the code writes the real `1000000.0` (see Math real stored type).
 
 ## Later (nothing unless marked)
 
