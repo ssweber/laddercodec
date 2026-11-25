@@ -13,7 +13,9 @@ the code pass. These tests rebuild each answered case with the builders that
   that adds or removes ids changes that number and fails the test. Where one click of OK
   raised a chain of error boxes (``boxes``), ``code`` is the code of the first box.
 - The save. ``read_csv`` reads the ``stored`` rows of an accepted case back as an
-  instruction that is not ``raw(...)``.
+  instruction that is not ``raw(...)``. Where the answer names the program file that CLICK
+  saved (``save``), ``decode_program`` reads it as an instruction with the same CSV token
+  as the one that the rules build.
 
 The tests skip a case whose text is longer than its field's ``limits``. The runner set the
 text with WM_SETTEXT, which ignores the field's limit, so no user could type that text. The
@@ -27,18 +29,25 @@ way.
 
 from __future__ import annotations
 
+import csv
 import importlib.util
 import json
 import re
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from laddercodec import FieldError
+from laddercodec import FieldError, RefusedFieldWarning
 from laddercodec.csv import read_csv
-from laddercodec.decode_program import _scr_box
+from laddercodec.decode_program import (
+    _parse_header,
+    _scr_box,
+    _walk_until_framing_error,
+    decode_program,
+)
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
@@ -96,6 +105,7 @@ ANSWER_FILES = (
     "ip_field_per_field",
     "ip_field_neg",
     "drum_events_exprs",
+    "saves",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -241,13 +251,27 @@ FILL_TXT_REAL_UNSAVED = (
     "recorded. laddercodec refuses it as text of more than one character"
 )
 FILL_TXT_CHAR = (
-    'kept: CLICK accepts "é" as a Fill into TXT and stores it as typed. What a PLC writes '
-    "into one TXT register for it is not known, so laddercodec refuses it"
+    'kept: CLICK accepts "é" and a tab as a Fill into TXT and stores each as typed. What a PLC '
+    "writes into one TXT register for them is not known, so laddercodec refuses them"
 )
 FILL_TXT_CHAR_UNSAVED = (
-    'kept: CLICK accepts "€" and a tab as a Fill into TXT. What it stores for them is not '
-    "recorded, and what a PLC writes into one TXT register for them is not known, so "
-    "laddercodec refuses them"
+    'kept: CLICK accepts "€" as a Fill into TXT. What it stores for it is not recorded, and '
+    "what a PLC writes into one TXT register for it is not known, so laddercodec refuses it"
+)
+FILL_REAL_DIGITS = (
+    "kept: CLICK keeps 7 significant digits of a Fill's value and saves 1234567.8 as "
+    "1234568.0, another value. laddercodec refuses a real of more than 7 in every bank, as a "
+    "single Copy does, and names the form that CLICK saves (settled)"
+)
+MATH_LOWER_E = (
+    "kept: CLICK saves a real typed with a lowercase e and more digits than it keeps as "
+    "another value: 1.2345e-04 as 0.000123 and 1.2345678e15 as 1.234568E+15. laddercodec "
+    "refuses the real (settled)"
+)
+MATH_STORED_TYPE = (
+    "open (CLICK): CLICK's Math stores the real 1e6 as the integer W1000000, and laddercodec "
+    "writes the real F1000000.0. Whether the integer changes what the Math computes is not "
+    "known (roadmap: Math real stored type)"
 )
 E_REAL_FILL = (
     "kept: CLICK accepts 1E and E5 as a Fill source into DS. What it saves is not recorded. "
@@ -305,9 +329,10 @@ def _table(*groups: tuple[str, str, str, tuple[str, ...]]) -> dict[Key, str]:
 
 #: Every difference between CLICK's answers and the rules. The kind ``outcome`` means that
 #: one accepted the case and the other refused it. ``code`` means that the OBJ ids differ.
-#: ``stored`` means that CLICK's save reads back as raw. ``list`` means that the writable SC
-#: or SD addresses differ. Each group is one piece of work to do, or one difference kept on
-#: purpose.
+#: ``stored`` means that CLICK's save reads back as raw. ``saved`` means that the program
+#: file that CLICK saved decodes to another CSV token than the instruction that the rules
+#: build. ``list`` means that the writable SC or SD addresses differ. Each group is one piece
+#: of work to do, or one difference kept on purpose.
 DISAGREEMENTS: dict[Key, str] = _table(
     (RX2_COUNT, "receive", "outcome", ("03 -> TXT1",)),
     (
@@ -572,23 +597,45 @@ DISAGREEMENTS: dict[Key, str] = _table(
         FILL_TXT_CHAR,
         "risky_fill",
         "outcome",
-        ('fill "é" -> TXT1..TXT2',),
+        ('fill "é" -> TXT1..TXT2', 'fill "\t" -> TXT1..TXT2'),
     ),
     (
-        FILL_TXT_CHAR_UNSAVED,
-        "risky_fill",
+        FILL_TXT_CHAR,
+        "saves",
         "outcome",
-        (
-            'fill "\t" -> TXT1..TXT2',
-            'fill "€" -> TXT1..TXT2',
-        ),
+        ('fill "é" -> TXT1..TXT2', 'fill "<TAB>" -> TXT1..TXT2'),
     ),
+    (
+        FILL_TXT_CHAR,
+        "saves",
+        "stored",
+        ('fill "é" -> TXT1..TXT2', 'fill "<TAB>" -> TXT1..TXT2'),
+    ),
+    (FILL_TXT_CHAR_UNSAVED, "risky_fill", "outcome", ('fill "€" -> TXT1..TXT2',)),
     (
         FILL_TXT_REAL,
         "copy_fill",
         "outcome",
         ('fill "HELLO" -> TXT1..TXT2',),
     ),
+    (FILL_TXT_REAL, "saves", "outcome", ('fill "HELLO" -> TXT1..TXT2',)),
+    (
+        FILL_REAL_DIGITS,
+        "copy_fill",
+        "outcome",
+        (
+            "fill 1234567.8 -> TXT1..TXT2",
+            "fill 1234567.8 -> TXT999..TXT1000",
+            "fill 1234567.8 -> DF1..DF2",
+            "fill 1.2345678 -> DF1..DF2",
+            "fill 0.33333334 -> DF1..DF2",
+            "fill 3.4028235E+38 -> DF1..DF2",
+            "fill 3.4028235E+38 -> DS10..DS11",
+        ),
+    ),
+    (FILL_REAL_DIGITS, "saves", "outcome", ("fill 1234567.8 -> TXT1..TXT2",)),
+    (MATH_LOWER_E, "saves", "outcome", ("DF1 = 1.2345e-04", "DF1 = 1.2345678e15")),
+    (MATH_STORED_TYPE, "saves", "saved", ("DF1 = 1e6",)),
     (
         FILL_TXT_REAL_UNSAVED,
         "copy_fill",
@@ -855,6 +902,56 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
     return True, None
 
 
+def rules_build(generator: Any, case: dict[str, Any]) -> Instruction:
+    """Return the instruction that the generator's builders make from a case that the rules
+    accept."""
+    if case["instruction"] == "receive":
+        return _receive(generator, case)  # ty: ignore[invalid-return-type]
+    made: list[Instruction] = []
+
+    def record(build: Any) -> dict[str, Any]:
+        made.append(build())
+        return {"verdict": "accepted"}
+
+    original = generator.verdict_of
+    generator.verdict_of = record
+    try:
+        generator.check_case(case)
+    finally:
+        generator.verdict_of = original
+    [instruction] = made
+    return instruction
+
+
+def saved_tokens(case: dict[str, Any]) -> list[str]:
+    """Return the CSV token of each box that ``decode_program`` reads from the program file
+    that CLICK saved for *case* (``save``).
+
+    A box that holds a value that the rules refuse decodes with a ``RefusedFieldWarning``,
+    which this function ignores."""
+    data = (GRIDS / case["save"]).read_bytes()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RefusedFieldWarning)
+        program = decode_program(data)
+    return [
+        box.to_csv()
+        for rung in program.rungs
+        for box in rung.instructions
+        if isinstance(box, Instruction)
+    ]
+
+
+def saved_tags(case: dict[str, Any]) -> dict[int, str]:
+    """Return the tags of the one box in the program file that CLICK saved for *case*, as the
+    file stores them. The file leaves out a tag that holds its default, and stores a set
+    flag as an empty value."""
+    data = (GRIDS / case["save"]).read_bytes()
+    records, error = _walk_until_framing_error(data, _parse_header(data))
+    assert error is None, error
+    [box] = [entry for record in records for entry in record.instructions]
+    return box[4]
+
+
 def _read_rows(path: Path, rows: list[str]) -> list[Any]:
     """Write *rows* to *path* under a CSV header, and return the rungs that ``read_csv``
     reads from it."""
@@ -975,6 +1072,11 @@ def compare(
                     found[(grid, label, "code")] = f"CLICK {case['code']}, rules {click_id}"
             if clicks and case.get("stored") and reads_as_raw(case["stored"]):
                 found[(grid, label, "stored")] = f"saved as {case['stored']}"
+            if clicks and accepted and case.get("save"):
+                built = rules_build(generator, case).to_csv()
+                saved = saved_tokens(case)
+                if saved != [built]:
+                    found[(grid, label, "saved")] = f"CLICK saved {saved}, the rules build {built}"
     return found, counts
 
 
@@ -1392,6 +1494,7 @@ RUNNER_ANSWERS = {
     "ip_field_per_field": ("ip_field",),
     "ip_field_neg": ("ip_field_neg",),
     "drum_events_exprs": ("drum_events_exprs",),
+    "saves": ("saves",),
 }
 
 
@@ -1413,3 +1516,50 @@ def test_runner_answers_are_the_grids_cases(generator: Any) -> None:
         assert len(answered) == len(cases), name
         for case, answer in zip(cases, answered, strict=True):
             assert {k: answer.get(k) for k in case} == case, (name, case["case"])
+
+
+#: The folder of the program files that CLICK saved, which the answers name in ``save``.
+SAVES = GRIDS / "saves"
+
+
+def _saved_cases() -> list[tuple[str, dict[str, Any]]]:
+    return [(grid, case) for grid in ANSWER_FILES for case in _answers(grid) if case.get("save")]
+
+
+def test_each_save_decodes_as_its_stored_row() -> None:
+    """``decode_program`` reads each program file that an answer names as the box in the
+    answer's ``stored`` row. Each file in the folder of saves is named by one answer."""
+    saved = _saved_cases()
+    assert sorted(GRIDS / case["save"] for _, case in saved) == sorted(SAVES.iterdir())
+    for grid, case in saved:
+        [row] = case["stored"]
+        box = next(csv.reader([row]))[-1]
+        assert saved_tokens(case) == [box], (grid, case["case"])
+
+
+#: The tags that the encoder may write another way than CLICK's program file stores them.
+#: CLICK v4 sets the text flag 0x1201 on every Copy that it saves and ignores it on load. The
+#: encoder sets it only for a termination code or a text constant. 0x0000 ends the tags.
+OTHER_FORM_TAGS = frozenset({0x1201, 0x0000})
+
+
+def test_the_encoder_writes_the_tags_that_click_saves(generator: Any) -> None:
+    """For each saved case that the rules accept, the encoder writes each tag that CLICK's
+    program file stores, with the same value, except the tags in ``OTHER_FORM_TAGS``.
+
+    That holds the conversion type 0x2227 of a single Copy: 7 for a plain copy, and 8 for
+    Copy Binary with 0x2206 set to 1. A case that ``DISAGREEMENTS`` lists as saved in
+    another form is skipped."""
+    compared = 0
+    for grid, case in _saved_cases():
+        if case["outcome"] != "accepted" or not rules_verdict(generator, case)[0]:
+            continue
+        if (grid, case["case"], "saved") in DISAGREEMENTS:
+            continue
+        blob = rules_build(generator, case).build_blob()
+        written = {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
+        for tag, value in saved_tags(case).items():
+            if tag not in OTHER_FORM_TAGS:
+                assert written[tag] == value, (grid, case["case"], hex(tag))
+        compared += 1
+    assert compared == 18

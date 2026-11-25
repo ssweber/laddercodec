@@ -43,11 +43,13 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `coil_sc_ranges2.json` | Set and Reset of a range whose two ends are one address (`C1..C1`, `Y001..Y001`, `SC50..SC50`), a reversed range, a range across two banks, and `C1..C2` |
 | `ip_field.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: an IP with a part above 255, with three or five parts, with leading zeros (`01.2.3.4`, `001.002.003.004`), with letters, with a negative part, with a blank part, with a dot at the end, with a space at either end, or with commas; a blank IP; and `192.168.1.1` |
 | `ip_field_neg.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: `1.2.3.-2`, `1.2.3.-0`, `1.2.3.-01`, `1.2.3.-256`, `-1.-1.3.4`, `-1.2..4`, `.2.3.4`, `1.2.3.` and `1...4`; and `1.2.3.4` |
+| `saves.json` | cases whose saved form is the question: a Fill into TXT1..TXT2 of `5`, `1.5`, `1234567.8`, `"HELLO"`, `"é"` and a tab in quotes; a single Copy with a pointer on both sides (`DF[DS1]` into `DD[DS1]`, plain and with Copy Binary), on one side only, and between a pointer and CTD1; a decimal Math into DF1 of reals in exponent form (`1e6` to `1.5e10`, `1e-5`, `1.0E-10`, `1.2345e-04`, `1.2345678e15`), `9999999`, `+2.50`, `0.0015` and `1.` |
 
 ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
 `drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
 `drum_events_padded2.json`, `coil_sc.json`, `coil_sc_ranges.json`, `compare_const.json`,
-`coil_sc_ranges2.json`, `ip_field.json`, `ip_field_neg.json` and `drum_events_exprs.json`.
+`coil_sc_ranges2.json`, `ip_field.json`, `ip_field_neg.json`, `drum_events_exprs.json` and
+`saves.json`.
 The files hold ClickNick's text as it wrote it. The generator does not write them. It reads
 them and writes their verdicts files. A Receive case types `slave_address`, `master_address`,
 `count`, `receiving`, `success`, `error` and `exception`, and picks an item in the `function`
@@ -55,7 +57,9 @@ and `addressing` lists. It types no Slave ID and picks no port, except in `ip_fi
 and `ip_field_neg.json`. A case there picks CPU Port1 and types the Slave ID, `server_port`
 and `ip`, as a Send case does. A case that types no `ip` leaves the IP control blank. A Set
 or Reset case types `address` and `address_end` as an Out case does. A time and event drum
-case types the fields of a time drum and the events of an event drum.
+case types the fields of a time drum and the events of an event drum. `saves.json` holds
+Fill, Copy and Math cases. A Copy case there may set the option `Copy Binary` by the label
+of its button, and the generator builds it with `to_binary`.
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
 case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
@@ -256,6 +260,7 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`) |
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
 | `coil_sc_picker.answers.json` | the same lists for the address and range end of Set and of Reset, laid out as `sc_sd_writable.answers.json` (4 fields) |
+| `saves.answers.json` | the answers to `saves.json` (25 cases, all accepted). Each case also holds `save`, which names the program file that CLICK saved after the case's OK, in `saves/` (`saves/case01.scr` to `saves/case25.scr`). Each file is CLICK's `Scr1.tmp` byte for byte, and `decode_program` reads it |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
 rule changes. The `plc`, `runs` and `clip` fields name no machine. The IP addresses in the Send
@@ -278,7 +283,8 @@ the generator's builders (a Receive at the count that the case types, else at th
 the dialog held where an answer records one, else 1) and its outcome compared with CLICK's, then the
 refusal's `click_id` with CLICK's code (only where the rules give a `click_id`; most refusals have
 none yet, and the test records how many codes it compared), then the saved rows of an accepted case
-with what `read_csv` makes of them (a `raw(...)` is a difference), then the writable lists with the SC and
+with what `read_csv` makes of them (a `raw(...)` is a difference), then the box that
+`decode_program` reads from a case's `save` with the one that the rules build, then the writable lists with the SC and
 SD addresses the rules accept (a field's list holds with the other fields as `filled` gives them; a bank with
 no list means the rules accept no address of it). A case with more text than its field's `limits` is skipped: the
 runner sets text by WM_SETTEXT, which ignores the limit, so no user can type it. Each difference

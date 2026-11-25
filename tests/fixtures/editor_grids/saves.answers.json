@@ -1,0 +1,856 @@
+{
+ "grid": "saves.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "none: an offline project for a C2-03CPU",
+ "runs": [
+  "live-1"
+ ],
+ "cases": [
+  {
+   "row": "j4.fill",
+   "case": "fill 5 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: C2-03CPU - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nC2-03CPU - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "C2-03CPU",
+    "lines": []
+   },
+   "seconds": 7.328,
+   "read_back": {
+    "source": "5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(5,TXT1..TXT2)\""
+   ],
+   "save": "saves/case01.scr"
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill 1.5 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1.5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.094,
+   "read_back": {
+    "source": "1.5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(1.5,TXT1..TXT2)\""
+   ],
+   "save": "saves/case02.scr"
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill 1234567.8 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1234567.8",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.172,
+   "read_back": {
+    "source": "1234567.8",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(1234568.0,TXT1..TXT2)\""
+   ],
+   "save": "saves/case03.scr"
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"HELLO\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"HELLO\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.175,
+   "read_back": {
+    "source": "\"HELLO\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(0.0,TXT1..TXT2)\""
+   ],
+   "save": "saves/case04.scr"
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"é\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"é\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.751,
+   "read_back": {
+    "source": "\"é\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(\"\"é\"\",TXT1..TXT2)\""
+   ],
+   "save": "saves/case05.scr"
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"<TAB>\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\t\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case05 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase05 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case05",
+    "lines": []
+   },
+   "seconds": 6.352,
+   "read_back": {
+    "source": "\"\t\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"fill(\"\"\t\"\",TXT1..TXT2)\""
+   ],
+   "save": "saves/case06.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> DD[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case06 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase06 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case06",
+    "lines": []
+   },
+   "seconds": 6.428,
+   "read_back": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DF[DS1],DD[DS1])\""
+   ],
+   "save": "saves/case07.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> DD[DS1] (Copy Binary)",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   },
+   "options": {
+    "Copy Binary": 1
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case07 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase07 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case07",
+    "lines": []
+   },
+   "seconds": 6.067,
+   "read_back": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DF[DS1],DD[DS1],convert=to_binary)\""
+   ],
+   "save": "saves/case08.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF1 -> DD[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF1",
+    "destination": "DD[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 6.24,
+   "read_back": {
+    "source": "DF1",
+    "destination": "DD[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DF1,DD[DS1])\""
+   ],
+   "save": "saves/case09.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DD1 -> DF[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DD1",
+    "destination": "DF[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case09",
+    "lines": []
+   },
+   "seconds": 6.386,
+   "read_back": {
+    "source": "DD1",
+    "destination": "DF[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DD1,DF[DS1])\""
+   ],
+   "save": "saves/case10.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> CTD1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "CTD1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case10 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase10 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case10",
+    "lines": []
+   },
+   "seconds": 6.439,
+   "read_back": {
+    "source": "DF[DS1]",
+    "destination": "CTD1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DF[DS1],CTD1)\""
+   ],
+   "save": "saves/case11.scr"
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "CTD1 -> DF[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "CTD1",
+    "destination": "DF[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case11 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase11 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case11",
+    "lines": []
+   },
+   "seconds": 6.237,
+   "read_back": {
+    "source": "CTD1",
+    "destination": "DF[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(CTD1,DF[DS1])\""
+   ],
+   "save": "saves/case12.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e6",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e6"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 6.088,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1e6"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1000000,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case13.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 9999999",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "9999999"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case13",
+    "lines": []
+   },
+   "seconds": 6.03,
+   "read_back": {
+    "result": "DF1",
+    "formula": "9999999"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(9999999,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case14.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e7",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e7"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case14",
+    "lines": []
+   },
+   "seconds": 6.106,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1e7"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1E+07,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case15.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e8",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case15 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase15 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case15",
+    "lines": []
+   },
+   "seconds": 6.083,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1e8"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1E+08,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case16.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e9",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e9"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case16 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase16 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case16",
+    "lines": []
+   },
+   "seconds": 6.14,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1e9"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1E+09,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case17.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.5e10",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.5e10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case17 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase17 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case17",
+    "lines": []
+   },
+   "seconds": 6.033,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1.5e10"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1.5E+10,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case18.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e-5",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e-5"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case18 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase18 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case18",
+    "lines": []
+   },
+   "seconds": 6.014,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1e-5"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1E-05,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case19.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.0E-10",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.0E-10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case19 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase19 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case19",
+    "lines": []
+   },
+   "seconds": 6.035,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1.0E-10"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1E-10,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case20.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = +2.50",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "+2.50"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case20 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase20 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case20",
+    "lines": []
+   },
+   "seconds": 6.26,
+   "read_back": {
+    "result": "DF1",
+    "formula": "+2.50"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(+2.5,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case21.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.2345e-04",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.2345e-04"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case21 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase21 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case21",
+    "lines": []
+   },
+   "seconds": 6.167,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1.2345e-04"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(0.000123,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case22.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.2345678e15",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.2345678e15"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case22 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase22 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case22",
+    "lines": []
+   },
+   "seconds": 6.106,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1.2345678e15"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1.234568E+15,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case23.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 0.0015",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "0.0015"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case23 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase23 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case23",
+    "lines": []
+   },
+   "seconds": 6.169,
+   "read_back": {
+    "result": "DF1",
+    "formula": "0.0015"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(0.0015,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case24.scr"
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1."
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case24 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase24 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case24",
+    "lines": []
+   },
+   "seconds": 6.118,
+   "read_back": {
+    "result": "DF1",
+    "formula": "1."
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(1.0,DF1,mode=decimal)\""
+   ],
+   "save": "saves/case25.scr"
+  }
+ ]
+}

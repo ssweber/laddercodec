@@ -115,21 +115,6 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   `tests/test_editor_answers.py` compares the answers with the rules and lists each difference in
   `DISAGREEMENTS`, grouped by what is to be done. A new grid is new work for the runner. Tighten a field's rule
   when its answers arrive.
-- **CLICK's saves of 25 Fill, Math and Copy cases (nothing).** ClickNick's runner has recorded CLICK v4.00's
-  saves of 25 cases, which ClickNick's runner results call J4. CLICK accepted all 25. Commit the cases and
-  the saves under `tests/fixtures/editor_grids/`, with no local paths, and add them to
-  `tests/test_editor_answers.py`. Fix the one Fill save that differs from what laddercodec writes.
-  `fill(1234567.8,TXT1..TXT2)` is saved as `1234568.0`, and laddercodec writes `1234567.8`. Refuse it and
-  name the saved text, as a single Copy does. One Math save differs too. It is a CLICK question in "Math
-  real stored type", and it is not part of this item.
-
-  Then update the items that the saves settle: "Fill text and a bare number", "Reals in exponent form in a
-  Math", "A typed + on a real", "Math real form", "A pointer on both sides of a single Copy" and "Pointer on
-  both sides of a Copy". CLICK saves Copy type 7 for every plain case, the four in "A pointer on both sides
-  of a single Copy" among them. It saves type 8 with 0x2206 `1` for Copy Binary. laddercodec writes the
-  same, except that it writes 0x2206 `0` in a plain copy, which CLICK leaves out. Decode reads both forms.
-  The saves also answer the open Fill question in "Quoted text with an E". CLICK saves
-  `fill("HELLO",TXT1..TXT2)` as `0.0`.
 - **Open order of checks in a Math range (CLICK).** The rules check every range's banks and order before any
   address's bank, then a median's size and the X/Y option-slot ends. No answer covers these cases:
   - A reversed or two-bank `MAX`, `MIN`, `MDN` or `AVG` range over a refused bank (`MAX ( DH2 : DH1 )` in
@@ -198,10 +183,6 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   (`-1` or `1` when set, `0` when clear). CLICK reads an empty flag on the clipboard as clear, so an entry that
   no family reads writes a set flag as `1`, or `-1` in a Copy, Drum, Math or Search. For a class that no
   capture shows, `1` is a guess. Does CLICK read `1` and `-1` alike for every class?
-- **A pointer on both sides of a single Copy (CLICK).** The encoder writes type 7 for `DF1` into `DD[DS1]`,
-  `DD1` into `DF[DS1]`, `DF[DS1]` into `CTD1` and `CTD1` into `DF[DS1]` as a plain copy. CLICK has not answered
-  for these. It saves type 7 for `DF[DS1]` into DD1, for `DD[DS1]` and `CTD[DS1]` into DF1, and for DF1 into
-  `CTD[DS1]`.
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog. An id
   that can't be backed stays None. Open:
   - Fill: its pairing (Copy's OBJ-024) and a range in two banks. Open:
@@ -266,12 +247,6 @@ these as typed:
 Modbus hex addresses are already canonical.
 
 **Questions for CLICK on Math and Copy** (until CLICK answers, the code keeps the behaviour named):
-- **Reals in exponent form in a Math.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10`.
-  A Copy follows CLICK's answers (7 significant digits, `1E+07`, `1E-05`, `1.5E-45` as typed). For a Math, does
-  CLICK switch to exponent form between 1E6 and 1E7 (the code's 1E+07)? The code writes a real positionally
-  below 1E+07 and from 1E-04 up. It keeps any other as typed.
-- **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math. The code writes `+2.5`. A Copy
-  drops a real's `+` (`+1.5` is `1.5`), and the code writes `2.5` there.
 - **Integer `-00` in a Copy:** CLICK stores `-0` as `0`. The code writes `-00` as `0` too. CLICK has not
   answered for `-00`.
 - **`$0d` as a Copy source:** does CLICK store `$0d` or `$0D`? The code keeps the case as typed, as for `$0d`
@@ -286,14 +261,20 @@ Modbus hex addresses are already canonical.
 - **`MAX ( DS1 , DS2 )`:** which id does the dialog report? The code refuses it with no id.
 
 **Answered by the full Copy and Math grids.** In these cases CLICK stores another form than the code writes
-now. Each case is in the `copy_single` and `math_decimal` answers. The code is unchanged until a branch
-adopts them.
+now. Each case is in the `copy_single`, `math_decimal` or `saves` answers. The code is unchanged until a
+branch adopts them.
 - A decimal Math `1E5` is stored `100000`. `1.5E+3` and `1.5E3` are stored `1500` (alone and as `DS1 + ...`).
   The code writes `100000.0` and `1500.0`.
 - A lowercase `1e5` in a decimal Math, alone and as `DS1 + 1e5`, is stored `100000.0`, as the code writes.
 - A Copy stores both `1E5` and `1e5` as `100000.0`, as the code writes.
 - As the code writes: `1E-45` and `1E-50` are kept as typed in a Copy (and `1E-45` in a Math). `1.5e-3` is
   `0.0015`. `1.` is `1.0`. `1.50` is `1.5`.
+- A decimal Math saves a real positionally below 1E+07, and in exponent form from 1E+07 up, as the code
+  writes. It saves `1e6` as `1000000`, `9999999` as typed, `1e7` to `1e9` as `1E+07` to `1E+09` and `1.5e10`
+  as `1.5E+10`. It saves `1e-5` as `1E-05` and `1.0E-10` as `1E-10`. Only the type of `1e6` differs (see
+  Math real stored type).
+- A decimal Math keeps the `+` of a real and drops its trailing zeros: it saves `+2.50` as `+2.5`, as the
+  code writes.
 
 ## Open CLICK questions (CLICK)
 
@@ -335,11 +316,14 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   exponent form otherwise. Typed without an `E`, a real keeps 6 digits after the point (`0.00012345` is saved
   as `0.000123`, `12345678.9` as `1.234568E+07`). Typed with an `E`, it keeps 7 significant digits
   (`1.2345E-04` as `0.00012345`, `1.2345678E+15` as `1.234568E+15`). The rules refuse each real that CLICK
-  saves as another value and name the saved text. Open:
-  - A lowercase `e` with more digits than CLICK keeps (`1.2345e-04`, `1.2345678e15`). The rules refuse one
-    that either form would change.
-  - A short real is only normalized: `1e5` and `1.` are saved as `100000.0` and `1.0`, and `0.0015` as typed.
-    Which typed forms CLICK cuts and which it only normalizes is not settled.
+  saves as another value and name the saved text. A real typed with a lowercase `e` follows the rule for a
+  real typed without an `E`: CLICK saves `1.2345e-04` as `0.000123` and `1.2345678e15` as `1.234568E+15`.
+  The rules refuse both.
+  - Follow-up (builder): the refusal of a lowercase-`e` real says that it "may have more digits" than CLICK
+    keeps, and names the real with an uppercase `E`. It could say that the real has more digits, and name
+    the text that CLICK saves.
+  - Open: a short real is only normalized: `1e5` and `1.` are saved as `100000.0` and `1.0`, and `0.0015` as
+    typed. Which typed forms CLICK cuts and which it only normalizes is not settled.
 - **Math real stored type:** CLICK's Math dialog stores some reals as integers. The encoder writes them as
   reals:
 
@@ -352,36 +336,27 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 
   An integral real typed with an `E`, and `1234567.0`, are stored as integers (H in int16, else W). `1e5`
   (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
-  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type changes what the Math computes, and which
-  other positional reals CLICK stores as integers.
+  saves it (`3.0E+38` as `F3E+38`, `1e7` as `F1E+07`, `1.5e10` as `F1.5E+10`, `+2.50` as `F+2.5`). Open:
+  whether the integer type changes what the Math computes, and which other positional reals CLICK stores as
+  integers.
 
-  **A lowercase `e` (CLICK).** CLICK v4.00 stored `1e5` as the real `F100000.0` and `1e6` as the integer
-  `W1000000`. Two saves do not give a rule, so laddercodec fits none yet. ClickNick's runner answers a grid of
-  lowercase-`e` reals from about 1e5 to 1e7 first, such as `1e5`, `5e5`, `1e6`, `2.5e6` and `1e7`. The grid
-  also holds `1.5e3`, because CLICK stores it as `H1500` when it is typed with an uppercase `E`.
-  laddercodec writes that grid. The encoder changes after CLICK answers.
+  **A lowercase `e` (CLICK).** CLICK v4.00 stores `1e5` as the real `F100000.0`, `1e6` as the integer
+  `W1000000` and `1e7` as the real `F1E+07`. These saves do not give a rule, so laddercodec fits none yet.
+  Open: what CLICK stores for `5e5`, `2.5e6` and `1.5e3`. CLICK stores `1.5e3` as `H1500` when it is typed
+  with an uppercase `E`. laddercodec writes a grid of these three. The encoder changes after CLICK answers.
 - **Send Word Swap after a change of function code.** With FC16 and Word Swap on, switch the Send to FC06.
   Does CLICK keep Word Swap stored, or clear it? A runner case types `send fc16 984 400001 <- DS1 x2
   word_swap=ON`, then picks FC06 and saves. The code refuses Word Swap with any code but FC16, so a stored
   FC06 Send with Word Swap decodes with a `RefusedFieldWarning`.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
   they store? The code refuses both.
-- **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the TXT
-  where its text ends. CLICK refuses a Fill of such an integer or hex number, and the rules do too. What CLICK
-  stores for a Fill of a real into TXT is not known.
 - **Termination code with other options.** The code accepts a termination code on a single Copy of a constant
   into TXT with `suppress_zero=0`, such as `copy(5,TXT1,convert=to_text(suppress_zero=0,termination_code=$0D))`,
   and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
   CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
   CLICK's saves with the blobs that the encoder writes.
-- **Fill text and a bare number.** For `fill(5,TXT1..TXT2)` with no option touched, what does the dialog
-  default to and save? CLICK accepts `"é"` and a tab as a Fill into TXT; what a PLC writes for them is not
-  known. The code accepts the bare number and refuses both characters. It also accepts a real with more than 7
-  significant digits as typed (`fill(1234567.8,DF1..DF2)`), where a Copy refuses it.
-- **Quoted text with an `E`.** The Copy dialog reads such text as a number. `"HELLO"`, `"E"`, `"e"` and
-  `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled). `"HELLO"` into TXT1 is stored 0.0 too, and
-  fills TXT1..TXT3. The code accepts the text as typed into TXT and encodes it, as ruled (Sam,
-  2026-11-17). Open: does Fill do the same?
+- **Fill text outside ASCII.** CLICK accepts `"é"` and a tab as a Fill into TXT, and saves each as typed.
+  What does a PLC write into one TXT register for them? The code refuses both.
 - **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
   a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
   accepts a tab in a Compare Data B and in a Fill into TXT.
@@ -390,8 +365,6 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   with OBJ-004.
 - **Characters above U+FFFF:** a source `"😀"` (U+1F600) into TXT1. Does CLICK accept it, how does it save it,
   and which TXT is the end? The code refuses it.
-- **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
-  offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -509,8 +482,9 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **A bare number copied into TXT (Sam):** `copy(5,TXT1)` is refused. It needs `to_text`.
 - **Rule codes (Sam):** the codes are kebab-case names in `.code`, with CLICK's id in `.click_id`, and `allow=`
   takes the name, never the id.
-- **A real constant that CLICK saves as another value** (more than 7 significant digits in a Copy; in a Math,
-  the rule in **Math real form**) is refused, and the refusal names CLICK's form. It is never rewritten.
+- **A real constant that CLICK saves as another value** (more than 7 significant digits in a single Copy
+  source or a Fill value; in a Math, the rule in **Math real form**) is refused, and the refusal names
+  CLICK's form. It is never rewritten.
 - **Text past TXT1000** stays refused (OBJ-003), though CLICK accepts a pasted one.
 - **Search keeps `op` and Call keeps `subroutine`** as field names.
 - **`feat/productivity-codec`** stays as a branch for now.
@@ -525,7 +499,15 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Quoted text with an E into TXT (Sam, 2026-11-17):** the rules keep accepting it, and the encoder keeps
   writing it as text, though CLICK stores it as its float value. A Copy `"HELLO"` into TXT1 saves the source
   `0.0`, ends in TXT3 and has conversion type 3. Decode reads that save as
-  `copy(0.0,TXT1,convert=to_text(...))`.
+  `copy(0.0,TXT1,convert=to_text(...))`. A Fill of `"HELLO"` into TXT1..TXT2 saves `0.0` too. The rules
+  refuse it as text of more than one character.
+- **A pointer in a single Copy (CLICK v4.00, 2026-11-25):** CLICK saves a plain Copy with a pointer on one
+  side or both as conversion type 7: `DF[DS1]` into `DD[DS1]`, `DF1` into `DD[DS1]`, `DD1` into `DF[DS1]`,
+  `DF[DS1]` into CTD1 and CTD1 into `DF[DS1]`. Its dialog offers Copy Binary for `DF[DS1]` into `DD[DS1]`,
+  and saves it as type 8 with 0x2206 `1`. The encoder writes the same, and decode reads both.
+- **A Fill into TXT (CLICK v4.00, 2026-11-25):** CLICK saves `fill(5,TXT1..TXT2)` as `5` and
+  `fill(1.5,TXT1..TXT2)` as `1.5`, with no conversion option. It keeps 7 significant digits of a real, as
+  in a single Copy. The encoder writes the same.
 
 ## Later (nothing unless marked)
 

@@ -305,7 +305,7 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
     numeric register fills the numeric banks only, and a TXT register fills TXT only. A
     number constant fills every register, TXT included. The rule checks the pairing
     (``constant_shape``) before a constant's limits, except that it reads a ``$hh`` code
-    first.
+    first. A real of more than 7 significant digits is refused last, in every bank.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -333,6 +333,9 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
                 address=True,
                 code="COPY_BANK_INCOMPATIBLE",
             )
+        if op.constant and op.constant.kind == ns.Kind.FLOAT:
+            if ns.real_beyond_kept_digits(text) is not None:
+                ns.refuse("a real of more than 7 significant digits", code="INVALID_CONSTANT")
 
     return rule
 

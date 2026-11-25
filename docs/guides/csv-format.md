@@ -907,7 +907,9 @@ currently emit:
     stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
     zeros aside. It saves a real typed with more cut to 7 (`3.4028235E+38` as
     `3.402823E+38`). So a `copy` rejects one, and the message names the constant
-    of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`). A `math`
+    of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`). A `fill`
+    value keeps 7 too, so a `fill` rejects one in the same way
+    (`fill(1234567.8,DF1..DF2)` names `1234568.0`). A `math`
     rejects a real that CLICK would save as another value, and the message
     names the constant to write (`0.33333334` names `0.333333`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
@@ -925,10 +927,10 @@ currently emit:
 
   `constant_text()` writes a Python int, float or str as text that builds a `math`
   or a `copy` holding that value (`constant_text(255, hex=True)` is `FFh`). A `copy`
-  rejects a real of more than 7 significant digits, and a `math` rejects one that
-  CLICK would save as another value (`constant_text(1/3)` is `0.33333334`). The
-  largest float32 value is `3.402823466E+38`. Write it as `3.402823E+38` in a
-  `copy` and in a `math`.
+  or a `fill` rejects a real of more than 7 significant digits, and a `math`
+  rejects one that CLICK would save as another value (`constant_text(1/3)` is
+  `0.33333334`). The largest float32 value is `3.402823466E+38`. Write it as
+  `3.402823E+38` in a `copy`, a `fill` and a `math`.
 - Constants, counts and address numbers use the digits 0-9 only. A digit from
   another script (`٣`) is rejected.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
