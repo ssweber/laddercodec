@@ -135,6 +135,13 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - SD43 as the destination of a bit, quoted text or `10000h`. It is not answered.
   - The shared constant check, which Math and Fill use too, gives no id to an empty text, a signed hex constant,
     or a hex constant of more than 8 digits. The single Copy reports these as OBJ-005, as CLICK does.
+- **Copy Binary of a real into TXT (CLICK).** CLICK's single Copy dialog offers no Copy Binary for a DF address,
+  a DF pointer or a real constant copied into a TXT address or pointer. It offers Copy Binary for an integer
+  source. The rules refuse `to_binary` for a real into TXT. Two things are open:
+  - `DF[DS1] -> TXT[DS1]`, with a pointer on both sides. CLICK has not answered this pair. The rules refuse
+    `to_binary` there, because for each answered pair into TXT, the option buttons depend on the source alone.
+  - What CLICK saves when you press OK for each pair. The dialog was read with each pair filled in, and OK was
+    not pressed.
 - **The writable-SD list (CLICK).** The picker's list of 29 writable SD (`WRITABLE_SD`) answers a single Copy, a
   Block Copy and a decimal Math result, and the 25 writable SC answer Out. A Block Copy from `DS1..DS2` gets
   OBJ-018 ("read only addresses between") from CLICK into SD42 and SD147, and OBJ-004 into SD215. The rule

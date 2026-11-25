@@ -429,7 +429,7 @@ def test_a_plain_copy_into_a_pointer_writes_type_7(source: str, destination: str
 def test_copy_binary_for_another_pair_is_refused(source: str, destination: str) -> None:
     [error] = _errors(lambda: Copy(source, destination, convert="to_binary"))
     assert error.reason is Reason.CONFLICT
-    assert "to_binary copies a number to TXT, or a value between a real and" in str(error)
+    assert "to_binary copies an integer to TXT, or a value between a real and" in str(error)
     # A decoded save of such a Copy Binary keeps the refusal. CLICK never saves type 7 for
     # these pairs, so from_tags_af() does not read a type 7 save as a Copy.
     tags = {0x6074: source, 0x6076: destination, 0x2206: "1", 0x2227: "8"}
@@ -470,15 +470,42 @@ def test_copy_binary_of_a_real_into_txt_is_refused(
     assert error.short().startswith("to_binary is not an option for ")
     assert error.detail() == (
         "CLICK copies a DF register or a real constant into TXT only as text. "
-        "Write convert=to_text."
+        "Write convert=to_text(exponential=0,termination_code=none)."
     )
     token = f"copy({source},{destination},convert=to_binary)"
     with pytest.raises(FieldError) as raised:
         _read_af(tmp_path, token)
     assert [e.code for e in raised.value.errors] == [Code.COPY_CONVERTER_BANK]
     # The converter that the message names is accepted.
-    copy = Copy(source, destination, convert="to_text")
+    copy = _read_af(tmp_path, f"copy({source},{destination},convert=to_text)")
+    assert copy == Copy(source, destination, convert="to_text")
     assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(("source", "destination"), _REAL_INTO_TXT)
+def test_the_advice_for_copy_binary_of_a_real_keeps_its_termination_code(
+    tmp_path: Path, source: str, destination: str
+) -> None:
+    """The refusal names the to_text converter with the same termination code, and a Copy
+    with that converter reads and round-trips."""
+    token = f"copy({source},{destination},convert=to_binary(termination_code=$0D))"
+    with pytest.raises(FieldError) as raised:
+        _read_af(tmp_path, token)
+    [error] = raised.value.errors
+    assert error.code == Code.COPY_CONVERTER_BANK
+    advised = "convert=to_text(exponential=0,termination_code=$0D)"
+    assert error.detail().endswith(f" Write {advised}.")
+    copy = _read_af(tmp_path, f"copy({source},{destination},{advised})")
+    assert copy == Copy(source, destination, convert="to_text", termination_code="$0D")
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+def test_the_advice_for_copy_binary_of_a_real_names_plain_to_text_when_to_text_is_refused() -> None:
+    """When a Copy with the to_text converter would be refused too, the advice names plain
+    convert=to_text. Here the real has more digits than CLICK keeps."""
+    errors = _errors(lambda: Copy("1.2345678", "TXT1", convert="to_binary"))
+    [error] = [e for e in errors if e.code == Code.COPY_CONVERTER_BANK]
+    assert error.detail().endswith(" Write convert=to_text.")
 
 
 @pytest.mark.parametrize(("source", "destination"), _INTEGER_INTO_TXT)

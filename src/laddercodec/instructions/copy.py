@@ -98,7 +98,7 @@ from ..operands.message import (
     with_click_id,
     wrong_type,
 )
-from ..operands.unchecked import AllowsRefusals, read_in_another_form
+from ..operands.unchecked import AllowsRefusals, checked, read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -1681,8 +1681,8 @@ class Copy(Instruction, AllowsRefusals):
         The converter, by its CSV name: ``None`` (a plain copy), ``"to_value"``,
         ``"to_text"``, ``"to_binary"`` or ``"to_ascii"``. A TXT register copied into a
         numeric register other than DF needs ``"to_value"`` or ``"to_ascii"``, and ``None``
-        is refused for it. A DF register or a real constant copied into TXT refuses
-        ``"to_binary"``.
+        is refused for it. ``"to_binary"`` is refused for a DF register or a real constant
+        copied into TXT.
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
@@ -1696,13 +1696,17 @@ class Copy(Instruction, AllowsRefusals):
         ``False`` for real numbering and ``True`` for exponential. Any other source has no
         such option and refuses ``True``.
     termination_code:
-        The termination code. Only a copy into TXT accepts one: of a number register (with
-        ``"to_text"`` or ``"to_binary"``), of a decimal integer or a real constant (with
-        ``"to_text"``), and of a TXT register or quoted text (with ``None``). The code adds
-        no TXT to the end that a constant fills. The
-        value is ``"0"`` or ``"none"`` for no code, stored as ``"0"``. Otherwise it is a hex
-        ASCII code ``"$HH"`` with exactly two digits: ``"$0D"`` is 0x0D, and ``"$D"`` is
-        refused. A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
+        The termination code. Only a copy into TXT accepts one, from one of these sources:
+
+        - a number register, with ``"to_text"``
+        - a number register other than DF, with ``"to_binary"``
+        - a decimal integer or a real constant, with ``"to_text"``
+        - a TXT register or quoted text, with ``None``
+
+        The code adds no TXT to the end that a constant fills. The value is ``"0"`` or
+        ``"none"`` for no code, stored as ``"0"``. Otherwise it is a hex ASCII code
+        ``"$HH"`` with exactly two digits: ``"$0D"`` is 0x0D, and ``"$D"`` is refused. A
+        lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
     """
 
     source: str
@@ -1804,17 +1808,18 @@ class Copy(Instruction, AllowsRefusals):
                     )
                 ):
                     # A copy into TXT takes a termination code: of a number register with
-                    # to_text or to_binary, of a decimal integer or a real constant with
-                    # to_text, and of a TXT register or quoted text with no converter. What
-                    # CLICK saves for a hex constant or a $hh code with a termination code
-                    # is not known, so laddercodec refuses them.
+                    # to_text, of a number register other than DF with to_binary, of a
+                    # decimal integer or a real constant with to_text, and of a TXT register
+                    # or quoted text with no converter. What CLICK saves for a hex constant
+                    # or a $hh code with a termination code is not known, so laddercodec
+                    # refuses them.
                     check.refuse(
                         ("termination_code", "convert", "source", "dest"),
                         says(
-                            "{code} needs a copy into TXT: of a numeric register with to_text "
-                            "or to_binary, of a decimal integer or a real with to_text, or of "
-                            "a TXT register or quoted text, not {source} -> {dest} with "
-                            "convert {convert}",
+                            "{code} needs a copy into TXT: of a numeric register with to_text, "
+                            "of a numeric register other than DF with to_binary, of a decimal "
+                            "integer or a real with to_text, or of a TXT register or quoted "
+                            "text, not {source} -> {dest} with convert {convert}",
                             code=Op(self.termination_code),
                             source=Op(self.source),
                             dest=Op(self.dest),
@@ -1952,6 +1957,36 @@ class Copy(Instruction, AllowsRefusals):
             return ("7", "0") if self.convert is None else ("8", "1")
         return _CONVERT_TO_CONVTYPE[self.convert], _CONVERT_TO_FIELD4[self.convert]
 
+    def _text_advice(self) -> str:
+        """Return what to write in place of ``to_binary`` for a real copied into TXT.
+
+        The advice names the ``to_text`` converter that keeps this Copy's termination code,
+        with CLICK's default real numbering. It names that converter only if a Copy built
+        with it passes every check. Otherwise it names plain ``convert=to_text``.
+        """
+        try:
+            with checked():
+                advised = Copy(
+                    self.source,
+                    self.dest,
+                    convert="to_text",
+                    termination_code=self.termination_code,
+                )
+        except FieldError:
+            return "Write convert=to_text."
+        return f"Write {advised._text_convert_csv()}."
+
+    def _text_convert_csv(self) -> str:
+        """Return the ``convert=to_text(...)`` keyword of this Copy, which copies to text."""
+        # Write only the option that this source offers.
+        option = (
+            f"exponential={1 if self.exponential else 0}"
+            if _real_text_source(self.source)
+            else f"suppress_zero={1 if self.suppress_zero else 0}"
+        )
+        code = "none" if self.termination_code == "0" else self.termination_code
+        return f"convert=to_text({option},termination_code={code})"
+
     def _check_format(self, check: Refusals, kind: str, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
         convert = self.convert
@@ -1972,7 +2007,7 @@ class Copy(Instruction, AllowsRefusals):
                 ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_CONVERTER_BANK,
-                then="Write convert=to_text.",
+                then=self._text_advice(),
             )
             return
         if convert is None and kind in ("word", "number") and dest_bank == "TXT":
@@ -2029,7 +2064,7 @@ class Copy(Instruction, AllowsRefusals):
             ok, need = kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
         elif convert == "to_binary":
             ok = kind in ("word", "number") and dest_bank == "TXT"
-            need = "a number to TXT, or a value between a real and a 32-bit integer (DF1 -> DD1)"
+            need = "an integer to TXT, or a value between a real and a 32-bit integer (DF1 -> DD1)"
         elif convert in ("to_value", "to_ascii"):
             ok, need = kind == "txt" and dest_bank in _NUMERIC_DEST_BANKS, "TXT to a number"
         else:
@@ -2112,17 +2147,7 @@ class Copy(Instruction, AllowsRefusals):
             kw.append("oneshot=1")
 
         if self.convert == "to_text":
-            # Write only the option that this source offers.
-            option = (
-                f"exponential={1 if self.exponential else 0}"
-                if _real_text_source(self.source)
-                else f"suppress_zero={1 if self.suppress_zero else 0}"
-            )
-            text_kw = [
-                option,
-                f"termination_code={'none' if self.termination_code == '0' else self.termination_code}",
-            ]
-            kw.append(f"convert=to_text({','.join(text_kw)})")
+            kw.append(self._text_convert_csv())
         elif self.convert == "to_binary" and self.termination_code != "0":
             kw.append(f"convert=to_binary(termination_code={self.termination_code})")
         elif self.convert in ("to_value", "to_binary", "to_ascii"):

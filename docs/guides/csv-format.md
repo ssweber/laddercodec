@@ -1083,8 +1083,8 @@ currently emit:
     text by default, with suppress zero, or with real numbering for a real or DF
     source. So `copy(5,TXT1)` and `copy(DS1,TXT1)` raise `FieldError`, and the
     message names `convert=to_text(suppress_zero=1,termination_code=none)`.
-    - A DF address or pointer, or a real constant, copied to TXT takes only
-      `convert=to_text(...)`. CLICK's dialog offers no Copy Binary for it, so
+    - For a DF address or pointer, or a real constant, copied to TXT, write
+      `convert=to_text(...)`. CLICK's dialog offers no Copy Binary for these sources.
       `copy(DF1,TXT1,convert=to_binary)` and `copy(1.5,TXT1,convert=to_binary)` raise
       `FieldError`.
   - `convert=to_binary` for a value converted between a real and a 32-bit integer,
@@ -1093,9 +1093,9 @@ currently emit:
     - a real constant into DD or CTD
     - an integer constant outside int16 into DF
     - a pointer on either side of any of these (`copy(DF[DS1],CTD1,convert=to_binary)`)
-  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)`, for a number
-    register other than DF copied to TXT with a termination code. `none` is accepted and writes
-    plain `to_binary`. Any other keyword raises `FieldError`.
+  - `convert=to_binary(termination_code=$XX)` gives a Copy Binary into TXT a termination
+    code. It is accepted for a number register other than DF. `none` is accepted and
+    writes plain `to_binary`. Any other keyword raises `FieldError`.
   - A termination code is `none`, `0`, or `$` and two hex digits (`$0D`). Anything
     else, `$D` included, raises `FieldError`.
   - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address
