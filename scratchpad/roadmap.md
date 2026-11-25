@@ -564,6 +564,9 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   give a character offset within the CSV cell. The token parser strips the cell and its arguments, and it can
   rewrite a token that has blank arguments, so it does not know where the formula sits in the cell. Also,
   `CsvLocation` has no field for an offset. Adding one is new public API, and Sam approves it.
+- **`replace(inst, ..., allow=codes)` (Sam).** It would return a changed copy of an instruction that keeps
+  each refusal that `allow` lists. Today `replace` raises `TypeError` for `allow`, and a caller builds the
+  copy with the constructor and `allow=`. It waits on Sam's approval of the parameter.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
