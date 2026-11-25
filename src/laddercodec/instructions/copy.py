@@ -41,6 +41,7 @@ from ..model import (
 )
 from ..operands.address import (
     Example,
+    ReadAddress,
     address_shape,
     bank_prefix,
     example_end,
@@ -529,8 +530,8 @@ def _text_span(start: object, end: object) -> int | None:
     """Return the number of addresses from ``start`` to ``end`` (:func:`_span`), or None if
     either is no address, the two are in different banks or the end is below the start.
     """
-    first = parse_address(start) if isinstance(start, str) else None
-    last = parse_address(end) if isinstance(end, str) else None
+    first = parse_address(start)
+    last = parse_address(end)
     if first is None or last is None or first.bank != last.bank:
         return None
     span = _span(first, last)
@@ -630,14 +631,16 @@ def check_range_ends(
     count: int = 2,
     one_module: bool = False,
     prefer: Collection[str] | None = None,
+    reads: bool = False,
 ) -> tuple[Address | None, Address | None]:
     """Check each end of the range ``start..end`` on its own through ``check``, and return
     both ends. An end that is refused is returned as None.
 
     The address that the refusal of an end suggests fits the other end. It is the end of a
     range of ``count`` addresses from the start, or the start of one that ends at the end
-    (:func:`~laddercodec.operands.address.example_end`, with ``one_module``). If the other
-    end is no address, the suggested address is in a bank of ``prefer``, the banks that the
+    (:func:`~laddercodec.operands.address.example_end`, with ``one_module``). In SC and SD
+    it must be writable, unless the instruction only ``reads`` the range. If the other end
+    is no address, the suggested address is in a bank of ``prefer``, the banks that the
     instruction's other fields need.
 
     If the bank rule or the out-of-range rule refuses both ends for the same reason,
@@ -648,8 +651,10 @@ def check_range_ends(
     is checked. Its refusals then come before a refusal of the end. Neither end may be a
     pointer. ``bank_id`` is CLICK's id for an end in a bank outside ``banks``.
     """
-    start_example: Example | None = example_start(end, count) or prefer
-    end_example: Example | None = example_end(start, count, one_module=one_module) or prefer
+    below = example_start(end, count)
+    above = example_end(start, count, one_module=one_module)
+    start_example: Example | None = (ReadAddress(below) if reads and below else below) or prefer
+    end_example: Example | None = (ReadAddress(above) if reads and above else above) or prefer
     found = check(start_attr, _end_or_refusal, banks, bank_id, start_example)
     if isinstance(found, FieldError):
         last = check(end_attr, _end_or_refusal, banks, bank_id, end_example)
@@ -792,12 +797,13 @@ def _check_range(
     moves: str = "",
     count: int = 2,
     prefer: Collection[str] | None = None,
+    reads: bool = False,
 ) -> tuple[Address | None, Address | None]:
     """Do the checks of :func:`check_range` through ``check`` and keep every refusal. Check
     each end on its own, and then the two ends together. Two ends that the bank rule
     or the out-of-range rule refuses for the same reason are one refusal
-    (:func:`check_range_ends`). ``count`` and ``prefer`` choose the address that the
-    refusal of an end suggests, as for :func:`check_range_ends`.
+    (:func:`check_range_ends`). ``count``, ``prefer`` and ``reads`` choose the address that
+    the refusal of an end suggests, as for :func:`check_range_ends`.
 
     Return both ends, with None for an end that was refused. The ends are returned even
     when the check of the two together refused them. That refusal names the end's field
@@ -806,7 +812,7 @@ def _check_range(
     cls = check.field(start_attr).partition(".")[0]
     first, last = check_range_ends(
         check, start_attr, start, end_attr, end, banks, bank_id,
-        count=count, one_module=one_module, prefer=prefer,
+        count=count, one_module=one_module, prefer=prefer, reads=reads,
     )  # fmt: skip
     if first is not None and last is not None:
         check.run(
@@ -1052,11 +1058,12 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
     that a refusal suggests is in a bank that the source's ``kind`` copies to.
     """
     bank_id, bank_code = _copy_dest_bank(kind, source, destination)
+    source_bank = bank_of(source, "Copy.source", pointer=True, pointer_banks=SOURCE_POINTER_BANKS)
     try:
         return check_operand(
             destination, field, _COPY_DEST_BANKS, pointer=True,
             bank_id=bank_id, bank_code=bank_code,
-            example=None if kind is None else _COPY_PAIRS[kind],
+            example=None if kind is None else _own_bank_first(source_bank, _COPY_PAIRS[kind]),
         )  # fmt: skip
     except AddressError as exc:
         if (
@@ -1249,17 +1256,11 @@ def _source_row(rows: _Rows, source_bank: str) -> frozenset[str]:
     return next(dst for src, dst in rows if source_bank in src)
 
 
-def _bank_of_text(value: object, field: str, *, pointer: bool = False) -> str | None:
-    """Return the bank of ``value`` if it is an address (or, with ``pointer``, a pointer)
-    in any bank. Return None for other text and for a value that is not text."""
-    return bank_of(value, field, pointer=pointer) if isinstance(value, str) else None
-
-
 def _paired_sources(rows: _Rows, dest: object, field: str) -> frozenset[str] | None:
     """Return the source banks of each row of ``rows`` that holds the bank of ``dest``, as
     the banks that a refusal of the source suggests. Return None if ``dest`` is no address.
     """
-    bank = _bank_of_text(dest, field)
+    bank = bank_of(dest, field)
     if bank is None:
         return None
     return frozenset().union(*(src for src, dst in rows if bank in dst))
@@ -1276,10 +1277,18 @@ def _sources_into(
     """Return the banks of ``banks`` whose kind of source ``pairs`` copies into the bank of
     ``dest``, as the banks that a refusal of the source suggests. Return None if ``dest`` is
     no address."""
-    bank = _bank_of_text(dest, field, pointer=pointer)
+    bank = bank_of(dest, field, pointer=pointer)
     if bank is None:
         return None
     return frozenset(b for b in banks if bank in pairs.get(_register_kind(b), ()))
+
+
+def _own_bank_first(bank: str | None, banks: frozenset[str] | None) -> frozenset[str] | None:
+    """Return ``bank`` alone if ``banks`` holds it, and ``banks`` otherwise, as the banks that
+    a refusal of a single Copy's source or destination suggests. ``bank`` is the other
+    field's bank. A single Copy copies each bank that it writes into itself with no
+    conversion, so an address in the other field's bank fits."""
+    return frozenset((bank,)) if banks is not None and bank in banks else banks
 
 
 def _of_kind(kind: str, banks: frozenset[str]) -> frozenset[str]:
@@ -1739,11 +1748,13 @@ class Copy(Instruction, AllowsRefusals):
             # of a source constant, the pairing of source and destination, and then an SD
             # register that a Copy does not write.
             # The address that a refusal suggests for the source or the destination is in a
-            # bank that pairs with the other.
+            # bank that pairs with the other, the other's own bank if it can be.
             sources = BIT_BANKS | REGISTER_BANKS
+            paired = _sources_into(self.dest, "Copy.dest", sources, _COPY_PAIRS, pointer=True)
+            dest_bank = bank_of(self.dest, "Copy.dest", pointer=True)
             kind = check(
                 "source", _source_kind, sources, pointer=True,
-                example=_sources_into(self.dest, "Copy.dest", sources, _COPY_PAIRS, pointer=True),
+                example=_own_bank_first(dest_bank, paired),
             )  # fmt: skip
             dst = check("dest", _check_copy_destination, self.source, kind)
             const = None
@@ -2216,7 +2227,7 @@ class BlockCopy(Instruction, AllowsRefusals):
             src, src_last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
                 _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004",
-                moves="the destination end", count=max(dest_span or 2, 2),
+                moves="the destination end", count=max(dest_span or 2, 2), reads=True,
             )  # fmt: skip
             # CLICK fills in the destination end itself, so the order of the ends is not
             # checked here. A destination whose end is its start is refused below, as an
@@ -2590,7 +2601,7 @@ class Pack(Instruction, AllowsRefusals):
                 )
             first, last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
-                _sources(_PACK_ROWS), one_module=True, module_id="OBJ-033",
+                _sources(_PACK_ROWS), one_module=True, module_id="OBJ-033", reads=True,
             )  # fmt: skip
             # CLICK refuses a bank that no source packs into as a bank the field cannot use
             # (OBJ-004), for example X001, SD29 or SD31 after C1..C16. It refuses a bank that

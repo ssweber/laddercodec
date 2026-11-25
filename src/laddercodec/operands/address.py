@@ -399,14 +399,17 @@ _SHAPE_RE = re.compile(r"([A-Z]+)([0-9]+)")
 _LETTERS_RE = re.compile(r"[A-Z]*")
 
 
-def parse_address(text: str) -> Address | None:
-    """Return the address that ``text`` spells, or None if it is not a CLICK address.
+def parse_address(text: object) -> Address | None:
+    """Return the address that ``text`` spells, or None if it is not a CLICK address or not
+    text.
 
     The function reads ``text`` as :func:`check_address` does. The bank is uppercase and
     one of :data:`ADDRESS_BANKS`, and the number is inside the bank's range. ``XD0u`` and
     ``YD0u`` are addresses here. :func:`check_address` refuses them when it is given no
     banks.
     """
+    if not isinstance(text, str):
+        return None
     parts = _address_parts(text)
     if parts is None:
         return None
@@ -488,9 +491,16 @@ def address_shape(text: str) -> tuple[str, str] | None:
     return None if match is None else (match.group(1), match.group(2))
 
 
+class ReadAddress(NamedTuple):
+    """The preferred example (:func:`example_address`) for a field that only reads its
+    address. Unlike a bare :class:`Address`, it need not be a writable SC or SD."""
+
+    address: Address
+
+
 #: What the other fields of an instruction need of the example in a refusal of one field
 #: (:func:`example_address`): an address, or the banks that suit the other fields.
-Example: TypeAlias = "Address | Collection[str]"
+Example: TypeAlias = "Address | ReadAddress | Collection[str]"
 
 
 def example_address(
@@ -504,6 +514,7 @@ def example_address(
     - An :class:`Address`, such as the address after the start of a range, is the example
       if the field takes it. In SC and SD it must also be writable. If the field does not
       take it, the example is in its bank.
+    - A :class:`ReadAddress` is the same, except that it need not be writable.
     - A collection of banks, such as the banks of the other operand's compare group, limits
       the example to those banks.
 
@@ -521,12 +532,15 @@ def example_address(
 
     writable = {"SC": WRITABLE_SC, "SD": WRITABLE_SD}
     takes = [b for b in ADDRESS_BANKS if banks is None or b in banks]
+    reads = isinstance(prefer, ReadAddress)
+    if isinstance(prefer, ReadAddress):
+        prefer = prefer.address
     if isinstance(prefer, Address):
         if (
             prefer.bank in takes
             and prefer.number >= 0
             and _in_range(prefer.bank, str(prefer.number), prefer.upper)
-            and prefer.number in writable.get(prefer.bank, {prefer.number})
+            and (reads or prefer.number in writable.get(prefer.bank, {prefer.number}))
         ):
             return prefer.display
         prefer = {prefer.bank}
@@ -549,12 +563,6 @@ def nearby(address: Address | None, step: int) -> Address | None:
     return None if address is None else Address(address.bank, address.number + step)
 
 
-def _read(value: object) -> Address | None:
-    """Return the address that ``value`` spells, or None for other text and for a value that
-    is not text."""
-    return parse_address(value) if isinstance(value, str) else None
-
-
 def example_end(
     start: object,
     count: int = 2,
@@ -569,7 +577,7 @@ def example_end(
     With the default count of 2, the end is :func:`address_above` the start, with its
     ``one_module`` and ``among``.
     """
-    first = _read(start)
+    first = parse_address(start)
     if first is None or count != 2:
         return nearby(first, count - 1)
     return address_above(first, one_module=one_module, among=among)
@@ -579,7 +587,7 @@ def example_start(end: object, count: int = 2) -> Address | None:
     """Return the start of a range of ``count`` addresses that ends at ``end``, as the
     preferred example for a refused start (:func:`example_address`). Return None if
     ``end`` is no address."""
-    return nearby(_read(end), 1 - count)
+    return nearby(parse_address(end), 1 - count)
 
 
 def check_address(

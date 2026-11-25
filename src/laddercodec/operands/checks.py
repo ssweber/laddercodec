@@ -749,14 +749,14 @@ def check_operand(
 
 
 def bank_of(
-    value: str,
+    value: object,
     field: str,
     *,
     pointer: bool = False,
     pointer_banks: Collection[str] = POINTER_BANKS,
 ) -> str | None:
     """Return the bank of ``value`` if :func:`check_operand` accepts it as an address in any
-    bank. Return None for any other text.
+    bank. Return None for any other text, and for a value that is not text.
 
     ``field`` names the field that ``value`` is read for, as for :func:`check_operand`. With
     ``pointer``, also return the bank of a pointer that :func:`check_operand` accepts, such
@@ -766,6 +766,8 @@ def bank_of(
     Without ``pointer``, a pointer returns None and builds no refusal.  The refusal of a
     pointer outside a single Copy would contradict itself for a Copy field.
     """
+    if not isinstance(value, str):
+        return None
     if not pointer and split_pointer(value) is not None:
         return None
     try:

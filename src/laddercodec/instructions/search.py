@@ -225,7 +225,13 @@ class Search(Instruction, AllowsRefusals):
             # or the out-of-range rule refuses for the same reason are one refusal of the
             # table.
             start, end = check_range_ends(
-                check, "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
+                check,
+                "table_start",
+                self.table_start,
+                "table_end",
+                self.table_end,
+                TABLE_BANKS,
+                reads=True,
             )
             table = None
             if start is not None and end is not None:

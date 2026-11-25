@@ -419,7 +419,10 @@ def _with_example(error: FieldError, example: str) -> tuple[Callable[[], object]
         # A range example such as DS1..DS4 sets a Send's source, or a Receive's dest, and the
         # count, as the CSV token reads them. An address alone that a refusal of the count
         # suggests is one element.
-        start, count = _parse_range_quantity(example, f"{cls_name}.{local}")
+        try:
+            start, count = _parse_range_quantity(example, f"{cls_name}.{local}")
+        except FieldError as exc:
+            return f"the example is no range: {exc}"
         build = functools.partial(dataclasses.replace, obj, **{local: start, "quantity": count})
         return build, f"{cls_name}.quantity"
     if ends and len(pair) == 2 and pair[0].endswith("_end") and pair[1].endswith("_start"):
@@ -464,20 +467,28 @@ def _example_failures() -> dict[tuple[Code, str, str], str]:
     """
     failures: dict[tuple[Code, str, str], str] = {}
     for _, error in _collected():
-        for example in _EXAMPLE.findall(str(error)):
-            key = (error.code, re.sub(r"\[\d+\]$", "", error.field or ""), example)
-            built = _with_example(error, example)
-            if isinstance(built, str):
-                failures[key] = built
-                continue
-            build, filled = built
-            named = {error.field, filled}
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                still = [again for again in _refusals_of(build) if named & set(again.fields)]
-            if still:
-                failures[key] = f"{error}  ->  {still[0]}"
+        for example, why in _example_problems(error):
+            failures[(error.code, re.sub(r"\[\d+\]$", "", error.field or ""), example)] = why
     return failures
+
+
+def _example_problems(error: FieldError) -> list[tuple[str, str]]:
+    """Return each example in ``error`` that its field still refuses, or that the test can't
+    put back, with what happened."""
+    problems = []
+    for example in _EXAMPLE.findall(str(error)):
+        built = _with_example(error, example)
+        if isinstance(built, str):
+            problems.append((example, built))
+            continue
+        build, filled = built
+        named = {error.field, filled}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            still = [again for again in _refusals_of(build) if named & set(again.fields)]
+        if still:
+            problems.append((example, f"{error}  ->  {still[0]}"))
+    return problems
 
 
 def test_every_example_is_accepted_by_its_field() -> None:
@@ -563,7 +574,57 @@ _PARTNER_CASES: dict[str, tuple[Callable[..., object], str]] = {
         lambda **kw: _send(**{"remote_start": "SD1", "function_code": 6, **kw}),
         "remote_start",
     ),
+    "send source": (lambda **kw: _send(**{"remote_start": "DD1", "source": "5x", **kw}), "source"),
+    "receive dest": (
+        lambda **kw: _receive(**{"remote_start": "DD1", "dest": "5x", **kw}),
+        "dest",
+    ),
+    "receive remote": (
+        lambda **kw: _receive(**{"remote_start": "5x", "dest": "DD1", **kw}),
+        "remote_start",
+    ),
+    "copy TXT source": (lambda **kw: Copy(**{"source": "5x", "dest": "TXT1", **kw}), "source"),
+    "copy TXT dest": (lambda **kw: Copy(**{"source": "TXT1", "dest": "5x", **kw}), "dest"),
+    "block SC end": (
+        lambda **kw: BlockCopy(
+            **{
+                "source_start": "SC50",
+                "source_end": "5x",
+                "dest_start": "C1",
+                "dest_end": "C3",
+                **kw,
+            }
+        ),
+        "source_end",
+    ),
+    "block SD start": (
+        lambda **kw: BlockCopy(
+            **{
+                "source_start": "5x",
+                "source_end": "SD29",
+                "dest_start": "DS1",
+                "dest_end": "DS4",
+                **kw,
+            }
+        ),
+        "source_start",
+    ),
+    "pack SC end": (
+        lambda **kw: Pack(**{"source_start": "SC53", "source_end": "5x", "dest": "DH1", **kw}),
+        "source_end",
+    ),
+    "pack SC start": (
+        lambda **kw: Pack(**{"source_start": "5x", "source_end": "SC50", "dest": "DH1", **kw}),
+        "source_start",
+    ),
 }
+
+
+def _receive(**kw: object) -> Receive:
+    """Build a Receive from DS1 to DS1, with ``kw`` in place of its fields."""
+    fields: dict = {"target": _RTU, "remote_start": "DS1", "dest": "DS1", "quantity": 1}
+    status = {"receiving": "C1", "success": "C2", "error": "C3", "exception_response": "DS100"}
+    return Receive(**{**fields, **status, **kw})
 
 
 @pytest.mark.parametrize("name", list(_PARTNER_CASES))
@@ -578,6 +639,40 @@ def test_the_example_fits_the_partner_field(name: str) -> None:
     example = _EXAMPLE.search(str(error))
     assert example is not None, str(error)
     build(**{attr: example.group(1).removeprefix(f"{attr}=").strip('"')})
+
+
+#: Refused Sends whose refusal may suggest a source range, with the count it sets. Each
+#: example must be a range that the Send accepts, or the start alone.
+_SEND_RANGE_CASES: dict[str, Callable[[], object]] = {
+    "TXT even start, count past the bank": lambda: _send(
+        remote_start="TXT1", source="TXT2", quantity=2000
+    ),
+    "TXT even start, count past the text limit": lambda: _send(
+        remote_start="TXT1", source="TXT2", quantity=250
+    ),
+    "TXT count past the text limit": lambda: _send(
+        remote_start="TXT1", source="TXT1", quantity=250
+    ),
+    "XD past the hex room under FC16": lambda: _send(
+        remote_start=ModbusAddress("FFF0h"), source="XD0", quantity=16
+    ),
+    "DS past the hex room": lambda: _send(
+        remote_start=ModbusAddress("FFF0h"), source="DS1", quantity=32
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_SEND_RANGE_CASES))
+def test_a_send_range_example_is_accepted(name: str) -> None:
+    """A range that a Send refusal suggests exists and is accepted with the Send's other
+    fields as they are."""
+    with pytest.raises(FieldError) as caught:
+        _SEND_RANGE_CASES[name]()
+    errors = [e for e in caught.value.errors if isinstance(e, FieldError)]
+    problems = [
+        f"{example}: {why}" for error in errors for example, why in _example_problems(error)
+    ]
+    assert not problems, "\n".join(problems)
 
 
 _FIELD = re.compile(r"([A-Z]\w*)\.([a-z_]\w*)(?:\[\d+\])?")
