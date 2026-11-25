@@ -53,18 +53,17 @@ not hold up the export. So they come first. Two of them wait on a capture. The s
      captures in "Captures for motion and Email" do not ask for pins, so add them to that round.
    - A public way to build one instruction that the checks refuse. The `allow=` form exists only for
      `read_csv` and `read_bundle`. Sam approves the name of each new public function or parameter.
-2. `FieldError.span` (the planner approved it on 2026-11-18; see "Where in a formula" in item 1).
-3. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
+2. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-4. A finding for a comment that is too long. This session proposed it on 2026-11-25, and pyrung asked for
-   it. Build it together with the whole-program check. `check()` reports a rung comment whose RTF body is
+3. A finding for a comment that is too long. The laddercodec session proposed it on 2026-11-25, and the
+   pyrung session asked for it. Build it together with the whole-program check. `check()` reports a rung comment whose RTF body is
    over 1400 bytes as a Finding, and the finding names the rung and how many bytes to cut. pyrung's
    validation then reads that finding in place of its own 1400-character cap. Sam approves the code name,
    `comment-too-long`, before it merges.
    - The comment's length is a limit of `encode()`, not a shape that CLICK's syntax check refuses. So
      `check()` reports more than its docstring says (`layout_check.py`), and the docstring changes too.
      `undecoded-rung` and `layout-too-tall` are earlier findings of the same kind.
-5. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
+4. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
    and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
    Later.
 
@@ -83,13 +82,6 @@ rule-description API (`field_rules(Copy)["source"]`) is not built.
 - **A strict numeric tag.** `tag_int` reads a tag through `int()`. It accepts `" 1"`, `"+1"`, `"1_0"` and
   non-ASCII digits, as it did before. If it read only ASCII digits, those blobs would stay raw.
 
-- **Where in a formula (Sam, 2026-11-19).** Two identical refusals in one formula
-  (`DS0 + DS0`) can't be told apart. The proposal is `FieldError.span`, a half-open `(start, end)` character
-  offset into the expression as typed. It is new public API. It is step 2 of Next steps.
-  - It is None where no single stretch is at fault: an empty formula, the length, a `(` left open, the mode
-    conflict.
-  - A range refusal spans its `A : B`.
-  - SUM's CT refusals and X/Y refusals span the range argument.
 - **The blanks a CSV token still reads as syntax.** A blank argument of an AF token reads as its field
   `missing`. That covers a blank `unit=`, Math `mode=`, drum list, Modbus `target=` and search expression. An
   absent keyword stays a `CsvReadError` (ruled). So does a Math `mode=` that is neither `decimal` nor `hex`
@@ -576,6 +568,11 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   - a Search table whose end is in another bank than its start (`DH1..DS1`, `DH1..TXT1`, `TXT1..DS1`) and a
     one-register TXT table (`TXT1..TXT1`): OBJ-004, where the code says OBJ-008 or OBJ-012. The code for
     the same address at both ends is ruled (Settled); the id here follows CLICK's answer.
+- **A formula refusal's place in the CSV cell (nothing).** When `read_csv` refuses a Math formula,
+  `FieldError.span` gives the place within the formula argument, without the spaces at its ends. It does not
+  give a character offset within the CSV cell. The token parser strips the cell and its arguments, and it can
+  rewrite a token that has blank arguments, so it does not know where the formula sits in the cell. Also,
+  `CsvLocation` has no field for an offset. Adding one is new public API, and Sam approves it.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.

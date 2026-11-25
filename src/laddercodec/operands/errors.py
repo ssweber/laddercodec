@@ -97,7 +97,8 @@ class FieldError(LaddercodecError):
     click_id: str | None
     errors: tuple[FieldError, ...]
     obj: Any
-    span: tuple[int, int] | None
+    # The class default gives None for an error pickled before FieldError had a span.
+    span: tuple[int, int] | None = None
 
     def __init__(
         self,

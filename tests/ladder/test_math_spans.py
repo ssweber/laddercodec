@@ -203,6 +203,32 @@ def test_span_survives_pickle() -> None:
     assert pickle.loads(pickle.dumps(error)).span == (6, 9)
 
 
+def test_state_with_no_span_reads_none() -> None:
+    """An error whose state has no ``span``, as one pickled before FieldError had one,
+    reads None."""
+    (error,) = _formula("DS1 + DS0")
+    del error.__dict__["span"]
+    assert error.span is None
+    restored = pickle.loads(pickle.dumps(error))
+    assert "span" not in pickle.dumps(error).decode("latin-1")
+    assert restored.span is None
+    assert FieldError.__new__(FieldError).span is None
+
+
+@pytest.mark.parametrize(
+    ("expression", "text"),
+    [
+        ("<Tank> + DS0", "<Tank>"),
+        ("  DS1 + <Tank Level>", "<Tank Level>"),
+        ("DS1 + <A> + <B>", "<A>"),
+    ],
+)
+def test_nickname_refusal_spans_the_nickname(expression: str, text: str) -> None:
+    (error,) = _refusals(lambda: Math(expression, "DS1"))
+    assert error.code == Code.MATH_NICKNAME
+    assert _at_fault(expression, error) == text
+
+
 @pytest.mark.parametrize(
     "build",
     [

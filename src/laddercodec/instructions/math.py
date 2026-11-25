@@ -49,7 +49,7 @@ from ..operands.checks import (
     is_choice,
 )
 from ..operands.constants import INT16_MAX, INT16_MIN
-from ..operands.message import says, wrong_type
+from ..operands.message import make_refusal, says, wrong_type
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse, stored_reals_written
@@ -181,7 +181,16 @@ def _reconstruct_expression(template_display: str, formula_internal: str) -> str
 
 def _holds_nickname(expression: str) -> bool:
     """Return whether *expression* holds a ``<nickname>`` as CLICK's nickname view shows one."""
-    return "<" in expression and ">" in expression.split("<", 1)[1]
+    return _nickname_span(expression) is not None
+
+
+def _nickname_span(expression: str) -> tuple[int, int] | None:
+    """Return the span of the first ``<nickname>`` in *expression*, or None if it holds none.
+
+    The span runs from the first ``<`` to the first ``>`` after it, both included."""
+    start = expression.find("<")
+    end = expression.find(">", start + 1) if start >= 0 else -1
+    return None if end < 0 else (start, end + 1)
 
 
 # ---------------------------------------------------------------------------
@@ -235,9 +244,11 @@ class Math(Instruction):
                     code=Code.MATH_INVALID_TOKEN,
                     then="Pass the formula as a str.",
                 )
-            elif isinstance(self.expression, str) and _holds_nickname(self.expression):
-                check.refuse(
-                    "expression",
+            elif isinstance(self.expression, str) and (nickname := _nickname_span(self.expression)):
+                field = check.field("expression")
+                error = make_refusal(
+                    FieldError,
+                    field,
                     # A whole formula is quoted as it is. A name never replaces an
                     # address in it.
                     says(
@@ -245,10 +256,13 @@ class Math(Instruction):
                         "Math takes addresses, not nicknames",
                         expression=self.expression,
                     ),
-                    Reason.ADDRESS,
+                    field=field,
+                    reason=Reason.ADDRESS,
                     code=Code.MATH_NICKNAME,
                     then="Write the address of each nickname in its place.",
                 )
+                error.span = nickname
+                check.add(error)
             check.normalize("dest")
             # The banks allowed for the result, and how the formula is read, depend on the mode.
             if not check.refused("mode"):

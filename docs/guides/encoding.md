@@ -343,6 +343,8 @@ from the start of the string that you passed, with its spaces, tabs and letter c
 - A refusal of a function call's form spans the call, such as `SUM ( DS1 + DS2 )`.
 - A refusal of the order spans the two tokens that can't stand together, such as
   `DS1 DS2`.
+- A refusal of a nickname spans the first `<...>` in the formula, such as `<Tank>` in
+  `<Tank> + DS1`.
 
 `span` is `None` when no one part of the formula is at fault. That is so for a blank
 formula, a formula that is too long, a `(` with no `)`, and a key that only the other mode
