@@ -23,7 +23,15 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Rung, decode, decode_program, encode, read_csv, write_csv
+from laddercodec import (
+    RefusedFieldWarning,
+    Rung,
+    decode,
+    decode_program,
+    encode,
+    read_csv,
+    write_csv,
+)
 from laddercodec.binary_helpers import _build_blob
 from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
@@ -287,15 +295,15 @@ def test_a_number_into_txt_needs_a_converter(
 ) -> None:
     """A plain copy of a number into TXT is refused, because CLICK's dialog never saves one.
 
-    The dialog saves the number as text (Copy Value) or as binary (Copy Binary). The message
-    names CLICK's default text option. That is Suppress zero for an integer source, and real
-    numbering for a DF source or a real constant. A Copy with that converter round-trips
-    through its blob."""
+    The dialog saves the number as text (Copy Value), or an integer as binary (Copy Binary).
+    The message names CLICK's default text option. That is Suppress zero for an integer
+    source, and real numbering for a DF source or a real constant. It names to_binary only
+    for an integer source. A Copy with the default converter round-trips through its blob."""
     [error] = _errors(lambda: Copy(source, destination))
     assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
     assert f"convert=to_text({option},termination_code=none), CLICK's default" in str(error)
-    assert "convert=to_binary" in str(error)
+    assert ("convert=to_binary" in str(error)) is option.startswith("suppress_zero")
     with pytest.raises(FieldError, match="needs a converter"):
         _read_af(tmp_path, f"copy({source},{destination})")
     with pytest.raises(FieldError, match="needs a converter"):
@@ -427,6 +435,84 @@ def test_copy_binary_for_another_pair_is_refused(source: str, destination: str) 
     tags = {0x6074: source, 0x6076: destination, 0x2206: "1", 0x2227: "8"}
     assert [e.fields for e in refusals(_both_paths(tags))] == [error.fields]
     assert from_tags_af("Copy", 0x2721, {**tags, 0x2227: "7"}) is None
+
+
+# ---------------------------------------------------------------------------
+# Copy Binary into TXT
+# ---------------------------------------------------------------------------
+
+# CLICK v4.00's single Copy dialog was observed with each of these pairs filled in. For a
+# real source it showed only Real Numbering and Exponential Numbering. For an integer
+# source it showed Copy Value, Copy Binary and the two Suppress zero buttons.
+_REAL_INTO_TXT = [("DF1", "TXT1"), ("1.5", "TXT1"), ("DF[DS1]", "TXT1"), ("DF1", "TXT[DS1]")]
+_INTEGER_INTO_TXT = [
+    ("DD1", "TXT1"),
+    ("55", "TXT1"),
+    ("DS1", "TXT1"),
+    ("DH1", "TXT1"),
+    ("CTD1", "TXT1"),
+    ("DD[DS1]", "TXT1"),
+    ("DD1", "TXT[DS1]"),
+]
+
+
+@pytest.mark.parametrize(("source", "destination"), _REAL_INTO_TXT)
+def test_copy_binary_of_a_real_into_txt_is_refused(
+    tmp_path: Path, source: str, destination: str
+) -> None:
+    [error] = _errors(lambda: Copy(source, destination, convert="to_binary"))
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
+    assert (error.reason, error.code, error.click_id) == (
+        Reason.CONFLICT,
+        Code.COPY_CONVERTER_BANK,
+        None,
+    )
+    assert error.short().startswith("to_binary is not an option for ")
+    assert error.detail() == (
+        "CLICK copies a DF register or a real constant into TXT only as text. "
+        "Write convert=to_text."
+    )
+    token = f"copy({source},{destination},convert=to_binary)"
+    with pytest.raises(FieldError) as raised:
+        _read_af(tmp_path, token)
+    assert [e.code for e in raised.value.errors] == [Code.COPY_CONVERTER_BANK]
+    # The converter that the message names is accepted.
+    copy = Copy(source, destination, convert="to_text")
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(("source", "destination"), _INTEGER_INTO_TXT)
+def test_copy_binary_of_an_integer_into_txt_is_accepted(source: str, destination: str) -> None:
+    copy = Copy(source, destination, convert="to_binary")
+    assert _tags(copy.build_blob())[0x2227] == "8"
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(("source", "destination"), _REAL_INTO_TXT)
+def test_a_decoded_copy_binary_of_a_real_into_txt_keeps_its_refusal(
+    tmp_path: Path, source: str, destination: str
+) -> None:
+    """A Copy Binary of a real into TXT, as laddercodec 0.5.1 wrote it, decodes as a Copy
+    that holds the refusal. While it is unchanged, it encodes as the bytes it was decoded
+    from."""
+    token = f"copy({source},{destination},convert=to_binary)"
+    path = tmp_path / "rung.csv"
+    _write_af(path, token)
+    rungs = read_csv(path, allow=[Code.COPY_CONVERTER_BANK])
+    [written] = _copies(rungs)
+    blob = written.build_blob()
+    with pytest.warns(RefusedFieldWarning):
+        decoded = decode(encode(rungs))
+    [found] = _copies(decoded)
+    assert found.convert == "to_binary"
+    assert [e.code for e in refusals(found)] == [Code.COPY_CONVERTER_BANK]
+    assert stored_blob(found) == blob
+    assert found.build_blob() == blob
+    # The program-file decoder reads the same Copy, with the same refusal.
+    tags = {0x6074: source, 0x6076: destination, 0x2206: "2", 0x2227: "8"}
+    assert _both_paths(tags) == found
+    with pytest.raises(FieldError, match="to_binary is not an option"):
+        replace(found)
 
 
 # ---------------------------------------------------------------------------

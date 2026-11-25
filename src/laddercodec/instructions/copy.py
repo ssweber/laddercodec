@@ -1681,7 +1681,8 @@ class Copy(Instruction, AllowsRefusals):
         The converter, by its CSV name: ``None`` (a plain copy), ``"to_value"``,
         ``"to_text"``, ``"to_binary"`` or ``"to_ascii"``. A TXT register copied into a
         numeric register other than DF needs ``"to_value"`` or ``"to_ascii"``, and ``None``
-        is refused for it.
+        is refused for it. A DF register or a real constant copied into TXT refuses
+        ``"to_binary"``.
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
@@ -1956,19 +1957,38 @@ class Copy(Instruction, AllowsRefusals):
         convert = self.convert
         if convert == "to_binary" and _saves_type_7(self.source, self.dest):
             return  # Copy Binary is allowed for a copy between a real and a 32-bit integer.
+        real = _real_text_source(self.source)
+        if convert == "to_binary" and dest_bank == "TXT" and real:
+            # For a real copied into TXT, CLICK's dialog offers real or exponential numbering
+            # and no Copy Binary. It offers Copy Binary for an integer source.
+            check.refuse(
+                ("convert", "source", "dest"),
+                says(
+                    "{convert} is not an option for {source} -> {dest}",
+                    "CLICK copies a DF register or a real constant into TXT only as text",
+                    convert=Op(convert, quoted=False),
+                    source=Op(self.source),
+                    dest=Op(self.dest),
+                ),  # fmt: skip
+                Reason.CONFLICT,
+                code=Code.COPY_CONVERTER_BANK,
+                then="Write convert=to_text.",
+            )
+            return
         if convert is None and kind in ("word", "number") and dest_bank == "TXT":
             # CLICK's dialog saves a number copied to TXT either as its text (Copy Value,
-            # with Suppress zero by default) or as binary. It never saves a plain copy here.
-            option = "exponential=0" if _real_text_source(self.source) else "suppress_zero=1"
+            # with Suppress zero by default) or, for an integer, as binary. It never saves a
+            # plain copy here.
+            option = "exponential=0" if real else "suppress_zero=1"
             check.refuse(
                 ("convert", "source", "dest"),
                 says(
                     "{source} -> {dest} needs a converter: "
-                    "convert=to_text({option},termination_code=none), CLICK's default, or "
-                    "convert=to_binary",
+                    "convert=to_text({option},termination_code=none), CLICK's default{binary}",
                     source=Op(self.source),
                     dest=Op(self.dest),
                     option=option,
+                    binary="" if real else ", or convert=to_binary",
                 ),  # fmt: skip
                 Reason.CONFLICT,
                 code=Code.COPY_TXT_NEEDS_CONVERT,
@@ -2016,7 +2036,11 @@ class Copy(Instruction, AllowsRefusals):
             return
         if not ok:
             if kind in ("word", "number") and dest_bank == "TXT":
-                then = "Write convert=to_text or convert=to_binary."
+                then = (
+                    "Write convert=to_text."
+                    if real
+                    else "Write convert=to_text or convert=to_binary."
+                )
             elif kind == "txt" and _asks_txt_choice(dest_bank):
                 then = "Write convert=to_value or convert=to_ascii."
             elif _saves_type_7(self.source, self.dest):
