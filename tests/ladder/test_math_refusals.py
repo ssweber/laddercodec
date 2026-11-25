@@ -596,15 +596,43 @@ def test_formula_display_form_refusals_read_on() -> None:
             "SUM ( C1 : C8 ) XOR 3",
             "DS9",
             "decimal",
-            "Take XOR out of the formula, or set mode to hex. In a hex Math, write its bits as "
-            "DH, XD or YD registers. Write 3 as 3h. Write the result to a DH or YD register.",
+            "Take XOR out of the formula, or set mode to hex. In a hex Math, write the formula's "
+            "bits as DH, XD or YD registers. Write 3 as 3h. Write the result to a DH or YD "
+            "register.",
             ("SUM ( DH1 : DH8 ) XOR 3h", "DH9"),
+        ),
+        # XD and YD have fewer than 16 addresses.
+        (
+            "SUM ( C1 : C16 ) AND 3",
+            "DH9",
+            "decimal",
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write the formula's "
+            "bits as DH registers. Write 3 as 3h.",
+            ("SUM ( DH1 : DH16 ) AND 3h", "DH9"),
+        ),
+        # A median of 500 DD or DF registers covers more than 1024 bytes, and CTD has 250.
+        (
+            "SIN ( DH1 ) + MDN ( DH1 : DH500 )",
+            "DF9",
+            "hex",
+            "Take SIN out of the formula, or set mode to decimal. In a decimal Math, write the "
+            "formula's registers as DS, TD or SD.",
+            ("SIN ( DS1 ) + MDN ( DS1 : DS500 )", "DF9"),
+        ),
+        # A decimal RAND bound is a DS or DD register. The sign before 3h is a token of its own.
+        (
+            "SIN ( DH1 ) + RAND ( - 3h , XD1 )",
+            "DF9",
+            "hex",
+            "Take SIN out of the formula, or set mode to decimal. In a decimal Math, write the "
+            "formula's registers as DS or DD. Write 3h as 3.",
+            ("SIN ( DS1 ) + RAND ( -3 , DS2 )", "DF9"),
         ),
         (
             "DS1 AND DS2",
             "DS9",
             "decimal",
-            "Take AND out of the formula, or set mode to hex. In a hex Math, write its "
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write the formula's "
             "registers as DH, XD or YD. Write the result to a DH or YD register.",
             ("DH1 AND DH2", "DH9"),
         ),
@@ -618,6 +646,12 @@ def test_formula_display_form_refusals_read_on() -> None:
         ("DS1 AND 1.5", "DS9", "decimal", "Take AND out of the formula.", None),
         ("PI * ( DS1 AND 3 )", "DS9", "decimal", "Take AND out of the formula.", None),
         ("SIN ( DS1 ) + 10000h", "DS9", "hex", "Take SIN out of the formula.", None),
+        # A hex Math refuses a signed argument of a call, such as -3h.
+        ("LSH ( DS1 , -3 )", "DS9", "decimal", "Take LSH out of the formula.", None),
+        ("RRO ( DS1 , -3 )", "DS9", "decimal", "Take RRO out of the formula.", None),
+        ("DH1 AND RAND ( -1 , 5 )", "DS9", "decimal", "Take AND out of the formula.", None),
+        # A decimal RAND bound is not a real.
+        ("SIN ( DH1 ) + RAND ( 1h , 1.5 )", "DF9", "hex", "Take SIN out of the formula.", None),
     ],
 )
 def test_mode_advice_is_accepted_in_the_other_mode(

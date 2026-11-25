@@ -1457,11 +1457,11 @@ _OPTION_SLOT_THEN = (
             lambda: Math("DS1 AND DS2", "DS3"),
             "AND is hex only",
             "'DS1 AND DS2' is a decimal Math. Take AND out of the formula, or set mode to hex. "
-            "In a hex Math, write its registers as DH, XD or YD. Write the result to a DH or YD "
-            "register.",
+            "In a hex Math, write the formula's registers as DH, XD or YD. Write the result to "
+            "a DH or YD register.",
             "Math.expression: AND is hex only; 'DS1 AND DS2' is a decimal Math (OBJ-1006). "
-            "Take AND out of the formula, or set mode to hex. In a hex Math, write its registers "
-            "as DH, XD or YD. Write the result to a DH or YD register.",
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write the "
+            "formula's registers as DH, XD or YD. Write the result to a DH or YD register.",
             id="key-of-the-other-mode",
         ),
         pytest.param(
@@ -1548,8 +1548,8 @@ def test_a_math_refusal_keeps_its_parts(
             "DH3",
             "hex",
             "'SIN ( DH1 )' is a hex Math. Take SIN out of the formula, or set mode to decimal. "
-            "In a decimal Math, write its registers as DS, DD, DF, TD, CTD or SD. Write the "
-            "result to a DS, DD, DF, TD, CTD or SD register.",
+            "In a decimal Math, write the formula's registers as DS, DD, DF, TD, CTD or SD. "
+            "Write the result to a DS, DD, DF, TD or CTD register.",
         ),
     ],
 )

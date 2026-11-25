@@ -50,7 +50,7 @@ from ..operands.checks import (
     choice_operand,
 )
 from ..operands.constants import Kind, hex_display
-from ..operands.message import Op, Rule, make_refusal, operand, says, wrong_type
+from ..operands.message import Op, Rule, make_refusal, operand, or_list, says, wrong_type
 from ..operands.unchecked import AllowsRefusals, allowed, holds_refusals, read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -935,11 +935,6 @@ def _check_quantity_bounds(
         )
 
 
-def _or_list(names: list[str]) -> str:
-    """Return ``names`` joined as a list that ends with "or": ``DS, TD or SD``."""
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
-
-
 def _slave_banks(source_bank: str, fc: int | None) -> list[str]:
     """Return the CLICK slave banks that a Send from ``source_bank`` writes with ``fc``, in
     CLICK's bank order. With no ``fc``, return the banks of either FC06 or FC16."""
@@ -1003,7 +998,7 @@ def _check_send_pair(check: Refusals, remote_addr: Address, local: Address, fc: 
         Reason.CONFLICT,
         _BANK_ID,
         code=Code.BANK_NOT_ALLOWED,
-        then=f'Pick a slave address in {_or_list(takes)}, such as remote_start="{example}".',
+        then=f'Pick a slave address in {or_list(takes)}, such as remote_start="{example}".',
     )
 
 
