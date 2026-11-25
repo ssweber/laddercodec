@@ -499,7 +499,11 @@ def test_native_pin_rows_round_trip_through_csv(
             boxes += 1
             pins = _decode_blob_pins(af.blob)
             moved += pins != bytes(range(1, af.part_count))
-            assert f",pins={'/'.join(map(str, pins))}," in af.to_csv()
+            # The hex form holds the pins in the blob. to_csv writes it for a box whose field
+            # values the fields form can't hold, such as a preset that ends in a space.
+            hex_form = f"raw({af.class_name},{af.blob.hex()},"
+            token = af.to_csv()
+            assert token.startswith(hex_form) or f",pins={'/'.join(map(str, pins))}," in token
             back = RawInstruction.from_csv_token(af.to_csv())
             assert back.blob == af.blob
             assert back == af
