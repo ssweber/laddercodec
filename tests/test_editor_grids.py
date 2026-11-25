@@ -75,7 +75,7 @@ FILL = ("copy", "fill")
 FILL_FIELDS = {"source", "destination", "destination_end"}
 FILL_FILES = {"copy_fill.json", "preflight_fill.json", "risky_fill.json"}
 #: The grids that ClickNick wrote with Fill cases beside the cases of other dialogs.
-FILL_MIXED_FILES = {"saves.json"}
+FILL_MIXED_FILES = {"saves.json", "saves2.json"}
 #: The dialogs that the runner does not drive yet. Until it does, a case names the mode, the
 #: fields, the lists and the option buttons by laddercodec's names. Only a dialog's own three
 #: files (UNDRIVEN_FILES) hold its cases, and they hold nothing else.
@@ -120,10 +120,15 @@ UNDRIVEN_FILES = {
 UNDRIVEN_FILES["drum"] |= {
     f"drum_events{name}.json" for name in ("", "_names", "_shapes", "_padded", "_padded2", "_exprs")
 }
-#: The grids that ClickNick wrote with the cases of one dialog in UNDRIVEN and of dialogs in
-#: DIALOGS, each mapped to its dialog in UNDRIVEN. ``ip_field.json`` and ``ip_field_neg.json``
-#: hold Send cases, which are in UNDRIVEN, and Receive cases, which are in DIALOGS.
-MIXED_FILES = {"ip_field.json": "send", "ip_field_neg.json": "send"}
+#: The grids that hold the cases of dialogs in UNDRIVEN beside the cases of dialogs in DIALOGS,
+#: each mapped to its dialogs in UNDRIVEN. ``ip_field.json`` and ``ip_field_neg.json`` hold
+#: Send cases, which are in UNDRIVEN, and Receive cases, which are in DIALOGS.
+#: ``saves2.json`` holds Fill cases and the cases of six dialogs in UNDRIVEN.
+MIXED_FILES = {
+    "ip_field.json": {"send"},
+    "ip_field_neg.json": {"send"},
+    "saves2.json": {"counter", "drum", "for", "send", "shift", "timer"},
+}
 #: The runner takes these keys of a case and no others.
 CASE_KEYS = {"row", "case", "instruction", "mode", "fields", "choices", "options"}
 #: The number of cases in each row, over the dialog grids and the risky files, as committed. If a
@@ -455,7 +460,7 @@ def test_cases_are_in_the_runners_shape() -> None:
             assert case["row"] and case["case"], where
             undriven = case["instruction"] if case["instruction"] in UNDRIVEN else None
             if path.name in MIXED_FILES:
-                assert undriven in (None, MIXED_FILES[path.name]), where
+                assert undriven is None or undriven in MIXED_FILES[path.name], where
             else:
                 assert undriven == undriven_file, where
             dialog = UNDRIVEN[undriven] if undriven else DIALOGS[case["instruction"]]

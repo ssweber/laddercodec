@@ -44,6 +44,7 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `ip_field.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: an IP with a part above 255, with three or five parts, with leading zeros (`01.2.3.4`, `001.002.003.004`), with letters, with a negative part, with a blank part, with a dot at the end, with a space at either end, or with commas; a blank IP; and `192.168.1.1` |
 | `ip_field_neg.json` | a Send and a Receive on CPU Port1, with each of these IP addresses: `1.2.3.-2`, `1.2.3.-0`, `1.2.3.-01`, `1.2.3.-256`, `-1.-1.3.4`, `-1.2..4`, `.2.3.4`, `1.2.3.` and `1...4`; and `1.2.3.4` |
 | `saves.json` | cases whose saved form is the question: a Fill into TXT1..TXT2 of `5`, `1.5`, `1234567.8`, `"HELLO"`, `"é"` and a tab in quotes; a single Copy with a pointer on both sides (`DF[DS1]` into `DD[DS1]`, plain and with Copy Binary), on one side only, and between a pointer and CTD1; a decimal Math into DF1 of reals in exponent form (`1e6` to `1.5e10`, `1e-5`, `1.0E-10`, `1.2345e-04`, `1.2345678e15`), `9999999`, `+2.50`, `0.0015` and `1.` |
+| `saves2.json` | cases whose saved form is the question, copied from the other grids: each case that CLICK accepted and laddercodec refuses, where the save was not recorded (a space inside an address in a Fill, Counter, Drum, For, Send, Shift Register or Timer field; a Counter or Timer preset with a space at one end; the Counter preset `--5`; the For count `1 2`; a Fill into DS of `1E` and `E5`; a Fill into TXT of `"€"`, and of `"HELLO"` into TXT999..TXT1000); and a Fill into DF1..DF2 of `1234567.8`, `1.2345678`, `0.33333334` and `3.4028235E+38`. The row of a case is `saves.<grid>`, where `<grid>` is the grid that the case comes from |
 
 ClickNick wrote `receive_click.json`, `receive_click_count1.json`, `drum_events.json`,
 `drum_events_names.json`, `drum_events_shapes.json`, `drum_events_padded.json`,
@@ -60,6 +61,10 @@ or Reset case types `address` and `address_end` as an Out case does. A time and 
 case types the fields of a time drum and the events of an event drum. `saves.json` holds
 Fill, Copy and Math cases. A Copy case there may set the option `Copy Binary` by the label
 of its button, and the generator builds it with `to_binary`.
+
+`saves2.json` holds Fill, Counter, Drum, For, Send, Shift Register and Timer cases. Each case
+is the case of the same label in the grid that its row names, unchanged except for the row.
+The generator does not write this file either. It writes its verdicts file.
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
 case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
@@ -261,6 +266,7 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
 | `coil_sc_picker.answers.json` | the same lists for the address and range end of Set and of Reset, laid out as `sc_sd_writable.answers.json` (4 fields) |
 | `saves.answers.json` | the answers to `saves.json` (25 cases, all accepted). Each case also holds `save`, which names the program file that CLICK saved after the case's OK, in `saves/` (`saves/case01.scr` to `saves/case25.scr`). Each file is CLICK's `Scr1.tmp` byte for byte, and `decode_program` reads it |
+| `saves2.answers.json` | the answers to `saves2.json` (29 cases, two runs): 28 accepted, each with its `save` in `saves2/`, and one `crashed`. The file `saves2/caseNN.scr` is the save of the case at place NN in the grid, so `saves2/` holds `case01.scr` to `case29.scr` without `case27.scr`. Each file is CLICK's `Scr1.tmp` byte for byte. The `stored` rows of a box with pins include the pin rows (`.reset()`). Case 27, `shift C1..C 1`, is the crashed case: CLICK exited about 0.6 s after OK, with no error box and no save. A third run, of that case alone on a new project, ended the same way |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
 rule changes. The `plc`, `runs` and `clip` fields name no machine. The IP addresses in the Send

@@ -93,6 +93,13 @@ rule-description API (`field_rules(Copy)["source"]`) is not built.
   on a line break in the index, on nested brackets and on lower case. A Pack destination `DS[DS1\n]` is
   refused as `pointer-outside-copy` today, and `split_pointer` would make it `not-an-address`. Making them one
   reader is a rule change.
+- **Refusals that could name what CLICK saves.** A single Copy's refusal of a long real names the real that
+  CLICK saves. These refusals could name CLICK's saved text in the same way:
+  - A Fill or Copy of `1E` or `E5` into DS. The message reads the text as an address ("'1E' is not a CLICK
+    address", "'E5' has no CLICK bank 'E'"). CLICK saves the reals `1.0` and `0.0`.
+  - A space inside an address in a field where CLICK removes it: a Fill source, a Counter's or Timer's done
+    bit, a For count, a Shift Register's start bit and a Time Drum's jump step. The message gives an example
+    address from the field. It could name the typed address without the space (`DS1` for `DS 1`).
 - **Drum wording.** A time-event drum with events only is refused as `Drum.presets: 0 steps`. The guide does
   not say that a time drum's blank `accumulator=` is a `FieldError`.
 
@@ -372,12 +379,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
   CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
   CLICK's saves with the blobs that the encoder writes.
-- **Fill text outside ASCII (PLC).** CLICK accepts `"é"` and a tab as a Fill into TXT, and saves each as
-  typed. What does a PLC write into one TXT register for them? The code refuses both.
-- **A Fill of a long real outside TXT:** ClickNick's runner has these `copy_fill` cases queued with the
-  save kept: `fill 1234567.8 -> DF1..DF2`, `fill 1.2345678 -> DF1..DF2`, `fill 0.33333334 -> DF1..DF2` and
-  `fill 3.4028235E+38 -> DF1..DF2`. Does CLICK cut each real to 7 significant digits, as it does in TXT?
-  The rules refuse it in every bank.
+- **Fill text outside ASCII (PLC).** CLICK accepts `"é"`, `"€"` and a tab as a Fill into TXT, and saves
+  each as typed. It saves `"€"` as U+20AC. What does a PLC write into one TXT register for them? The code
+  refuses all three.
 - **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
   a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
   accepts a tab in a Compare Data B and in a Fill into TXT.
@@ -517,11 +521,27 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **A space in an address (Sam, 2026-11-17):** an edge space, or a space inside an address (`DS 1`), stays
   refused on purpose, though CLICK's dialog accepts it. An instruction holds the address in display form. Decode
   reads CLICK's saves of such an address, and a decoded Compare whose Data B holds `DS 1` keeps the refusal.
+- **What CLICK saves for a space in an address (CLICK):** the rules refuse each of these, as the item above
+  says.
+  - CLICK removes the space in a Fill source (`DS 1`), a Counter's done bit (`CT 1`), a For count (`DS 1`),
+    a Shift Register's start bit (`C 1`), a Timer's done bit (`T 1`) and a Time Drum's jump step (`DS 1`).
+  - CLICK saves the text with the space in a Counter preset (`DS 1`), an Event Drum event (`X 001`), a Time
+    Drum output (`Y 001`) and preset (`DS 1`), and a Send's source, exception response, Sending bit and
+    CLICK-addressing slave address (`C 1`, `DS 1`). `decode_program` reads each of these saves with a
+    `RefusedFieldWarning`.
+  - CLICK saves a Timer preset of `DS 1` as no preset at all.
+  - A preset with a space at one end: CLICK saves a Counter preset ` DS1` and a Timer preset `DS1 ` with
+    the space, and `decode_program` reads these two saves as `raw(...)`. CLICK saves a Counter preset
+    `DS1 ` and a Timer preset ` DS1` as no preset.
+  - A Shift Register from `C1` to `C 1`: CLICK exits about 0.6 s after OK on an offline
+    project, with no error box and no save. CLICK refuses `C1..C1` with OBJ-012.
+- **Text that isn't a number, saved as typed (CLICK):** CLICK saves the Counter presets `1-2` and `--5`
+  and the For counts `1 0` and `1 2` as typed. The rules refuse each, because none is a number.
 - **Quoted text with an E into TXT (Sam, 2026-11-17):** the rules keep accepting it, and the encoder keeps
   writing it as text, though CLICK stores it as its float value. A Copy `"HELLO"` into TXT1 saves the source
   `0.0`, ends in TXT3 and has conversion type 3. Decode reads that save as
-  `copy(0.0,TXT1,convert=to_text(...))`. A Fill of `"HELLO"` into TXT1..TXT2 saves `0.0` too. The rules
-  refuse it as text of more than one character.
+  `copy(0.0,TXT1,convert=to_text(...))`. A Fill of `"HELLO"` into TXT1..TXT2 or TXT999..TXT1000 saves
+  `0.0` too. The rules refuse it as text of more than one character.
 - **A pointer in a single Copy (CLICK):** CLICK saves a plain Copy with a pointer on one side or both as
   conversion type 7: `DF[DS1]` into `DD[DS1]`, `DF1` into `DD[DS1]`, `DD1` into `DF[DS1]`, `DF[DS1]` into
   CTD1 and CTD1 into `DF[DS1]`. It also saves type 7 for `DF[DS1]` into DD1, for `DD[DS1]` and `CTD[DS1]`
@@ -531,10 +551,16 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   form.
 - **A Fill into TXT (CLICK):** CLICK saves `fill(5,TXT1..TXT2)` as `5` and `fill(1.5,TXT1..TXT2)` as
   `1.5`, with no conversion option. The encoder writes the same tags, except 0x1201, which it writes in the
-  older form (see Open (CLICK v3.92)). CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`, so it
-  keeps 7 significant digits of a Fill's value, the same as in a single Copy's source. Only the save into TXT is
-  recorded. The rules refuse such a real in every bank, because a Fill's value is typed into the single
-  Copy source field, and CLICK cuts a real in that field in every bank where its save is recorded.
+  older form (see Open (CLICK v3.92)).
+- **A long real in a Fill (CLICK):** CLICK keeps 7 significant digits of a Fill's value, the same as in a
+  single Copy's source. It saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. Into DF1..DF2 it saves
+  `1234567.8` as `1234568.0`, `1.2345678` as `1.234568`, `0.33333334` as `0.3333333` and `3.4028235E+38`
+  as `3.402823E+38`. The rules refuse such a real in every bank and name the real that CLICK saves. No save
+  into another bank is recorded. A Fill's value is typed into the single Copy source field, and CLICK cuts a
+  real in that field in every bank where its save is recorded.
+- **Fill text that isn't a number, into DS (CLICK):** CLICK accepts `1E` and `E5` as a Fill into DS10..DS11,
+  and saves them as the reals `1.0` and `0.0`. The rules refuse both, as they refuse the same text in a
+  Copy into DS1.
 - **Math reals in exponent form (CLICK):** a decimal Math saves a real positionally from 1E-04 to below
   1E+07, and in exponent form otherwise, as the code writes. It saves `9999999` as typed, `1e7` to `1e9` as
   `1E+07` to `1E+09`, `1.5e10` as `1.5E+10`, `1e-5` as `1E-05` and `1.0E-10` as `1E-10`. It keeps the `+` of

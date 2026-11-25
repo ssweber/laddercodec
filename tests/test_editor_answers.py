@@ -106,6 +106,7 @@ ANSWER_FILES = (
     "ip_field_neg",
     "drum_events_exprs",
     "saves",
+    "saves2",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -182,10 +183,21 @@ RX2_COUNT = (
 )
 
 # Reasons for the Timer, Counter, Shift, For, Fill, Drum and Send cases.
-INNER_SPACE_FIELD = (
-    "kept: CLICK accepts a space inside an address in this field (DS 1), as it does in a Copy "
-    "source. What it saves here is not recorded. A space inside an address stays refused "
-    "(settled)"
+INNER_SPACE_REMOVED = (
+    "kept: CLICK accepts a space inside an address in this field (DS 1), and saves the address "
+    "without the space. An instruction holds the address in display form, so construction "
+    "refuses the space (settled)"
+)
+INNER_SPACE_SAVED = (
+    "kept: CLICK accepts a space inside an address in this field (DS 1), and saves the text with "
+    "the space. That text is not an address. decode_program reads the save with a "
+    "RefusedFieldWarning, and read_csv refuses the row that holds it. A space inside an address "
+    "stays refused (settled)"
+)
+SHIFT_END_SPACE = (
+    "kept: CLICK accepted the end bit C 1 after the start bit C1 in this answer. On an offline "
+    "project, CLICK exits about 0.6 s after OK, with no error box and no "
+    "save. CLICK refuses C1..C1 with OBJ-012. A space inside an address stays refused (settled)"
 )
 EDGE_WHITESPACE = (
     "deliberate: CLICK accepts a space or a tab at the start or end of this field. What it "
@@ -199,34 +211,27 @@ EDGE_SAVED = (
     "refuses the space or the tab"
 )
 PRESET_DROPPED = (
-    "kept: CLICK accepts a preset with a space at either end, and the save of this one holds "
-    "no preset. A rung with no preset is not what the CSV states, so laddercodec refuses the "
-    "space"
+    "kept: CLICK accepts a preset with a space at either end or inside the address, and the "
+    "save of this one holds no preset. A rung with no preset is not what the CSV states, so "
+    "laddercodec refuses the space"
 )
 PRESET_EDGE = (
-    "kept: CLICK accepts a preset with a space at either end. What it saves for this one is "
-    "not recorded. The save of the same preset with the space at the other end holds no "
-    "preset, so laddercodec refuses the space"
+    "kept: CLICK accepts a preset with a space at either end, and the save of this one keeps "
+    "the space. decode_program reads that save as raw(...). The save of the same preset with "
+    "the space at the other end holds no preset. An instruction holds the preset in display "
+    "form, so construction refuses the space"
 )
 FOR_SPACE = (
-    "kept: CLICK stores the For count 1 0 as typed. That count is not a number, so "
-    "laddercodec refuses it"
-)
-FOR_SPACE_UNSAVED = (
-    "kept: CLICK accepts the For count 1 2. What it saves is not recorded. A count with a "
-    "space inside it is not a number, so laddercodec refuses it"
+    "kept: CLICK stores the For counts 1 0 and 1 2 as typed. A count with a space inside it "
+    "is not a number, so laddercodec refuses it"
 )
 FOR_BLANK = (
     "kept: CLICK accepts a For count of one space and stores the space. A space states no "
     "count, so laddercodec refuses it as blank. CLICK refuses an empty count (OBJ-006)"
 )
 COUNTER_NOT_NUMBER = (
-    "kept: CLICK stores the Counter preset 1-2 as typed. It is not a number, so laddercodec "
-    "refuses it"
-)
-COUNTER_NOT_NUMBER_UNSAVED = (
-    "kept: CLICK accepts the Counter preset --5. What it saves is not recorded. It is not a "
-    "number, so laddercodec refuses it"
+    "kept: CLICK stores the Counter presets 1-2 and --5 as typed. Neither is a number, so "
+    "laddercodec refuses them"
 )
 COUNT_DIGITS = (
     "kept: CLICK accepts a Send count written as an Arabic-Indic digit. laddercodec reads a "
@@ -246,22 +251,16 @@ FILL_TXT_REAL = (
     'kept: CLICK reads "HELLO" as a real and stores the real 0.0 for a Fill into TXT, not the '
     "text. laddercodec refuses it as text of more than one character"
 )
-FILL_TXT_REAL_UNSAVED = (
-    'kept: CLICK accepts "HELLO" as a Fill into TXT999..TXT1000. What it saves is not '
-    "recorded. laddercodec refuses it as text of more than one character"
-)
 FILL_TXT_CHAR = (
-    'kept: CLICK accepts "é" and a tab as a Fill into TXT and stores each as typed. What a PLC '
-    "writes into one TXT register for them is not known, so laddercodec refuses them"
-)
-FILL_TXT_CHAR_UNSAVED = (
-    'kept: CLICK accepts "€" as a Fill into TXT. What it stores for it is not recorded, and '
-    "what a PLC writes into one TXT register for it is not known, so laddercodec refuses it"
+    'kept: CLICK accepts "é", "€" and a tab as a Fill into TXT and stores each as typed. What a '
+    "PLC writes into one TXT register for them is not known, so laddercodec refuses them"
 )
 FILL_REAL_DIGITS = (
-    "kept: CLICK saves a Fill of 1234567.8 into TXT1..TXT2 as 1234568.0, another value. "
-    "laddercodec refuses a real of more than 7 significant digits in every bank, as a single "
-    "Copy does, and names the form to write. Only the save into TXT is recorded (settled)"
+    "kept: CLICK keeps 7 significant digits of a real in a Fill, so it saves a longer real as "
+    "another value. It saves 1234567.8 as 1234568.0 into TXT1..TXT2 and into DF1..DF2. Into "
+    "DF1..DF2 it saves 1.2345678 as 1.234568, 0.33333334 as 0.3333333 and 3.4028235E+38 as "
+    "3.402823E+38. laddercodec refuses a real of more than 7 significant digits in every bank, "
+    "as a single Copy does, and names the form that CLICK saves (settled)"
 )
 MATH_LOWER_E = (
     "kept: CLICK saves 1.2345e-04 as 0.000123 and 1.2345678e15 as 1.234568E+15. A real typed "
@@ -274,8 +273,8 @@ MATH_STORED_TYPE = (
     "known (roadmap: Math real stored type)"
 )
 E_REAL_FILL = (
-    "kept: CLICK accepts 1E and E5 as a Fill source into DS. What it saves is not recorded. "
-    "Neither is an integer constant, so laddercodec refuses them"
+    "kept: CLICK accepts 1E and E5 as a Fill source into DS. It saves them as the reals 1.0 "
+    "and 0.0. Neither is an integer constant, so laddercodec refuses them (settled)"
 )
 SLOT_PORTS = (
     "The port list of the PLC that answered has no slot ports, so CLICK did not take these "
@@ -308,6 +307,18 @@ IP_PADDED_LABELS = (
     "send fc06 984 400001 <- DS1 ip='001.002.003.004'",
     "receive fc03 984 DS1 <- 400001 ip='01.2.3.4'",
     "receive fc03 984 DS1 <- 400001 ip='001.002.003.004'",
+)
+#: The cases in ``saves2`` whose save keeps the text of an address with a space inside it.
+INNER_SPACE_SAVES = (
+    "count_up CT1 preset=DS 1",
+    "event_drum events[0]=X 001",
+    "time_drum outputs[0]=Y 001",
+    "time_drum presets[0]=DS 1",
+    "send fc05 984 1 <- C 1",
+    "send fc06 984 400001 <- DS 1",
+    "send fc06 984 400001 <- DS1 exception=DS 1",
+    "send fc06 984 400001 <- DS1 sending=C 1",
+    "send fc06 click DS 1 <- DS1",
 )
 
 
@@ -495,8 +506,14 @@ DISAGREEMENTS: dict[Key, str] = _table(
     ),
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
     (COPY_REAL_DIGITS, "copy_single", "outcome", ("single 3.4028235E+38 -> DS1",)),
-    (COUNTER_NOT_NUMBER, "counter", "outcome", ("count_up CT1 preset=1-2",)),
-    (COUNTER_NOT_NUMBER_UNSAVED, "counter", "outcome", ("count_up CT1 preset=--5",)),
+    (
+        COUNTER_NOT_NUMBER,
+        "counter",
+        "outcome",
+        ("count_up CT1 preset=1-2", "count_up CT1 preset=--5"),
+    ),
+    (COUNTER_NOT_NUMBER, "saves2", "outcome", ("count_up CT1 preset=--5",)),
+    (COUNTER_NOT_NUMBER, "saves2", "stored", ("count_up CT1 preset=--5",)),
     (
         COUNT_DIGITS,
         "risky_send",
@@ -594,11 +611,19 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (
+        E_REAL_FILL,
+        "saves2",
+        "outcome",
+        ("fill 1E -> DS10..DS11", "fill E5 -> DS10..DS11"),
+    ),
+    (
         FILL_TXT_CHAR,
         "risky_fill",
         "outcome",
-        ('fill "é" -> TXT1..TXT2', 'fill "\t" -> TXT1..TXT2'),
+        ('fill "é" -> TXT1..TXT2', 'fill "\t" -> TXT1..TXT2', 'fill "€" -> TXT1..TXT2'),
     ),
+    (FILL_TXT_CHAR, "saves2", "outcome", ('fill "€" -> TXT1..TXT2',)),
+    (FILL_TXT_CHAR, "saves2", "stored", ('fill "€" -> TXT1..TXT2',)),
     (
         FILL_TXT_CHAR,
         "saves",
@@ -611,14 +636,14 @@ DISAGREEMENTS: dict[Key, str] = _table(
         "stored",
         ('fill "é" -> TXT1..TXT2', 'fill "<TAB>" -> TXT1..TXT2'),
     ),
-    (FILL_TXT_CHAR_UNSAVED, "risky_fill", "outcome", ('fill "€" -> TXT1..TXT2',)),
     (
         FILL_TXT_REAL,
         "copy_fill",
         "outcome",
-        ('fill "HELLO" -> TXT1..TXT2',),
+        ('fill "HELLO" -> TXT1..TXT2', 'fill "HELLO" -> TXT999..TXT1000'),
     ),
     (FILL_TXT_REAL, "saves", "outcome", ('fill "HELLO" -> TXT1..TXT2',)),
+    (FILL_TXT_REAL, "saves2", "outcome", ('fill "HELLO" -> TXT999..TXT1000',)),
     (
         FILL_REAL_DIGITS,
         "copy_fill",
@@ -634,66 +659,60 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (FILL_REAL_DIGITS, "saves", "outcome", ("fill 1234567.8 -> TXT1..TXT2",)),
+    (
+        FILL_REAL_DIGITS,
+        "saves2",
+        "outcome",
+        (
+            "fill 1234567.8 -> DF1..DF2",
+            "fill 1.2345678 -> DF1..DF2",
+            "fill 0.33333334 -> DF1..DF2",
+            "fill 3.4028235E+38 -> DF1..DF2",
+        ),
+    ),
     (MATH_LOWER_E, "saves", "outcome", ("DF1 = 1.2345e-04", "DF1 = 1.2345678e15")),
     (MATH_STORED_TYPE, "saves", "saved", ("DF1 = 1e6",)),
-    (
-        FILL_TXT_REAL_UNSAVED,
-        "copy_fill",
-        "outcome",
-        ('fill "HELLO" -> TXT999..TXT1000',),
-    ),
     (
         FOR_BLANK,
         "risky_for",
         "outcome",
         ("for  ",),
     ),
+    (FOR_SPACE, "for", "outcome", ("for 1 0", "for 1 2")),
+    (FOR_SPACE, "saves2", "outcome", ("for 1 2",)),
+    (FOR_SPACE, "saves2", "stored", ("for 1 2",)),
+    (INNER_SPACE_REMOVED, "copy_fill", "outcome", ("fill DS 1 -> DS10..DS11",)),
+    (INNER_SPACE_REMOVED, "counter", "outcome", ("count_up CT 1 preset=10",)),
+    (INNER_SPACE_REMOVED, "drum", "outcome", ("time_drum jump_enabled=1 jump_step=DS 1",)),
+    (INNER_SPACE_REMOVED, "for", "outcome", ("for DS 1",)),
+    (INNER_SPACE_REMOVED, "shift", "outcome", ("shift C 1..C8",)),
+    (INNER_SPACE_REMOVED, "timer", "outcome", ("on_delay T 1 preset=100 unit=ms",)),
     (
-        FOR_SPACE,
-        "for",
-        "outcome",
-        ("for 1 0",),
-    ),
-    (
-        FOR_SPACE_UNSAVED,
-        "for",
-        "outcome",
-        ("for 1 2",),
-    ),
-    (
-        INNER_SPACE_FIELD,
-        "copy_fill",
-        "outcome",
-        ("fill DS 1 -> DS10..DS11",),
-    ),
-    (
-        INNER_SPACE_FIELD,
-        "counter",
+        INNER_SPACE_REMOVED,
+        "saves2",
         "outcome",
         (
+            "fill DS 1 -> DS10..DS11",
             "count_up CT 1 preset=10",
-            "count_up CT1 preset=DS 1",
+            "time_drum jump_enabled=1 jump_step=DS 1",
+            "for DS 1",
+            "shift C 1..C8",
+            "on_delay T 1 preset=100 unit=ms",
         ),
     ),
+    (INNER_SPACE_SAVED, "counter", "outcome", ("count_up CT1 preset=DS 1",)),
     (
-        INNER_SPACE_FIELD,
+        INNER_SPACE_SAVED,
         "drum",
         "outcome",
         (
             "event_drum events[0]=X 001",
-            "time_drum jump_enabled=1 jump_step=DS 1",
             "time_drum outputs[0]=Y 001",
             "time_drum presets[0]=DS 1",
         ),
     ),
     (
-        INNER_SPACE_FIELD,
-        "for",
-        "outcome",
-        ("for DS 1",),
-    ),
-    (
-        INNER_SPACE_FIELD,
+        INNER_SPACE_SAVED,
         "send",
         "outcome",
         (
@@ -704,23 +723,12 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "send fc06 click DS 1 <- DS1",
         ),
     ),
-    (
-        INNER_SPACE_FIELD,
-        "shift",
-        "outcome",
-        (
-            "shift C 1..C8",
-            "shift C1..C 1",
-        ),
-    ),
-    (
-        INNER_SPACE_FIELD,
-        "timer",
-        "outcome",
-        (
-            "on_delay T 1 preset=100 unit=ms",
-            "on_delay T1 preset=DS 1 unit=ms",
-        ),
+    *((INNER_SPACE_SAVED, "saves2", kind, INNER_SPACE_SAVES) for kind in ("outcome", "stored")),
+    (SHIFT_END_SPACE, "shift", "outcome", ("shift C1..C 1",)),
+    (PRESET_DROPPED, "timer", "outcome", ("on_delay T1 preset=DS 1 unit=ms",)),
+    *(
+        (PRESET_DROPPED, "saves2", kind, ("on_delay T1 preset=DS 1 unit=ms",))
+        for kind in ("outcome", "stored")
     ),
     (
         LONG_DIGITS,
@@ -757,6 +765,15 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (PRESET_DROPPED, "risky_timer", "outcome", ("on_delay T1 preset= DS1 unit=ms",)),
     (PRESET_EDGE, "risky_counter", "outcome", ("count_up CT1 preset= DS1",)),
     (PRESET_EDGE, "risky_timer", "outcome", ("on_delay T1 preset=DS1  unit=ms",)),
+    *(
+        (
+            PRESET_EDGE,
+            "saves2",
+            kind,
+            ("count_up CT1 preset= DS1", "on_delay T1 preset=DS1  unit=ms"),
+        )
+        for kind in ("outcome", "stored")
+    ),
     (
         SERVER_PORT,
         "send",
@@ -825,7 +842,7 @@ CODES_COMPARED = 4959
 #: outcome is one where CLICK closed before it answered.
 NOT_TAKEN = 161
 NO_OUTCOME = 2
-CRASHED = 3
+CRASHED = 4
 NO_READ_BACK = 27
 
 
@@ -1495,6 +1512,7 @@ RUNNER_ANSWERS = {
     "ip_field_neg": ("ip_field_neg",),
     "drum_events_exprs": ("drum_events_exprs",),
     "saves": ("saves",),
+    "saves2": ("saves2",),
 }
 
 
@@ -1518,8 +1536,8 @@ def test_runner_answers_are_the_grids_cases(generator: Any) -> None:
             assert {k: answer.get(k) for k in case} == case, (name, case["case"])
 
 
-#: The folder of the program files that CLICK saved, which the answers name in ``save``.
-SAVES = GRIDS / "saves"
+#: The folders of the program files that CLICK saved, which the answers name in ``save``.
+SAVES = (GRIDS / "saves", GRIDS / "saves2")
 
 
 def _saved_cases() -> list[tuple[str, dict[str, Any]]]:
@@ -1528,12 +1546,13 @@ def _saved_cases() -> list[tuple[str, dict[str, Any]]]:
 
 def test_each_save_decodes_as_its_stored_row() -> None:
     """``decode_program`` reads each program file that an answer names as the box in the
-    answer's ``stored`` row. Each file in the folder of saves is named by one answer."""
+    first of the answer's ``stored`` rows. The rows after it hold the box's pins, such as
+    ``.reset()``. Each file in the folders of saves is named by one answer."""
     saved = _saved_cases()
-    assert sorted(GRIDS / case["save"] for _, case in saved) == sorted(SAVES.iterdir())
+    files = [path for folder in SAVES for path in folder.iterdir()]
+    assert sorted(GRIDS / case["save"] for _, case in saved) == sorted(files)
     for grid, case in saved:
-        [row] = case["stored"]
-        box = next(csv.reader([row]))[-1]
+        box = next(csv.reader(case["stored"][:1]))[-1]
         assert saved_tokens(case) == [box], (grid, case["case"])
 
 
@@ -1559,14 +1578,64 @@ def test_the_encoder_writes_the_tags_that_click_saves(generator: Any) -> None:
             continue
         if (grid, case["case"], "saved") in DISAGREEMENTS:
             continue
-        blob = rules_build(generator, case).build_blob()
-        written = {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
-        flag, saved_flag, written_flag = OLDER_FORM_FLAG
-        for tag, value in saved_tags(case).items():
-            where = (grid, case["case"], hex(tag))
-            if tag == flag:
-                assert (value, written[tag]) == (saved_flag, written_flag), where
-            elif tag != END_TAG:
-                assert written[tag] == value, where
+        assert_writes_saved_tags(grid, case, rules_build(generator, case))
         compared += 1
     assert compared == 18
+
+
+def assert_writes_saved_tags(grid: str, case: dict[str, Any], instruction: Instruction) -> None:
+    """Assert that the encoder writes, for *instruction*, each tag that the program file saved
+    for *case* stores, with the same value. The flag 0x1201 is written in the older form, and
+    the flags in ``SET_FLAGS`` are written as the encoder writes a set flag."""
+    class_name, _type, _parts, _extra, fields = _decompose_blob(instruction.build_blob())
+    written = {tag: value for tag, _sentinel, value in fields}
+    flag, saved_flag, written_flag = OLDER_FORM_FLAG
+    for tag, value in saved_tags(case).items():
+        where = (grid, case["case"], hex(tag))
+        if tag == flag:
+            assert (value, written[tag]) == (saved_flag, written_flag), where
+        elif (class_name, tag) in SET_FLAGS:
+            assert (value, written[tag]) == ("", SET_FLAGS[class_name, tag]), where
+        elif (class_name, tag) in OLDER_FORM_LEAVES_OUT and tag not in written:
+            continue
+        elif tag != END_TAG:
+            assert written[tag] == value, where
+
+
+#: The flags that a program file stores as an empty value when they are set, by class, each
+#: mapped to the value that the encoder writes for the set flag. A drum's jump flag 0x1202 is
+#: set when the tag is present.
+SET_FLAGS = {("Drum", 0x1202): "-1"}
+#: The tags that CLICK v4 saves and that the older blob form has no field for, by class.
+#: CLICK v4 saves the done bit of a time drum's timer (0x6068), such as T1 for TD1. The
+#: encoder writes a time drum with constant presets in the v3 form, which has no 0x6068.
+OLDER_FORM_LEAVES_OUT = {("Drum", 0x6068)}
+
+
+def stored_instruction(case: dict[str, Any]) -> Instruction | None:
+    """Return the instruction that ``read_csv`` reads from the ``stored`` rows of *case*, or
+    None if ``read_csv`` refuses them or reads them as ``raw(...)``."""
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            [rung] = _read_rows(Path(folder) / "stored.csv", case["stored"])
+        except FieldError:
+            return None
+    [instruction] = [i for i in rung.instructions if isinstance(i, Instruction)]
+    return None if isinstance(instruction, RawInstruction) else instruction
+
+
+def test_the_encoder_writes_the_saved_form(generator: Any) -> None:
+    """For each saved case that the rules refuse as typed, where ``read_csv`` reads the saved
+    rows as an instruction, the encoder writes each tag that CLICK's program file stores for
+    that instruction. These are the forms that CLICK saves in place of the typed text, such as
+    1.0 for a Fill of 1E into DS, and 1234568.0 for a Fill of 1234567.8 into DF1..DF2."""
+    compared = []
+    for grid, case in _saved_cases():
+        if case["outcome"] != "accepted" or rules_verdict(generator, case)[0]:
+            continue
+        instruction = stored_instruction(case)
+        if instruction is None:
+            continue
+        assert_writes_saved_tags(grid, case, instruction)
+        compared.append((grid, case["case"]))
+    assert len(compared) == 17, compared
