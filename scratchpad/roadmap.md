@@ -352,9 +352,10 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   CLICK's saves with the blobs that the encoder writes.
 - **Fill text outside ASCII (PLC).** CLICK accepts `"é"` and a tab as a Fill into TXT, and saves each as
   typed. What does a PLC write into one TXT register for them? The code refuses both.
-- **A Fill of a long real outside TXT:** rerun `fill 1234567.8 -> DF1..DF2` and
-  `fill 3.4028235E+38 -> DS10..DS11` from `copy_fill` with the save kept. Does CLICK cut the real to 7
-  significant digits in these banks, as it does in TXT? The rules refuse it in every bank.
+- **A Fill of a long real outside TXT:** ClickNick's runner has these `copy_fill` cases queued with the
+  save kept: `fill 1234567.8 -> DF1..DF2`, `fill 1.2345678 -> DF1..DF2`, `fill 0.33333334 -> DF1..DF2` and
+  `fill 3.4028235E+38 -> DF1..DF2`. Does CLICK cut each real to 7 significant digits, as it does in TXT?
+  The rules refuse it in every bank.
 - **A line break inside a text constant:** does CLICK accept LF and CR inside the quotes of a Compare Data B,
   a Copy source or a Search value? The code accepts them, and `read_csv` reads them into the text. CLICK
   accepts a tab in a Compare Data B and in a Fill into TXT.
@@ -509,7 +510,7 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **A Fill into TXT (CLICK):** CLICK saves `fill(5,TXT1..TXT2)` as `5` and `fill(1.5,TXT1..TXT2)` as
   `1.5`, with no conversion option. The encoder writes the same tags, except 0x1201, which it writes in the
   older form (see Open (CLICK v3.92)). CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`, so it
-  keeps 7 significant digits of a Fill's value, as of a single Copy's source. Only the save into TXT is
+  keeps 7 significant digits of a Fill's value, the same as in a single Copy's source. Only the save into TXT is
   recorded. The rules refuse such a real in every bank, because a Fill's value is typed into the single
   Copy source field, and CLICK cuts a real in that field in every bank where its save is recorded.
 - **Math reals in exponent form (CLICK):** a decimal Math saves a real positionally from 1E-04 to below

@@ -265,8 +265,8 @@ FILL_REAL_DIGITS = (
 )
 MATH_LOWER_E = (
     "kept: CLICK saves 1.2345e-04 as 0.000123 and 1.2345678e15 as 1.234568E+15. A real typed "
-    "with a lowercase e keeps 6 digits after the point, so CLICK saves these as other values. "
-    "laddercodec refuses them (settled)"
+    "with a lowercase e follows the rule for a real typed without an E, so CLICK saves these "
+    "as other values. laddercodec refuses them (settled)"
 )
 MATH_STORED_TYPE = (
     "open (CLICK): CLICK's Math stores the real 1e6 as the integer W1000000, and laddercodec "
