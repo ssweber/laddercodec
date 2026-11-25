@@ -18,7 +18,10 @@
 
 ### Fixed
 
-- Some refusals suggested a value that the same instruction then refused. For example, `Coil("Y001", range_end="$41")` suggested Y001 as the end. The suggested value now fits the instruction's other fields, and a Math refusal that tells you to set the other mode names what else that mode needs. A Send count refusal names a source range, such as `TXT1..TXT4`, in place of `quantity=4`, which a CSV token refuses. A Fill or a compare that refuses a character outside ASCII names its bare code, such as `$E9`.
+- A refusal's example now fits the instruction's other fields, where any value does. `Coil("Y001", range_end="$41")` suggested Y001 as the end.
+- A Math refusal that tells you to set the other mode names each other change that mode needs, or says only to take the key out.
+- A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
+- A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
 
 ## 0.5.1 (2026-11-25)
 

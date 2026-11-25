@@ -283,6 +283,10 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   save it? Data B and a Search value keep `$1` as typed. The code still refuses it in Data A.
 - **Text outside printable ASCII in Compare's Data A:** does the dialog accept `compare "é" == TXT1` and a tab,
   and are they saved as typed? Data B keeps them. The code still refuses them in Data A.
+- **Which character a code from `$80` to `$9F` names.** A Fill and Compare's Data A accept the bare `$80`,
+  `$85` and `$9F`. cp1252 and latin-1 give different characters for these codes, and no capture shows which
+  one CLICK reads. The refusal of text outside printable ASCII names no code from $80 to $9F. On a PLC, fill
+  TXT1 with `$80` and see what the Data View shows in TXT1.
 - **`DH` as a hex constant elsewhere:** CLICK saves Compare's Data B empty when you type `DH`, and the code
   refuses it there opposite a hex Data A. Does CLICK blank a `DH` constant in a Search value, Compare's Data A,
   a Copy, a Fill or a Math, or as the hex remote address of a Send or Receive? The code accepts it in each of

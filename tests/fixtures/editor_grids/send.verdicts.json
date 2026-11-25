@@ -587,7 +587,7 @@
   "send fc16 hex FFFCh <- TXT1 x2": {"verdict": "accepted"},
   "send fc16 hex FFFDh <- TXT1 x1": {"verdict": "refused", "error": "FieldError", "field": "Send.quantity", "message": "Send.quantity: 1 is outside 2-2 TXT characters (OBJ-010). Send an even count of characters, such as TXT1..TXT2."},
   "send fc16 hex FFFDh <- TXT1 x2": {"verdict": "accepted"},
-  "send fc16 hex FFFEh <- TXT1 x1": {"verdict": "refused", "error": "FieldError", "field": "Send.quantity", "message": "Send.quantity: 1 is outside 2-246 TXT characters (OBJ-010). Send an even count of characters, such as TXT1..TXT2."},
+  "send fc16 hex FFFEh <- TXT1 x1": {"verdict": "refused", "error": "FieldError", "field": "Send.quantity", "message": "Send.quantity: 1 is outside 2-246 TXT characters (OBJ-010). Send an even count of characters."},
   "send fc16 hex FFFEh <- TXT1 x2": {"verdict": "refused", "error": "FieldError", "field": "Send.remote_start", "message": "Send.remote_start: FFFEh is outside 0h-FFFDh for a TXT source (OBJ-010)"},
   "send fc16 hex FFF0h <- DD1 x13": {"verdict": "accepted"},
   "send fc16 hex FFF0h <- DD1 x14": {"verdict": "accepted"},

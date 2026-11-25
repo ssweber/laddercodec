@@ -2480,9 +2480,13 @@ class Fill(Instruction, AllowsRefusals):
                 )  # fmt: skip
                 if kind in ("number", "text"):
                     # A Fill takes a hex constant of 16 bits at most, in every bank. A Fill
-                    # into TXT takes one character of text.
-                    text_max = 1 if dest.bank == "TXT" else TEXT_MAX
-                    constants = replace(_CONSTANTS, text_max=text_max, hex_high=_HEX16_HIGH)
+                    # into TXT takes one character of text, and only a Fill into TXT takes
+                    # a character code.
+                    txt = dest.bank == "TXT"
+                    constants = replace(
+                        _CONSTANTS, text_max=1 if txt else TEXT_MAX, hex_high=_HEX16_HIGH,
+                        char_code=txt,
+                    )  # fmt: skip
                     const = check("value", check_constant, constants)
                     if const is not None and dest.bank == "TXT":
                         check.run(_check_fill_txt_number, self.value, const)

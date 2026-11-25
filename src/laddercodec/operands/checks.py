@@ -124,6 +124,9 @@ class Constants:
     text_max: int = TEXT_MAX
     #: Whether a text constant holds printable ASCII only (space to ``~``).
     printable: bool = True
+    #: Whether the refusal of text outside printable ASCII suggests a ``$hh`` code. A field
+    #: whose destination takes no character code, such as a Fill into DS, sets it False.
+    char_code: bool = True
     #: Whether a text constant may hold a quote between its outer quotes.  Each quote is
     #: one character of the text, so ``"A""B"`` is the four characters ``A""B``.
     quote: bool = False
@@ -511,15 +514,7 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
                 code=Code.CONSTANT_OUT_OF_RANGE,
             )
         if constants.printable and not printable(text):
-            number = ord(text[0]) if len(text) == 1 else None
-            # The message names no code from $80 to $9F, because the character that CLICK
-            # reads for each of them is not known.
-            if number is not None and (number < 0x80 or 0xA0 <= number <= 0xFF):
-                then = f"Write it as its $hh code, such as ${number:02X}."
-            elif number is None:
-                then = "Write printable ASCII only, or one character alone as its $hh code."
-            else:
-                then = "Write printable ASCII only."
+            then = _char_code_then(text) if constants.char_code else ""
             raise at.error(
                 value,
                 says("is refused", "text holds printable ASCII only (space to ~)"),
@@ -540,6 +535,25 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
             "OBJ-005",
             code=Code.CONSTANT_OUT_OF_RANGE,
         )
+
+
+def _char_code_then(text: str) -> str:
+    """Return the advice that ends the refusal of ``text`` outside printable ASCII: the
+    ``$hh`` code of its first character outside ASCII, or "" if there is no code to name."""
+    # Name no code for $80 to $9F.
+    codes = [
+        ord(char)
+        for char in text
+        if not " " <= char <= "~" and (ord(char) < 0x80 or 0xA0 <= ord(char) <= 0xFF)
+    ]
+    if not codes:
+        return ""
+    if len(text) == 1:
+        return f"Write it as its $hh code, such as ${codes[0]:02X}."
+    return (
+        "Write printable ASCII only. For one character outside ASCII, write its $hh code"
+        f" alone, such as ${codes[0]:02X}."
+    )
 
 
 def check_kept_text(value: str, text: str, field: str, *, label: str | None = None) -> None:

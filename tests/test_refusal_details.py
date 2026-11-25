@@ -380,8 +380,6 @@ EXAMPLE_NOT_SUBSTITUTED: dict[tuple[Code, str, str], str] = {
     (_C.INVALID_TEE, "Tee.contact", "Tee(Contact('X001'))"): _CODE,
     (_C.INVALID_CHAR_CODE, "Copy.source", "$41"): _COPY_PAIR,
     (_C.INVALID_CHAR_CODE, "Fill.value", "$41"): _COPY_PAIR,
-    (_C.INVALID_TEXT_CONSTANT, "Fill.value", "$09"): _COPY_PAIR,
-    (_C.INVALID_TEXT_CONSTANT, "Fill.value", "$E9"): _COPY_PAIR,
     (_C.NOT_AN_ADDRESS, "BlockCopy.source_start", "DS1"): _PARTNER_REFUSED,
     (_C.NOT_AN_ADDRESS, "BlockCopy.source_end", "DS2"): _PARTNER_REFUSED,
     (_C.POINTER_OUTSIDE_COPY, "BlockCopy.source_start", "DS1"): _PARTNER_REFUSED,
