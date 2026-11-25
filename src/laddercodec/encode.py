@@ -158,13 +158,22 @@ _SUFFIX = b"\r\n\\par }\r\n\x00"
 _PAGE_SIZE = 0x1000
 
 
+def _comment_bytes(comment: str) -> bytes:
+    """Return the RTF body that ``encode()`` writes for the Markdown *comment*, of any length.
+
+    ``check()`` measures a comment with this function, so that it and ``encode()`` agree on
+    the size.
+    """
+    return _build_rtf_body(comment).encode("ascii")
+
+
 def _comment_body(comment: str, rung: int | None = None) -> bytes:
     """Return the RTF body that ``encode()`` writes for the Markdown *comment*.
 
     Raise :class:`EncodeError` if the body is longer than :data:`COMMENT_MAX_BYTES`. The
     message names rung *rung* if it is given.
     """
-    body = _build_rtf_body(comment).encode("ascii")
+    body = _comment_bytes(comment)
     if len(body) > COMMENT_MAX_BYTES:
         which = "The comment" if rung is None else f"The comment of rung {rung}"
         raise EncodeError(

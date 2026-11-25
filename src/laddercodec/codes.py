@@ -215,6 +215,8 @@ class Code(StrEnum):
     """A wire that joins a contact's two sides."""
     UNDECODED_RUNG = "undecoded-rung"
     """A rung that holds an ``Undecoded`` marker. The marker stands in for a rung that a decoder could not decode or that ``write_csv`` could not write."""
+    COMMENT_TOO_LONG = "comment-too-long"
+    """A rung comment whose RTF body is longer than the 1400 bytes that ``encode()`` accepts."""
 
     # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``CsvWriteError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvReadError`` and ``write_csv`` raises a ``CsvWriteError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"

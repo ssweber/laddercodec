@@ -157,6 +157,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `unpowered-box` | A box that no rail or contact reaches. | C0202 |
 | `shorted-contact` | A wire that joins a contact's two sides. | C0002 |
 | `undecoded-rung` | A rung that holds an `Undecoded` marker. The marker stands in for a rung that a decoder could not decode or that `write_csv` could not write. |  |
+| `comment-too-long` | A rung comment whose RTF body is longer than the 1400 bytes that `encode()` accepts. |  |
 
 ## Layout
 

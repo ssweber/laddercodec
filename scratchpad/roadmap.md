@@ -40,30 +40,15 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 1. The laddercodec session merges the CHANGELOG and this roadmap, and hands Sam the release notes.
 2. Sam tags 0.5.1. ClickNick 0.26.1 pins it, together with pyclickplc 0.11.3 and pyrung's next release.
 
-**After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds the three things that
-pyrung's export needs while pyrung changes its builder to parse each operand once, so that laddercodec does
-not hold up the export. So they come first. Two of them wait on a capture. The steps after them do not wait.
-1. The three things that pyrung's export needs:
-   - `lay_out` accepts a box after a box with pins (CLICK). It refuses one today, because no capture shows
-     how CLICK draws it. ClickNick's runner captures one first.
-   - A `Box` in `lay_out` accepts wired pins on a `RawInstruction`, so that Email, Home, Position and
-     Velocity can have their pins wired (CLICK). Today `circuit._check_pin` refuses a pin on any box that is
-     not a `PinnedInstruction`. Each capture of these four classes is a box of one part, so no capture shows
-     where their pins sit. ClickNick's runner captures each with its pins wired first. The field-map
-     captures in "Captures for motion and Email" do not ask for pins, so add them to that round.
+**After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
+needs while pyrung changes its builder to parse each operand once, so that laddercodec does not hold up the
+export. So it comes first. The steps after it do not wait.
+1. What pyrung's export still needs:
    - A public way to build one instruction that the checks refuse. The `allow=` form exists only for
      `read_csv` and `read_bundle`. Sam approves the name of each new public function or parameter.
 2. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
    pyrung's export).
-3. A finding for a comment that is too long. The laddercodec session proposed it on 2026-11-25, and the
-   pyrung session asked for it. Build it together with the whole-program check. `check()` reports a rung comment whose RTF body is
-   over 1400 bytes as a Finding, and the finding names the rung and how many bytes to cut. pyrung's
-   validation then reads that finding in place of its own 1400-character cap. Sam approves the code name,
-   `comment-too-long`, before it merges.
-   - The comment's length is a limit of `encode()`, not a shape that CLICK's syntax check refuses. So
-     `check()` reports more than its docstring says (`layout_check.py`), and the docstring changes too.
-     `undecoded-rung` and `layout-too-tall` are earlier findings of the same kind.
-4. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
+3. The message wording that was deferred: the refusal's example from the partner field, the Math mode advice
    and `quantity=N` in Send and Receive messages (see Later). Then the other follow-ups in item 1 and in
    Later.
 
@@ -411,8 +396,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
   offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
-  Cc, Bcc, Subject and both body modes filled, each field a distinct value, with their pins wired. Their field
-  maps are inferred and stay `raw(...)`.
+  Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
+  stay `raw(...)`.
 - **ASCII Send and Receive** (static, dynamic, fixed, variable), and Home, Velocity, Position and Email with
   every status field set to a distinct address: native blobs to model later.
 - **Other non-pinned boxes in a compact OR layout.** `read_csv` lays them out as it does stacked 2-row
@@ -482,6 +467,15 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 
 ## Settled (don't reopen)
 
+- **A box after a box with pins (CLICK v4.00, 2026-11-25):** CLICK can't hold the two in one rung. A pin
+  row runs from the rail to its pin, and a `T` or `|` can't go in column A. So any wire down to a later
+  output crosses every pin row. CLICK joins the wires where they cross, and its Syntax Check refuses the
+  rung: C0208 for a Counter's Reset, C0210 for a Shift Register's Clock, C0205 for a Timer's Reset.
+  `lay_out` keeps refusing the shape. pyrung refuses it when a program is built, and writes the next output
+  as a rung of its own (`.continued()`).
+- **Email, Home, Position and Velocity have no pin rows (CLICK v4.00, 2026-11-25).** Each box is three rows
+  tall. A contact wired to row 2 or 3 is C0202 "Missing line connection". Their inputs, such as Home's limit
+  switches, are dialog fields. pyrung wires nothing to them, so `lay_out` needs nothing for them.
 - **Refusal strings (Sam, 2026-11-19):** the `.code` names and the `.field` and `.fields` strings
   (`Copy.src`, `Send.ip`, `Class.field[i]`) are frozen for the release. pyrung is the consumer, so a later
   change goes to both repos together.

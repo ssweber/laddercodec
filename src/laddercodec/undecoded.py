@@ -336,10 +336,10 @@ def recovered_comment(error: str, payload: bytes) -> str:
     or ``\\`` that would otherwise be read as a style or an escape.
     """
     from ._comment import write_text
-    from .encode import COMMENT_MAX_BYTES, _build_rtf_body
+    from .encode import COMMENT_MAX_BYTES, _comment_bytes
 
     def size(plain: str) -> int:
-        return len(_build_rtf_body(write_text(plain)).encode("ascii"))
+        return len(_comment_bytes(write_text(plain)))
 
     def longest(fits: Callable[[int], bool], high: int) -> int:
         """Return the largest k in 0..high for which *fits* is true, found by bisection.
