@@ -76,7 +76,7 @@ _REFUSED = [
     ("copy(DS1,TXT1,convert=to_value)", "to_value copies TXT to a number"),
     ("copy(TXT1,TXT2,convert=to_ascii)", "to_ascii copies TXT to a number"),
     ("copy(TXT1,DS1,convert=to_text(suppress_zero=1))", "to_text copies a number to TXT"),
-    ("copy(DS1,DD1,convert=to_binary)", "to_binary copies a number to TXT"),
+    ("copy(DS1,DD1,convert=to_binary)", "to_binary copies an integer to TXT"),
     # Block Copy takes no pointers, keeps each range in one bank and converts only from TXT
     ("blockcopy(DS[DS1]..DS5,DS10..DS14)", "is a pointer; only a single Copy"),
     ("blockcopy(DS1..DD4,DS10..DS13)", "BlockCopy.source_end: 'DD4' is not in the bank"),

@@ -9,6 +9,7 @@
 ### Breaking changes
 
 - `Fill()` and `read_csv()` now raise `FieldError` (a `ValueError`) with the code `invalid-constant` for a real with more than 7 significant digits, the same as a single `Copy`. CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. 0.5.1 encoded such a real as typed. Write the real that the message names.
+- `Copy()` and `read_csv()` now raise `FieldError` with the code `copy-converter-bank` for `convert=to_binary` from a DF address, a DF pointer or a real constant into TXT, such as `copy(DF1,TXT1,convert=to_binary)`. 0.5.1 accepted them. `decode()` now warns with `RefusedFieldWarning` for such a Copy. Write `convert=to_text` instead.
 
 ### Added
 

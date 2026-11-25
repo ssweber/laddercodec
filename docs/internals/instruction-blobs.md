@@ -186,7 +186,9 @@ digits to write.
 A number constant or register copied into TXT needs a converter. CLICK's dialog saves Copy
 Value as text, or Copy Binary. It never saves type `0` here. Copy Value as text is by
 default with suppress zero (type `1`), or, for a real or DF source, with real numbering
-(type `3`). laddercodec rejects a plain copy.
+(type `3`). laddercodec rejects a plain copy. The dialog offers Copy Binary for an integer
+source only. For a real or DF source it offers real or exponential numbering. laddercodec
+rejects `to_binary` for such a source.
 
 A number constant copied into a TXT address is written as its text, one TXT register for
 each character. CLICK saves the end that the text fills. It counts the constant as stored,
