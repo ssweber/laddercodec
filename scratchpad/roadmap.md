@@ -43,8 +43,8 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 **After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
 needs first, so that laddercodec does not hold up the export. That work is done. The steps below are what
 is left.
-1. The whole-program check, which moves from pyrung once pyrung's export goes through laddercodec (see For
-   pyrung's export).
+1. The step estimate and the 8,000-step limit of the whole-program check, once CLICK answers the step
+   number questions (see For pyrung's export).
 2. The other follow-ups in item 1 and in Later.
 
 **Alongside these steps, and not steps of their own:**
@@ -415,16 +415,42 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   CLICK's comment editor, and type a Japanese comment with an IME. Copy each rung back, and compare what
   `decode()` reads with what the editor shows. Typing `中` with an IME is not tested either. CLICK wrote it
   under a SimSun font when it was set as UTF-16.
+- **The program rules of `check()`.** No finding of these rules has a CLICK id until CLICK's Syntax Check
+  answers its exact shape. Then the code gets the id in `CLICK_IDS`, and the finding has `captured` True.
+  Paste each case into a new CLICK v4.00 project and run Syntax Check. Record its output as printed, and the
+  `Scr*.tmp` files that CLICK saves after it. `tests/fixtures/program_check/` holds the bundles for the first
+  six cases.
+  - Pairing: a For with no Next, a Next with no For, a For in Main with its Next in a subroutine, and two Fors
+    with one Next. Which For does CLICK name in the last case? What does CLICK mean when it says that a For
+    and its Next must come from the same branch?
+  - Depth: four nested loops in Main, and three loops in Main around a Call to a subroutine with one loop.
+    Which program and which rung does CLICK name? `check()` expects no error for two loops around the same
+    Call. For a subroutine with four loops that Main calls outside any loop, `check()` reports the
+    subroutine's 4th For and not the Call.
+  - One Shot: on the inner For of two, and on the outer For only. Also on the For of a subroutine that Main
+    calls inside a loop. `check()` looks for an inner One Shot within one program only.
+  - A Return inside a loop in a subroutine, and an End inside a loop in Main.
+  - A Call in a subroutine, and a subroutine that calls itself. Does the paste keep each Call?
+  - A Call to a name that no subroutine has, and a Call to `sub1` when the subroutine is `Sub1`. Does CLICK
+    match the name with case ignored? Until it answers, a Call names the subroutine whose name is the same
+    text, case and spaces included.
+  - A Break and a Continue outside a loop.
+  - Step numbers: is the u16 after an instruction's type code in a program file the instruction's step
+    address? Save a small project, and compare its files with the Program Size that CLICK shows.
+    `docs/internals/binary-format.md` leaves the field undocumented until CLICK answers.
+  - The 8,000-step limit: paste rungs of a long Math formula in batches, and record when CLICK first
+    refuses, and how.
 
 ## For pyrung's export (another repo first)
 
 This comes from the ecosystem plan's item 2. It waits until pyrung's export goes through laddercodec.
 
-- A check on a whole program, approved by Sam 2026-11-16, moving from pyrung. It covers for-loop nesting
-  depth, a One Shot or a Return inside a loop, nested calls, the 8,000-step limit, and pyrung's estimate of
-  program steps (its `click/ladder/steps.py`). It comes after pyrung's export goes through laddercodec,
-  because only then does pyrung hold a laddercodec program to pass in. See the Syntax Check rules item in
-  Later.
+- A check on a whole program, approved by Sam 2026-11-16, moving from pyrung. `check()` on a `Program` or
+  a `Project` reports For/Next pairing and nesting depth, a One Shot or a Return inside a loop, and nested
+  calls. The 8,000-step limit and an estimate of program steps (pyrung's `click/ladder/steps.py`) are still
+  to build. They wait for CLICK's answer on step numbers (Open CLICK questions). pyrung can use the check
+  once its export goes through laddercodec, because only then does pyrung hold a laddercodec program to pass
+  in. See the Syntax Check rules item in Later.
 
 ## Waits on another repo
 
@@ -665,11 +691,12 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Home, Velocity, Position and Email status bits:** read-only `outputs` with busy, complete, success,
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0002, C0003, C000A, C0202, C0205 and
-  C0212. It does not report these:
-  - For/Next nesting, pairing, One Shot and Return/End inside a loop;
+  C0212. On a `Program` or a `Project`, it also reports the For/Next and Call rules, with no CLICK id yet.
+  It does not report these:
   - Next alone on its rung (C0009);
   - a timer inside For/Next (C1004);
   - Break/Continue without a contact or outside a loop;
+  - a Call to a name that no subroutine has;
   - a subroutine without an unconditional Return, and Main without an unconditional End;
   - the other timer, counter, shift and drum input-contact rules;
   - duplicate Timer or Counter addresses, and Out or Drum on a used timer address;
@@ -677,7 +704,8 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   - a Math function not followed by an operator;
   - a motion instruction that names an axis that does not exist.
 
-  Decide which are worth a Finding.
+  Decide which are worth a Finding. Sam decides whether a Break or Continue outside a loop, a Call to a
+  missing subroutine, and the unconditional Return and End join the program rules.
 - **SCR decode of a Math whose range is refused** keeps only 6 of Math's 5510 fields. The SCR blob dataclass
   above fixes it.
 - **ASCII Send and Receive** are not modelled (they stay `raw`).

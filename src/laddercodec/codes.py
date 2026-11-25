@@ -218,6 +218,20 @@ class Code(StrEnum):
     COMMENT_TOO_LONG = "comment-too-long"
     """A rung comment whose RTF body is longer than the 1400 bytes that ``encode()`` accepts."""
 
+    # Program findings: ``check()`` reports these on a ``Program`` or a ``Project``, at the instruction's AF cell.
+    FOR_WITHOUT_NEXT = "for-without-next"
+    """A For with no Next after it in its program."""
+    NEXT_WITHOUT_FOR = "next-without-for"
+    """A Next with no open For before it in its program."""
+    FOR_NESTING_DEPTH = "for-nesting-depth"
+    """A For nested more than 3 deep, or a Call inside a loop to a subroutine whose own loops take the nest past 3 deep."""
+    FOR_ONESHOT_INSIDE_LOOP = "for-oneshot-inside-loop"
+    """A For with One Shot on, inside another loop of its program. Only the outermost For of a nest can use One Shot."""
+    RETURN_INSIDE_LOOP = "return-inside-loop"
+    """A Return or an End between a For and its Next."""
+    NESTED_CALL = "nested-call"
+    """A Call in a subroutine. Only the main program can call a subroutine."""
+
     # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``CsvWriteError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvReadError`` and ``write_csv`` raises a ``CsvWriteError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"
     """A layout that needs more than 31 condition columns."""

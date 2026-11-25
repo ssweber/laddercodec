@@ -64,6 +64,7 @@ src/laddercodec/
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── paste.py              # addresses(): the addresses that a CLICK project must hold before a paste
 ├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
+├── _program_check.py     # The For/Next and Call rules that check() reports on a Program or a Project
 ├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
 │                         #   tree.py (series-parallel tree), render.py (packed layout), build.py (network
@@ -161,6 +162,7 @@ Fixtures are in `tests/fixtures/`:
 - `tumbler/`: 34 real programs, each a `.scr` paired with a clipboard capture of the same program.
 - `v4_captures/`: CLICK v4 copy-backs of pyrung capture stubs, and pasted/checked pairs the layout tests use.
 - `layout_check/`, `pinned_or/`: inputs for `check()` and pinned-box tests.
+- `program_check/`: bundles for the program rules of `check()`, with laddercodec's expected findings in `tests/test_program_check.py`.
 
 ## Golden Fixtures
 

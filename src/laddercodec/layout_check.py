@@ -5,13 +5,14 @@ reaches, or whose box inputs do not each have a branch of their own.  It reports
 only when its syntax check runs.  laddercodec encodes and writes these rungs as drawn, and
 ``check()`` reports them.  ``check()`` also reports a rung that needs more than 32 rows.
 CLICK can't hold such a rung.  ``check()`` also reports a rung comment that ``encode()``
-refuses as too long.
+refuses as too long.  On a ``Program`` or a ``Project``, it also reports the rules of For/Next
+loops and of Calls (``_program_check.py``).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ._layout import rows_needed, too_tall_message
@@ -26,6 +27,7 @@ from ._layout.tree import (
     reachable,
     reduce,
 )
+from ._program_check import ProgramFinding, check_program, check_project
 from .codes import Code
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .encode import COMMENT_MAX_BYTES, MAX_ROWS, _comment_bytes
@@ -33,7 +35,7 @@ from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.timer import Timer
 from .instructions.undecoded import Undecoded, to_the_end_note
-from .model import PinnedInstruction
+from .model import PinnedInstruction, Program, Project
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -49,7 +51,7 @@ class Finding:
     Attributes
     ----------
     rung:
-        Index of the rung in the checked list, from 0.
+        Index of the rung in the checked list, or in its program's ``rungs``, from 0.
     code:
         The :class:`~laddercodec.Code` that names the shape.  In the decoding guide, the
         table under "Check for rungs CLICK's syntax check rejects or redraws" gives each
@@ -97,10 +99,15 @@ class Finding:
         every rung, and CLICK may count otherwise.  Every other finding with a cell gives
         it counted from 0, as ``row 2 from 0, column D``.  The message ends with
         ``(CLICK: <click_id>)`` when ``captured`` is ``True``.  Otherwise it ends by saying
-        that CLICK's response to the shape is not captured.  Three kinds of finding end
+        that CLICK's response to the shape is not captured.  Four kinds of finding end
         otherwise.  An ``"undecoded-rung"`` finding ends with the marker's error.  A
         ``"layout-too-tall"`` finding ends by saying how to split the rung.  A
         ``"comment-too-long"`` finding ends by saying how many bytes to cut from the comment.
+        A program finding, such as ``"for-without-next"``, says that CLICK's response is not
+        captured, then ends with what to change.
+    program:
+        The ``Program.name`` of the program that holds the rung, such as ``"Main Program"``.
+        It is ``None`` when ``check()`` was given rungs.
     """
 
     rung: int
@@ -110,11 +117,39 @@ class Finding:
     row: int | None
     column: int | None
     message: str
+    program: str | None = None
 
 
-def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
+def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     """Return a finding for every shape in *rungs* that CLICK's syntax check refuses for how
     its lines connect, in rung order.
+
+    *rungs* can also be a :class:`~laddercodec.Program` or a :class:`~laddercodec.Project`.
+    ``check()`` then also reports the rules of a program that need more than one rung:
+
+    - ``"for-without-next"`` and ``"next-without-for"``: each For has a Next after it in
+      the same program, and each Next has an open For before it.  A Next closes the nearest
+      open For.
+    - ``"for-nesting-depth"``: loops nest at most 3 deep.  The finding is at each For past
+      the 3rd.  In a ``Project``, a Call inside a loop adds the loops of the subroutine that
+      it calls, and the finding is at the Call.
+    - ``"for-oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
+    - ``"return-inside-loop"``: no Return and no End between a For and its Next.  A Return
+      or End after a For with no Next gets no finding.  The For gets ``"for-without-next"``.
+    - ``"nested-call"``: only the main program can call a subroutine.  In a ``Project``,
+      that is ``project.main``.  For a ``Program`` alone, it is the program with
+      ``prog_idx`` 1.
+
+    A Call names the subroutine whose ``Program.name`` equals ``Call.subroutine``, with the
+    same case and spaces.  A Call to a name that no subroutine of the project has counts no
+    loops.  A program finding is at the instruction's AF cell, with ``click_id`` ``None`` and
+    ``captured`` ``False``.  Its message ends with what to change.  Each program's walk stops
+    at its first undecoded marker, because the marker can stand for every rung to the end.
+    A For that is open there gets no ``"for-without-next"`` finding.
+
+    A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
+    Within a program, the findings come in rung order.  A rung's own findings come first, then
+    its program findings in row order.  Each finding's ``program`` names its program.
 
     ``check()`` also reports two problems that are not rules of CLICK's syntax check.  A
     rung that needs more than the 32 rows of a CLICK rung gets a ``"layout-too-tall"``
@@ -159,9 +194,44 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
+    if isinstance(rungs, Project):
+        return [
+            finding
+            for program, found in check_project(rungs)
+            for finding in _check_program(program, found)
+        ]
+    if isinstance(rungs, Program):
+        return _check_program(rungs, check_program(rungs))
     if isinstance(rungs, Rung):
         rungs = [rungs]
     return [finding for index, rung in enumerate(rungs) for finding in _check_rung(index, rung)]
+
+
+def _check_program(program: Program, found: list[ProgramFinding]) -> list[Finding]:
+    """Return the findings of each rung of *program*, each followed by the rung's program
+    findings in *found*.
+    """
+    by_rung: dict[int, list[ProgramFinding]] = {}
+    for f in found:
+        by_rung.setdefault(f.rung, []).append(f)
+    name = program.name
+    out: list[Finding] = []
+    for index, rung in enumerate(program.rungs):
+        out += [replace(f, program=name) for f in _check_rung(index, rung)]
+        out += [
+            Finding(
+                index,
+                f.code,
+                None,
+                False,
+                f.row,
+                AF_X,
+                f"row {f.row} from 0, column {OUTPUT_COLUMN}: {f.what} ({_UNKNOWN}). {f.then}",
+                name,
+            )
+            for f in by_rung.get(index, ())
+        ]
+    return out
 
 
 @dataclass(frozen=True)
