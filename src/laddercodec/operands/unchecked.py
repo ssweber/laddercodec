@@ -49,7 +49,7 @@ any other refusal raises. :func:`allowed` returns True for an instruction whose 
 were all kept this way. ``build_blob()`` and ``encode()`` build the blob of such an
 instruction from its fields. ``read_csv(..., allow=...)`` reads a CSV inside such a block.
 
-Each instruction class, Modbus target and Modbus address takes ``allow=codes`` as a
+Each instruction class, Modbus target and Modbus address accepts ``allow=codes`` as a
 keyword (:class:`AllowsRefusals`). The constructor builds the instance inside
 ``unchecked(allow=codes)``, as ``read_csv(..., allow=codes)`` builds it.
 
