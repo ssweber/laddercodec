@@ -1286,8 +1286,8 @@ def _sources_into(
 def _own_bank_first(bank: str | None, banks: frozenset[str] | None) -> frozenset[str] | None:
     """Return ``bank`` alone if ``banks`` holds it, and ``banks`` otherwise, as the banks that
     a refusal of a single Copy's source or destination suggests. ``bank`` is the other
-    field's bank. A single Copy copies each bank that it writes into itself with no
-    conversion, so an address in the other field's bank fits."""
+    field's bank. A single Copy copies a bank into the same bank with no converter, so an
+    address in the other field's bank fits, such as TXT1 opposite TXT1."""
     return frozenset((bank,)) if banks is not None and bank in banks else banks
 
 
