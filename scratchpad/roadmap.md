@@ -136,9 +136,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   saves differ from what laddercodec writes. Fix both:
   - `fill(1234567.8,TXT1..TXT2)` is saved as `1234568.0`, and laddercodec writes `1234567.8`. Refuse it and
     name the saved text, as a single Copy does.
-  - A decimal Math `DF1 = 1e6` is saved as `1000000`, stored as `W1000000`. laddercodec writes
-    `F1000000.0`. The `math_decimal` answers have `DS1 = 1e5` saved as `100000.0`, a real. So these two
-    saves do not settle which reals with a lowercase `e` CLICK stores as integers.
+  - A decimal Math `DF1 = 1e6` is saved as the integer `W1000000` in tag 0x6229. laddercodec writes the
+    real `F1000000.0`. The `math_decimal` answers have `DS1 = 1e5` saved as the real `F100000.0`. So these
+    two saves do not settle which reals typed with a lowercase `e` CLICK stores as integers.
 
   Then update the items that the saves settle: "Fill text and a bare number", "Math real stored type", "Reals
   in exponent form in a Math", "A typed + on a real", "Math real form", and both items on a pointer on both
