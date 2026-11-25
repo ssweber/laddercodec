@@ -34,10 +34,10 @@ the RTF. Each takes time in proportion to the length of the comment.
 from __future__ import annotations
 
 import functools
-import unicodedata
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field, replace
 
+from ._rtf import cp1252_byte
 from .errors import DecodeError
 
 
@@ -65,53 +65,13 @@ _DOUBLE = {"*": "bold", "_": "underline"}
 _ESCAPABLE = "\\*_"
 
 
-# ---------------------------------------------------------------------------
-# ASCII sanitization
-# ---------------------------------------------------------------------------
-
-_ASCII_SUBSTITUTIONS: dict[str, str] = {
-    "\u2014": "-",  # em-dash
-    "\u2013": "-",  # en-dash
-    "\u2192": "->",  # →
-    "\u2190": "<-",  # ←
-    "\u2265": ">=",  # ≥
-    "\u2264": "<=",  # ≤
-    "\u2260": "!=",  # ≠
-    "\u201c": '"',  # left double curly quote
-    "\u201d": '"',  # right double curly quote
-    "\u2018": "'",  # left single curly quote
-    "\u2019": "'",  # right single curly quote
-}
-
-
-def sanitize_to_ascii(text: str) -> str:
-    """Replace non-ASCII characters with ASCII equivalents.
-
-    Applies explicit substitutions for common Unicode symbols, then
-    NFKD-normalises remaining non-ASCII to strip diacritics.  Anything
-    still outside ASCII is replaced with ``?``.
-    """
-    for src, dst in _ASCII_SUBSTITUTIONS.items():
-        text = text.replace(src, dst)
-    text = unicodedata.normalize("NFKD", text)
-    out: list[str] = []
-    for ch in text:
-        if ord(ch) < 128:
-            out.append(ch)
-        elif unicodedata.category(ch).startswith("M"):
-            pass  # drop combining marks (accents stripped by NFKD)
-        else:
-            out.append("?")
-    return "".join(out)
-
-
 def _read_form(text: str) -> str:
-    """Return *text* as the reader sees it: in ASCII, with ``\\n`` for each line break."""
-    return sanitize_to_ascii(text).replace("\r\n", "\n").replace("\r", "\n")
+    """Return *text* with ``\\n`` for each ``\\r\\n`` and for each lone ``\\r``."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _is_alnum(ch: str | None) -> bool:
-    return ch is not None and ch.isascii() and ch.isalnum()
+    return ch is not None and ch.isalnum()
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +247,7 @@ def _pair(
 
 
 def _tokens(text: str) -> tuple[list[str | _Delim], str]:
-    """Split ASCII Markdown *text* into text characters and runs of ``*`` or ``_``.
+    """Split Markdown *text* into text characters and runs of ``*`` or ``_``.
 
     Also return the characters for :func:`_other_counts`.
     """
@@ -363,7 +323,7 @@ def _events(text: str) -> Iterator[tuple[str, int, str]]:
 
 
 def parse(text: str) -> list[Run]:
-    """Return the styled runs of ASCII Markdown *text*, with adjacent equal styles merged."""
+    """Return the styled runs of Markdown *text*, with adjacent equal styles merged."""
     runs: list[Run] = []
     state = _Open()
     for kind, pair, value in _events(text):
@@ -377,20 +337,45 @@ def parse(text: str) -> list[Run]:
     return _merged(runs)
 
 
-def _rtf_text(text: str) -> str:
-    """Return comment text with the RTF special characters escaped and ``\\n`` as ``\\par``."""
-    text = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-    return text.replace("\n", "\\par ")
+# The RTF for each ASCII character that is not written as itself.
+_RTF_ASCII = {"\\": "\\\\", "{": "\\{", "}": "\\}", "\n": "\\par "}
+
+
+def _unicode_escape(char: str) -> str:
+    """Return the ``\\uN?`` escape that CLICK writes for *char*, which code page 1252 lacks.
+
+    N is unsigned. A character above U+FFFF is written as its UTF-16 surrogate pair, one
+    escape for each surrogate: U+1F600 is ``\\u55357?\\u56832?``.
+    """
+    code = ord(char)
+    if code > 0xFFFF:
+        code -= 0x10000
+        return f"\\u{0xD800 + (code >> 10)}?\\u{0xDC00 + (code & 0x3FF)}?"
+    return f"\\u{code}?"
+
+
+def _rtf_char(char: str) -> str:
+    """Return the RTF that CLICK writes for the character *char* of a comment.
+
+    An ASCII character is written as itself, except that ``\\``, ``{`` and ``}`` are
+    escaped and ``\\n`` is ``\\par``. A character that code page 1252 holds is ``\\'hh``,
+    with lowercase hex: ``é`` is ``\\'e9``. Any other character is a ``\\uN?`` escape.
+    """
+    if char.isascii():
+        return _RTF_ASCII.get(char, char)
+    byte = cp1252_byte(char)
+    if byte is not None:
+        return f"\\'{byte:02x}"
+    return _unicode_escape(char)
 
 
 def rtf_body(text: str) -> str:
     """Return the Markdown comment *text* as the body of an RTF string.
 
-    The function first replaces non-ASCII characters with :func:`sanitize_to_ascii` and
-    turns ``\\r\\n`` and a lone ``\\r`` into ``\\n``. Each styled stretch of text becomes an
-    RTF group: ``{\\b text}`` for bold, ``{\\i text}`` for italic and ``{\\ul text}`` for
-    underline. A style inside the same style adds no group. The text escapes the RTF
-    special characters ``\\``, ``{`` and ``}``, and each line break is ``\\par``.
+    The function first turns ``\\r\\n`` and a lone ``\\r`` into ``\\n``. Each styled
+    stretch of text becomes an RTF group: ``{\\b text}`` for bold, ``{\\i text}`` for italic
+    and ``{\\ul text}`` for underline. A style inside the same style adds no group. Each
+    character of the text is written as :func:`_rtf_char` says, so the body is ASCII.
     """
     out: list[str] = []
     state = _Open()
@@ -416,7 +401,7 @@ def rtf_body(text: str) -> str:
             if group not in groups:
                 out.append(f"{{\\{_RTF_CONTROL[group[1]]} ")
                 groups.append(group)
-        out.append(_rtf_text(value))
+        out.append("".join(map(_rtf_char, value)))
     out.append("}" * len(groups))
     return "".join(out)
 
@@ -441,41 +426,32 @@ def _merged(runs: Iterable[Run]) -> list[Run]:
 
 @dataclass
 class _Piece:
-    """Some comment text, the characters that the reader sees in it, and its style."""
+    """A character of comment text, or ``\\r\\n``, the character that the reader sees in it,
+    and its style."""
 
     text: str
-    units: str
+    unit: str
     style: Style
 
 
-def _pieces(runs: Iterable[Run]) -> tuple[list[_Piece], str]:
-    """Split the text of *runs* into pieces that the reader sees as one or more characters.
+def _pieces(runs: Iterable[Run]) -> list[_Piece]:
+    """Split the text of *runs* into pieces that the reader sees as one character each.
 
-    A piece is one character, or ``\\r\\n``. A character that the reader drops, such as a
-    combining mark, joins the piece before it and takes its style. Return the pieces, and
-    the text when the reader sees nothing in it at all.
+    A piece is one character, or ``\\r\\n``. The reader sees ``\\n`` for ``\\r\\n`` and
+    for a lone ``\\r``.
     """
     chars = [(style, ch) for style, text in runs for ch in text]
     pieces: list[_Piece] = []
-    prefix = ""
     i = 0
     while i < len(chars):
         style, ch = chars[i]
         if ch == "\r" and i + 1 < len(chars) and chars[i + 1][1] == "\n":
-            text, units = "\r\n", "\n"
+            pieces.append(_Piece("\r\n", "\n", style))
             i += 2
         else:
-            text, units = ch, _read_form(ch)
+            pieces.append(_Piece(ch, _read_form(ch), style))
             i += 1
-        if not units:
-            if pieces:
-                pieces[-1].text += text
-            else:
-                prefix += text
-            continue
-        pieces.append(_Piece(prefix + text, units, style))
-        prefix = ""
-    return pieces, prefix
+    return pieces
 
 
 def _stars(style: Style | None) -> set[str]:
@@ -862,20 +838,14 @@ def _escapes(units: list[str], markers: list[str]) -> list[bool]:
     return escaped
 
 
-def _writable(pieces: list[_Piece]) -> tuple[list[str], list[Style], list[int]]:
-    """Return the units of *pieces*, the style of each that Markdown can write, and where
-    each piece starts in the units."""
-    units: list[str] = []
-    styles: list[Style] = []
-    starts: list[int] = []
-    for piece in pieces:
-        starts.append(len(units))
-        units.extend(piece.units)
-        styles.extend([piece.style] * len(piece.units))
+def _writable(pieces: list[_Piece]) -> tuple[list[str], list[Style]]:
+    """Return the unit of each of *pieces*, and the style of each that Markdown can write."""
+    units = [piece.unit for piece in pieces]
+    styles = [piece.style for piece in pieces]
     _drop_style_on_edge_whitespace(units, styles)
     _drop_crossing_on_whitespace(units, styles)
     _drop_underline_beside_word(units, styles)
-    return units, styles, starts
+    return units, styles
 
 
 def write_runs(runs: Iterable[Run]) -> str:
@@ -884,8 +854,7 @@ def write_runs(runs: Iterable[Run]) -> str:
     The function writes ``**`` for bold, ``*`` for italic and ``__`` for underline. A
     literal ``*``, ``_`` or ``\\`` gets a backslash before it where the reader would
     otherwise read it as a marker or an escape. The function finds those places in one
-    pass, with the same pairing as the reader. It reads each character as the reader sees
-    it, so ``＊`` counts as ``*`` and a combining mark counts as nothing.
+    pass, with the same pairing as the reader.
 
     So a comment that is read back has the same text and the same styles, with two
     exceptions. The function writes the text of each without the style:
@@ -894,25 +863,17 @@ def write_runs(runs: Iterable[Run]) -> str:
       opens or closes, as in a bold ``"a "``;
     - an underline whose ``__`` would touch a letter or a digit outside it.
     """
-    pieces, rest = _pieces(_merged(runs))
+    pieces = _pieces(_merged(runs))
     if not pieces:
-        return rest
-    units, styles, starts = _writable(pieces)
+        return ""
+    units, styles = _writable(pieces)
     markers = _boundary_markers(units, styles)
     escaped = _escapes(units, markers)
 
     out: list[str] = []
-    for piece, u0 in zip(pieces, starts, strict=True):
-        u1 = u0 + len(piece.units)
-        out.append(markers[u0])
-        if any(markers[k] or escaped[k] for k in range(u0 + 1, u1)):
-            # A marker or a backslash falls inside the piece, so write what the reader sees.
-            for k in range(u0, u1):
-                if k > u0:
-                    out.append(markers[k])
-                out.append("\\" + units[k] if escaped[k] else units[k])
-        else:
-            out.append("\\" + piece.text if escaped[u0] else piece.text)
+    for k, piece in enumerate(pieces):
+        out.append(markers[k])
+        out.append("\\" + piece.text if escaped[k] else piece.text)
     out.append(markers[len(units)])
     return "".join(out)
 

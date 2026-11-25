@@ -31,7 +31,6 @@ from laddercodec import (
     read_csv,
     replace,
 )
-from laddercodec._comment import sanitize_to_ascii as _sanitize_to_ascii
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
@@ -466,46 +465,6 @@ def test_decoded_empty_text_constant_is_refused_by_encode() -> None:
         encode_rung(1, [[compare, *["-"] * 30]], [""])
 
 
-# -- ASCII sanitization --
-
-
-class TestSanitizeToAscii:
-    def test_dashes(self) -> None:
-        assert _sanitize_to_ascii("a\u2014b\u2013c") == "a-b-c"
-
-    def test_arrows(self) -> None:
-        assert _sanitize_to_ascii("\u2192") == "->"
-        assert _sanitize_to_ascii("\u2190") == "<-"
-
-    def test_math_operators(self) -> None:
-        assert _sanitize_to_ascii("\u2265") == ">="
-        assert _sanitize_to_ascii("\u2264") == "<="
-        assert _sanitize_to_ascii("\u2260") == "!="
-
-    def test_curly_quotes(self) -> None:
-        assert _sanitize_to_ascii("\u201chello\u201d") == '"hello"'
-        assert _sanitize_to_ascii("\u2018hi\u2019") == "'hi'"
-
-    def test_accented_chars(self) -> None:
-        assert _sanitize_to_ascii("caf\u00e9") == "cafe"
-        assert _sanitize_to_ascii("na\u00efve") == "naive"
-
-    def test_unknown_non_ascii_replaced(self) -> None:
-        assert _sanitize_to_ascii("\u4e16\u754c") == "??"
-
-    def test_pure_ascii_unchanged(self) -> None:
-        assert _sanitize_to_ascii("hello world 123!") == "hello world 123!"
-
-    def test_combined(self) -> None:
-        assert _sanitize_to_ascii("\u201cval\u201d \u2265 10") == '"val" >= 10'
-
-    def test_comment_round_trip(self) -> None:
-        """encode_rung writes a non-ASCII comment as ASCII, and decode reads the ASCII back."""
-        buf = encode_rung(1, [_empty()], [""], comment="\u201chello\u201d \u2014 world")
-        [d] = decode(buf)
-        assert d.comment == '"hello" - world'
-
-
 def test_encode_refuses_an_unknown_condition() -> None:
     # decode() keeps a condition cell it can't read as an UnknownCondition.
     row: list = [UnknownCondition(b"\x00" * 8)] + ["-"] * 30
@@ -527,7 +486,9 @@ def test_encode_refuses_an_output_cell_that_is_not_a_string_or_instruction() -> 
 
 
 def test_encode_refuses_a_comment_too_long() -> None:
-    with pytest.raises(EncodeError, match="Comment body exceeds 1400 bytes"):
+    with pytest.raises(
+        EncodeError, match=r"^The comment is too long: CLICK would store 1500 bytes"
+    ):
         encode(Rung([_empty()], [""], "x" * 1500))
 
 

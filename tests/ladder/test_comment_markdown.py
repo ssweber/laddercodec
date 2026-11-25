@@ -108,7 +108,8 @@ def _chars(runs: list[tuple[Style, str]]) -> list[tuple[str, Style]]:
         ("**__**__", "**__**__"),
         (r"**\_**", r"{\b _}"),
         (r"__\*__", r"{\ul *}"),
-        ("\uff0ax\uff0a", r"{\i x}"),
+        ("\uff0ax\uff0a", r"\u65290?x\u65290?"),
+        ("caf\u00e9_1_", r"caf\'e9_1_"),
         (
             "**Bold** and *italic* and __underline__",
             r"{\b Bold} and {\i italic} and {\ul underline}",
@@ -161,8 +162,8 @@ def test_reader_keeps_a_comment_without_styling_unchanged() -> None:
         (r"x {\ul y} z", "x __y__ z"),
         (r"x{\b\ul y}z", "x**__y__**z"),
         (r"{\b a {\i b}} {\i c}", "**a *b*** *c*"),
-        (r"a\\\u769?{\i b}", "a\\\\\u0301*b*"),
-        (r"{\i \u769?}", "\u0301"),
+        (r"a\\\u769?{\i b}", "a\\\u0301*b*"),
+        (r"{\i \u769?}", "*\u0301*"),
     ],
 )
 def test_writer_escapes_only_what_would_read_as_styling(body: str, markdown: str) -> None:
@@ -211,42 +212,41 @@ def test_writer_of_plain_text() -> None:
     assert write_text("_init and *x*") == r"_init and \*x\*"
     assert write_text("a * b and _x_") == r"a * b and \_x\_"
     assert write_text("_a _b_") == r"_a \_b\_"
-    assert write_text("\uff0ax\uff0a") == "\\\uff0ax\\\uff0a"
+    assert write_text("\uff0ax\uff0a") == "\uff0ax\uff0a"
+    assert write_text("caf\u00e9_1_") == "caf\u00e9_1_"
     assert write_text("Pump_1_Run") == "Pump_1_Run"
 
 
 _FULL_STAR, _FULL_LOW_LINE, _FULL_BACKSLASH, _ACUTE = "\uff0a", "\uff3f", "\uff3c", "\u0301"
+_U = Style(underline=True)
 
 
 @pytest.mark.parametrize(
     ("runs", "markdown"),
     [
-        ([(PLAIN, f"{_FULL_STAR}x{_FULL_STAR}")], f"\\{_FULL_STAR}x\\{_FULL_STAR}"),
-        ([(PLAIN, f"{_FULL_LOW_LINE}x{_FULL_LOW_LINE}")], f"\\{_FULL_LOW_LINE}x\\{_FULL_LOW_LINE}"),
-        ([(PLAIN, f"a{_FULL_BACKSLASH}"), (Style(italic=True), "b")], f"a\\{_FULL_BACKSLASH}*b*"),
-        ([(PLAIN, f"a\\{_ACUTE}"), (Style(italic=True), "b")], f"a\\\\{_ACUTE}*b*"),
-        ([(Style(italic=True), _ACUTE)], _ACUTE),
-        ([(PLAIN, "x "), (Style(underline=True), _ACUTE), (PLAIN, " y")], f"x {_ACUTE} y"),
+        ([(PLAIN, f"{_FULL_STAR}x{_FULL_STAR}")], f"{_FULL_STAR}x{_FULL_STAR}"),
+        ([(PLAIN, f"{_FULL_LOW_LINE}x{_FULL_LOW_LINE}")], f"{_FULL_LOW_LINE}x{_FULL_LOW_LINE}"),
+        ([(PLAIN, f"a{_FULL_BACKSLASH}"), (Style(italic=True), "b")], f"a{_FULL_BACKSLASH}*b*"),
+        ([(PLAIN, f"a\\{_ACUTE}"), (Style(italic=True), "b")], f"a\\{_ACUTE}*b*"),
+        ([(Style(italic=True), _ACUTE)], f"*{_ACUTE}*"),
+        ([(PLAIN, "x "), (_U, _ACUTE), (PLAIN, " y")], f"x __{_ACUTE}__ y"),
         ([(PLAIN, "a"), (Style(bold=True), f"b{_ACUTE}"), (PLAIN, "c")], f"a**b{_ACUTE}**c"),
     ],
 )
-def test_writer_reads_each_character_as_the_reader_sees_it(
+def test_writer_writes_a_lookalike_or_a_combining_mark_as_text(
     runs: list[tuple[Style, str]], markdown: str
 ) -> None:
-    """``\uff0a`` reads as ``*``, ``\uff3f`` as ``_``, ``\uff3c`` as ``\\``, and a combining
-    mark as nothing. A mark takes the style of the character before it."""
+    """``\uff0a``, ``\uff3f`` and ``\uff3c`` are text, not ``*``, ``_`` or ``\\``. A
+    combining mark is a character of its own."""
     assert _decode_rtf(_rtf_of_runs(runs)) == markdown
     _check_round_trip(runs)
 
 
-def test_writer_reads_a_letter_before_a_combining_mark_as_a_letter() -> None:
-    """The reader drops a combining mark, so the letter before it would touch the ``__``.
-
-    The writer drops that underline and keeps the text.
-    """
-    markdown = write_runs([(PLAIN, "x e\u0301"), (Style(underline=True), "y"), (PLAIN, " _z_")])
-    assert markdown == "x e\u0301y \\_z\\_"
-    assert rtf_body(markdown) == "x ey _z_"
+def test_an_underscore_beside_a_letter_outside_ascii_is_text() -> None:
+    """``é`` is a letter, so a ``__`` beside it is text, as it is beside ``e``."""
+    assert rtf_body("caf\u00e9__y__") == r"caf\'e9__y__"
+    markdown = write_runs([(PLAIN, "x caf\u00e9"), (_U, "y"), (PLAIN, " _z_")])
+    assert markdown == "x caf\u00e9y \\_z\\_"
 
 
 # -- The round trip --
@@ -256,25 +256,22 @@ def _check_round_trip(runs: list[tuple[Style, str]]) -> None:
     """Check that the Markdown for *runs* reads back as the same text and styles.
 
     It also checks that the Markdown is written again unchanged after an encode and a
-    decode. Text is compared as the reader sees it, so ``\uff0a`` is ``*`` and a combining mark
-    is nothing. Each character reads back with the style that the writer means to write.
-    That style never adds a style. It keeps bold and italic on any character that is not
+    decode. Text is compared as the reader sees it, with ``\\n`` for each line break. Each
+    character reads back with the style that the writer means to write. That style never
+    adds a style. It keeps bold and italic on any character that is not
     whitespace, and it keeps underline unless a ``__`` would touch a letter or a digit.
     """
     markdown = _decode_rtf(_rtf_of_runs(runs))
     assert markdown == write_runs(runs)
-    # encode() writes ASCII, so the Markdown is written again unchanged once it is ASCII.
     again = _decode_rtf(_rtf(rtf_body(markdown)))
     assert rtf_body(again) == rtf_body(markdown), (runs, markdown)
     assert _decode_rtf(_rtf(rtf_body(again))) == again, (runs, markdown)
-    if markdown.isascii():
-        assert again == markdown, (runs, markdown)
+    assert again == markdown, (runs, markdown)
 
     want = _seen(runs)
     got = _chars(parse(_read_form(markdown)))
     assert [ch for ch, _ in got] == [ch for ch, _ in want], (runs, markdown)
-    pieces, _ = _pieces(_merged(runs))
-    _, meant, _ = _writable(pieces)
+    _, meant = _writable(_pieces(_merged(runs)))
     assert [style for _, style in got] == meant, (runs, markdown)
     for (ch, g), (_, w) in zip(got, want, strict=True):
         for attr in ("bold", "italic", "underline"):
@@ -297,9 +294,15 @@ def _seen(runs: list[tuple[Style, str]]) -> list[tuple[str, Style]]:
     return [(unit, style) for style, text in runs for ch in text for unit in _read_form(ch)]
 
 
-# Characters that the reader sees as ``*``, ``_`` or ``\``, and a combining mark.
+# Characters that look like ``*``, ``_`` or ``\``, and a combining mark. Each is text.
 _LOOKALIKES = ("\uff0a", "\ufe61", "\uff3f", "\ufe4d", "\uff3c", "\ufe68", "\u0301")
-_ALPHABET = ("a", "Z", "1", " ", "*", "_", "\\", "{", "}", "-", "\n", "\t", *_LOOKALIKES)
+# Characters that encode() writes as ``\'hh`` and as ``\uN?``.
+_OUTSIDE_ASCII = ("\u00e9", "\u20ac", "\u0081", "\u4e2d", "\u2192")
+_ALPHABET = (
+    *("a", "Z", "1", " ", "*", "_", "\\", "{", "}", "-", "\n", "\t"),
+    *_LOOKALIKES,
+    *_OUTSIDE_ASCII,
+)
 
 
 def _generated_runs(seed: int, count: int) -> list[list[tuple[Style, str]]]:

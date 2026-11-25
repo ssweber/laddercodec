@@ -427,7 +427,22 @@ backslash, write `\\`. The last comment above encodes as
 `Pump_1_Run waits for _init_`, with no styling. See
 [Comment styles and escapes](csv-format.md#comment-styles-and-escapes).
 
-The comment body limit is 1400 bytes after RTF encoding. For multi-row rungs
+A comment can hold any Unicode text, such as `é`, `°`, `→`, `中` or an emoji.
+`encode()` writes each character of the comment's RTF body in the form that
+CLICK stores:
+
+- An ASCII character is written as itself, in 1 byte. `\`, `{` and `}` take
+  2 bytes each (`\\`, `\{`, `\}`), and a line break takes 5 (`\par `).
+- A character in Windows code page 1252, such as `é`, `°` or `€`, is written
+  as its byte in hex, such as `\'e9`. It takes 4 bytes.
+- Any other character, such as `→` or `中`, is written as its code, such as
+  `\u8594?`. It takes 6 to 8 bytes. A character above U+FFFF, such as an
+  emoji, is written as two codes and takes 16 bytes.
+
+The limit is 1400 bytes of the RTF body. The limit counts each character in
+the form above. It also counts the group around each styled stretch, such as
+`{\b ` and `}`. If a comment is longer, `encode()` raises `EncodeError`, and the
+message says how many bytes to cut. For multi-row rungs
 the practical limit can be lower; see
 [binary format](../internals/binary-format.md#comment-sizing).
 

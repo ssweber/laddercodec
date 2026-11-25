@@ -13,6 +13,7 @@
 ### Fixed
 
 - `decode()` and `decode_program()` now read each rung comment as CLICK shows it. 0.5.0 dropped the start of a comment that began with a character outside ASCII, such as `€`, `中` or an emoji, and misread emoji and GBK text elsewhere in a comment. Decode the clipboard or program file again with this release to get the text back.
+- `encode()` now writes a rung comment's text outside ASCII as CLICK stores it, so the comment reaches CLICK as you wrote it. 0.5.0 and earlier turned `é` into `e`, `→` into `->` and `°` or `中` into `?`, both in a comment that you wrote and in one decoded from CLICK. A character outside ASCII counts as 4 to 16 bytes toward the 1400-byte limit, so a long comment that 0.5.0 encoded can now raise `EncodeError`.
 
 ## 0.5.0 (2026-11-20)
 

@@ -321,8 +321,7 @@ def recover_text(payload: bytes) -> str:
     symbols and destination groups (the font and colour tables, ``\\*`` groups). It keeps
     the text, turns paragraph breaks into line breaks, and reads well-formed ``\\'hh`` and
     ``\\uN`` escapes. It keeps non-ASCII characters, as the decoder does for a comment that
-    decodes. ``encode()`` reduces them to ASCII when it writes. If no text is left, the
-    function returns ``""``.
+    decodes. If no text is left, the function returns ``""``.
     """
     try:
         text = _rtf_text(payload)
@@ -346,7 +345,7 @@ def recovered_comment(error: str, payload: bytes) -> str:
     from .encode import COMMENT_MAX_BYTES, _build_rtf_body
 
     def size(plain: str) -> int:
-        return len(_build_rtf_body(write_text(plain)).encode("cp1252"))
+        return len(_build_rtf_body(write_text(plain)).encode("ascii"))
 
     def longest(fits: Callable[[int], bool], high: int) -> int:
         """Return the largest k in 0..high for which *fits* is true, found by bisection.
