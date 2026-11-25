@@ -45,6 +45,27 @@ looks like none of these, the parse does not check the order, the RAND bounds, t
 the ranges. If a constant or such a word is refused, the parse does not check the length,
 because neither has an internal form to count.
 
+Each refusal sets :attr:`~FieldError.span` to the place of the refused text in the formula
+as it was passed:
+
+- A refusal of a word, a constant, an address or a RAND bound spans that token. A sign is
+  part of the span when the message names it, as in ``- 007``.
+- A refused character spans that one character: ``~``, a pointer's ``[``, or the ``"`` or
+  ``$`` that starts a text constant.
+- A ``)`` with no ``(`` spans that ``)``. Parentheses nested too deep span the ``(`` that
+  opens the ninth level.
+- A refusal of a range, SUM's bank refusal included, spans ``a : b``.
+- A refusal of a call's form spans the call, from the function's name to its ``)``. A RAND
+  with equal bounds spans its call too.
+- A refusal of the order spans the two tokens that may not stand together (``DS1 DS2``), or
+  the one token at fault (the ``+`` at the end of ``DS1 +``).
+
+Any other refusal spans the character or token at fault. These refusals have no span: a
+blank formula, a formula that is too long, a ``(`` with no ``)``, and a key that only the
+other mode takes. :class:`~laddercodec.instructions.math.Math` refuses two more forms of
+formula before it calls :func:`parse`. A ``<nickname>`` spans its ``<...>``, and a formula
+that is not a string, such as ``5``, has no span.
+
 :class:`Formula` holds the tokens. Its properties and :meth:`Formula.internal` print the
 display formula, the template, the nickname display, and the internal formula and internal
 template, whose tokens are joined with ``#``.
@@ -53,7 +74,7 @@ template, whose tokens are joined with ``#``.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import NoReturn
 
 from ..codes import Code
@@ -84,6 +105,9 @@ from ..operands.message import Op, Rule, make_refusal, says
 
 _NAME = "Math.expression"
 
+#: A half-open ``(start, end)`` pair of character offsets into the formula as it was passed.
+Span = tuple[int, int]
+
 
 def _error(
     said: Rule,
@@ -92,14 +116,31 @@ def _error(
     *,
     code: Code,
     then: str = "",
+    span: Span | None = None,
 ) -> FieldError:
     """Return a refusal of the formula, with the message ``Math.expression: said``.
 
     If CLICK's id for the refusal is known, it follows the rule in parentheses. ``then`` is
-    a sentence that tells the user what to do. It follows the id."""
-    return make_refusal(
+    a sentence that tells the user what to do. It follows the id. ``span`` is the refused
+    text's place in the formula (:attr:`FieldError.span`)."""
+    error = make_refusal(
         FieldError, _NAME, said, field=_NAME, reason=reason, code=code, click_id=click_id, then=then
     )
+    return _at(error, span)
+
+
+def _at(error: FieldError, span: Span | None) -> FieldError:
+    """Set the :attr:`~FieldError.span` of ``error`` to ``span``, and return ``error``."""
+    error.span = span
+    return error
+
+
+def _between(first: Token, last: Token) -> Span | None:
+    """Return the span from the start of ``first`` to the end of ``last``, or None if either
+    token has no span."""
+    if first.span is None or last.span is None:
+        return None
+    return first.span[0], last.span[1]
 
 
 def _quoted(token: Token) -> Op | str:
@@ -235,7 +276,11 @@ class Token:
     already refused. The parser goes on as if such a token were the ``kind`` it looks like.
     ``real`` is set for a real constant that the parser accepts. The token's ``text`` and
     ``internal`` are then :attr:`MathReal.stored` and :attr:`MathReal.internal`. Two tokens
-    that store the same text are equal, however the real was typed.
+    that store the same text are equal, however the real was typed. ``span`` is where the
+    token was typed in the formula. When :func:`_merge_signs` joins a sign to a constant,
+    the sign is part of the token's span. A refusal of that constant spans the sign only
+    when its message names the sign. Two tokens in different places are equal if the rest
+    is equal.
     """
 
     kind: str
@@ -243,11 +288,12 @@ class Token:
     internal: str = ""
     refused: bool = False
     real: MathReal | None = field(default=None, compare=False)
+    span: Span | None = field(default=None, compare=False)
 
     @classmethod
-    def of_real(cls, real: MathReal) -> Token:
-        """Return the constant token of ``real``, a real that CLICK keeps."""
-        return cls("const", real.stored, real.internal, real=real)
+    def of_real(cls, real: MathReal, span: Span | None = None) -> Token:
+        """Return the constant token of ``real``, a real that CLICK keeps, typed at ``span``."""
+        return cls("const", real.stored, real.internal, real=real, span=span)
 
     @property
     def written(self) -> str:
@@ -329,6 +375,14 @@ class _Raw:
     #: For a word that starts with a number that the tokenizer cut, the index in the word
     #: where that number ends. 0 for any other token.
     cut: int = 0
+    #: The index in the formula where the token starts. The token ends at ``start`` plus
+    #: the length of ``text``.
+    start: int = 0
+
+    @property
+    def span(self) -> Span:
+        """Where the token is in the formula."""
+        return self.start, self.start + len(self.text)
 
 
 def _lex(text: str) -> list[_Raw]:
@@ -342,17 +396,19 @@ def _lex(text: str) -> list[_Raw]:
             i += 1
             continue
         if ch in _SYMBOLS:
-            out.append(_Raw(ch, symbol=True))
+            out.append(_Raw(ch, symbol=True, start=i))
             i += 1
             continue
         if ch in '"$':
             # A whole formula is quoted as it is. A name never replaces an address in it.
+            # The span is the character that starts the text constant.
             raise _error(
                 says(
                     "{text!r} holds a text constant", "a Math formula takes numbers only", text=text
                 ),
                 Reason.KIND,
                 code=Code.MATH_CONSTANT_KIND,
+                span=(i, i + 1),
             )
         if not _is_word_char(ch):
             raise _error(
@@ -360,6 +416,7 @@ def _lex(text: str) -> list[_Raw]:
                 Reason.FORM,
                 code=Code.MATH_INVALID_TOKEN,
                 then=f"Remove the {ch!r}.",
+                span=(i, i + 1),
             )
         end = i
         while end < n and _is_word_char(text[end]):
@@ -377,23 +434,34 @@ def _lex(text: str) -> list[_Raw]:
                     end = stop
                     while end < n and _is_word_char(text[end]):
                         end += 1
-                    out.append(_Raw(text[i:end], cut=stop - i))
+                    out.append(_Raw(text[i:end], cut=stop - i, start=i))
                     i = end
                     continue
-                out.append(_Raw(text[i:stop], number=True))
+                out.append(_Raw(text[i:stop], number=True, start=i))
                 i = stop
                 continue
-        out.append(_Raw(text[i:end]))
+        out.append(_Raw(text[i:end], start=i))
         i = end
     return out
 
 
+def _has_sign(raws: Sequence[_Raw], i: int) -> bool:
+    """Whether a ``+`` or ``-`` stands before ``raws[i]`` at the start of the formula or
+    after ``(`` or ``,``."""
+    return i > 0 and raws[i - 1].text in _SIGNS and (i == 1 or raws[i - 2].text in ("(", ","))
+
+
 def _signed(raws: Sequence[_Raw], i: int, word: str) -> str:
-    """Return ``word`` with the ``+`` or ``-`` before it, if that sign is at the start of the
-    formula or after ``(`` or ``,``. Otherwise return ``word``."""
-    if i > 0 and raws[i - 1].text in _SIGNS and (i == 1 or raws[i - 2].text in ("(", ",")):
-        return f"{raws[i - 1].text}{word}"
-    return word
+    """Return ``word`` with the sign before it, if :func:`_has_sign` finds one. Otherwise
+    return ``word``."""
+    return f"{raws[i - 1].text}{word}" if _has_sign(raws, i) else word
+
+
+def _signed_span(raws: Sequence[_Raw], i: int) -> Span:
+    """Return the span of ``raws[i]``, from the sign before it if :func:`_has_sign` finds
+    one."""
+    start = raws[i - 1].start if _has_sign(raws, i) else raws[i].start
+    return start, raws[i].span[1]
 
 
 def _in_call(raws: Sequence[_Raw], i: int) -> bool:
@@ -428,8 +496,10 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
     raw = raws[i]
     word = raw.text
 
-    def refuse(error: FieldError, kind: str | None, text: str = word) -> Token | None:
-        found.append(error)
+    def refuse(
+        error: FieldError, kind: str | None, text: str = word, span: Span = raw.span
+    ) -> Token | None:
+        found.append(_at(error, span))
         return None if kind is None else Token(kind, text, refused=True)
 
     if raw.symbol:
@@ -535,7 +605,8 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 signed=signed,
                 fixed=fixed,
             )
-        return refuse(_error(said, Reason.KIND, code=Code.MATH_CONSTANT_KIND), "const")
+        error = _error(said, Reason.KIND, code=Code.MATH_CONSTANT_KIND)
+        return refuse(error, "const", span=_signed_span(raws, i))
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             error = _error(
@@ -547,7 +618,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 Reason.KIND,
                 code=Code.MATH_CONSTANT_KIND,
             )
-            return refuse(error, "const")
+            return refuse(error, "const", span=_signed_span(raws, i))
         return Token("const", word)
     return refuse(_word_refusal(word), None)
 
@@ -598,6 +669,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str, mode: str) -> FieldE
                     "OBJ-1010",
                     code=Code.MATH_NESTING_DEPTH,
                     then="Take out the extra pairs of parentheses.",
+                    span=token.span,
                 )
         elif token.kind == ")":
             depth -= 1
@@ -608,6 +680,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str, mode: str) -> FieldE
                     "OBJ-1004",
                     code=Code.MATH_UNBALANCED_PARENS,
                     then="Add the '(' that opens it, or remove the ')'.",
+                    span=token.span,
                 )
     if depth > 0:
         return _error(
@@ -640,7 +713,8 @@ def _merge_signs(tokens: list[Token]) -> list[Token]:
         ):
             # Join the sign to a refused constant too, so that the order check sees the same
             # tokens as for a constant it accepts, such as 5.
-            out.append(Token("const", f"{token.text}{nxt.text}", refused=nxt.refused))
+            text = f"{token.text}{nxt.text}"
+            out.append(Token("const", text, refused=nxt.refused, span=_between(token, nxt)))
             i += 2
             continue
         out.append(token)
@@ -949,7 +1023,14 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
             found = _follow_refusal(token, nxt, mode)
             if found is not None:
                 said, then = found
-                return _error(said, Reason.FORM, "OBJ-1001", code=Code.MATH_SYNTAX_ERROR, then=then)
+                return _error(
+                    said,
+                    Reason.FORM,
+                    "OBJ-1001",
+                    code=Code.MATH_SYNTAX_ERROR,
+                    then=then,
+                    span=_between(token, nxt),
+                )
         if token.kind == "," and i not in call_separators:
             # CLICK reads a comma outside RAND ( a , b ) or LSH..RRO ( a , b ) as a decimal
             # comma, and refuses DS1 , DS2 with OBJ-037. MAX ( DS1 , DS2 ) is refused too,
@@ -963,6 +1044,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
                 Reason.FORM,
                 "OBJ-037",
                 code=Code.MATH_SYNTAX_ERROR,
+                span=token.span,
             )
         if token.kind == ":" and i not in call_separators:
             # A ':' outside SUM..AVG ( a : b ) is refused.
@@ -973,9 +1055,12 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
                 ),
                 Reason.FORM,
                 code=Code.MATH_SYNTAX_ERROR,
+                span=token.span,
             )
         if token.kind != "func":
             continue
+        # The call runs from the function's name to the ')' that closes its '('.
+        call = _between(token, tokens[_closing(tokens, i + 1)])
         if token.text in COMMA_FUNCTIONS:
             # The form is F ( a , b ), with one token for each argument. For LSH..RRO, a
             # must be an address.
@@ -999,6 +1084,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
                     "OBJ-1001",
                     code=Code.MATH_ARG_EXPRESSION,
                     then=f"Write it as {_call_example(token.text, mode)}.",
+                    span=call,
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
@@ -1015,6 +1101,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
                     Reason.FORM,
                     code=Code.MATH_ARG_EXPRESSION,
                     then=f"Write it as {_call_example(token.text, mode)}.",
+                    span=call,
                 )
             call_separators.add(i + 3)
         elif token.text in TRIG:
@@ -1032,6 +1119,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
                     Reason.FORM,
                     "OBJ-1001",
                     code=Code.MATH_SYNTAX_ERROR,
+                    span=call,
                 )
     first, last = tokens[0], tokens[-1]
     if first.kind in (")", ",", ":") or (first.kind == "op" and first.text not in _SIGNS):
@@ -1041,6 +1129,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
             "OBJ-1001",
             code=Code.MATH_SYNTAX_ERROR,
             then=f"Start the formula with a value or '(', such as {_example('DS1 + 2', mode)}.",
+            span=first.span,
         )
     if last.kind not in (")", "pi", "const", "addr"):
         return _error(
@@ -1049,6 +1138,7 @@ def _check_order(tokens: Sequence[Token], mode: str) -> FieldError | None:
             "OBJ-1001",
             code=Code.MATH_SYNTAX_ERROR,
             then=f"End the formula with a value or ')', such as {_example('DS1 + 2', mode)}.",
+            span=last.span,
         )
     return None
 
@@ -1084,7 +1174,15 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         for bound in (low, high):
             if bound.real is not None:
                 said = says("{real} is a real constant", "{rule}", real=bound.text, rule=rule)
-                found.append(_error(said, Reason.KIND, "OBJ-1001", code=Code.RANDOM_BOUND_TYPE))
+                found.append(
+                    _error(
+                        said,
+                        Reason.KIND,
+                        "OBJ-1001",
+                        code=Code.RANDOM_BOUND_TYPE,
+                        span=bound.span,
+                    )
+                )
         if not (low.refused or high.refused) and low.text == high.text:
             found.append(
                 _error(
@@ -1097,6 +1195,7 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
                     Reason.FORM,
                     "OBJ-1001",
                     code=Code.RANDOM_EQUAL_BOUNDS,
+                    span=_between(tokens[i], tokens[i + 5]),
                 )
             )
     return found
@@ -1166,7 +1265,8 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
                     rule=operands.rand_rule,
                     into=_RAND_COPY_INTO[mode],
                 )
-            found.append(_error(said, Reason.BANK, "OBJ-1002", code=Code.RANDOM_BOUND_TYPE))
+            error = _error(said, Reason.BANK, "OBJ-1002", code=Code.RANDOM_BOUND_TYPE)
+            found.append(_at(error, token.span))
             continue
         if bank in operands.anywhere or (i in sum_at and bank in operands.in_sum):
             continue
@@ -1178,7 +1278,8 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
                 address=Op(token.text, quoted=False),
                 rule=operands.rule,
             )
-            found.append(_error(said, Reason.BANK, "OBJ-1002", code=Code.MATH_OPERAND_BANK))
+            error = _error(said, Reason.BANK, "OBJ-1002", code=Code.MATH_OPERAND_BANK)
+            found.append(_at(error, token.span))
         elif (at := sum_at[i]) not in sum_refused:
             sum_refused.add(at)
             said = says(
@@ -1189,7 +1290,9 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
                 address=Op(token.text, quoted=False),
                 rule=operands.rule,
             )
-            found.append(_error(said, Reason.BANK, "OBJ-1002", code=Code.SUM_BANK_UNAVAILABLE))
+            error = _error(said, Reason.BANK, "OBJ-1002", code=Code.SUM_BANK_UNAVAILABLE)
+            # The refusal is about the whole range, so it spans a : b.
+            found.append(_at(error, _between(tokens[at + 2], tokens[at + 4])))
     return found, bank_refused
 
 
@@ -1214,6 +1317,8 @@ def _check_ranges(
         if low is None or high is None:
             continue
         ends = {"low": _bare(tokens[i - 1]), "high": _bare(tokens[i + 1])}
+        # Each refusal of a range spans the whole a : b.
+        span = _between(tokens[i - 1], tokens[i + 1])
         if low[0] != high[0]:
             shapes.append(
                 _error(
@@ -1221,13 +1326,16 @@ def _check_ranges(
                     Reason.FORM,
                     "OBJ-1015",
                     code=Code.MATH_RANGE_MIXED_BANKS,
+                    span=span,
                 )
             )
             continue
         count = _range_position(*high) - _range_position(*low) + 1
         if count < 1:
             said = says("{low} : {high} runs high to low", "a range runs low : high", **ends)
-            shapes.append(_error(said, Reason.FORM, "OBJ-1014", code=Code.MATH_RANGE_NOT_ASCENDING))
+            shapes.append(
+                _error(said, Reason.FORM, "OBJ-1014", code=Code.MATH_RANGE_NOT_ASCENDING, span=span)
+            )
             continue
         width = (bits_per_register(low[0]) or 0) // 8
         if texts[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
@@ -1243,6 +1351,7 @@ def _check_ranges(
                     Reason.RANGE,
                     "OBJ-1013",
                     code=Code.MEDIAN_RANGE_TOO_LARGE,
+                    span=span,
                 )
             )
             continue
@@ -1251,7 +1360,7 @@ def _check_ranges(
         if low[0] in XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_range(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
-                sizes.append(error)
+                sizes.append(_at(error, span))
     return shapes, sizes
 
 
@@ -1482,6 +1591,7 @@ def parse(text: str, mode: str) -> Formula:
                 Reason.POINTER,
                 code=Code.POINTER_OUTSIDE_COPY,
                 then=f"Write an address, such as {_example('DS1', mode)}.",
+                span=raw.span,
             )
     found: list[FieldError] = []
     tokens: list[Token] = []
@@ -1491,7 +1601,7 @@ def parse(text: str, mode: str) -> Formula:
         if token is None:
             known = False
             token = Token("word", raw.text, refused=True)
-        tokens.append(token)
+        tokens.append(replace(token, span=raw.span))
     shown = " ".join(t.text for t in tokens)
     if (error := _check_parentheses(tokens, shown, mode)) is not None:
         _raise([*found, error])
@@ -1502,12 +1612,12 @@ def parse(text: str, mode: str) -> Formula:
                 continue
             internal = _decimal_internal(t.text)
             if isinstance(internal, FieldError):
-                found.append(internal)
-                tokens[k] = Token("const", t.text, refused=True)
+                found.append(_at(internal, t.span))
+                tokens[k] = Token("const", t.text, refused=True, span=t.span)
             elif isinstance(internal, MathReal):
-                tokens[k] = Token.of_real(internal)
+                tokens[k] = Token.of_real(internal, t.span)
             else:
-                tokens[k] = Token("const", t.text, internal)
+                tokens[k] = Token("const", t.text, internal, span=t.span)
         shown = " ".join(t.text for t in tokens)
     found += _check_mode(tokens, mode, shown)
     if not known:

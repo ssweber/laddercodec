@@ -4,6 +4,12 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
+## Unreleased
+
+### Added
+
+- `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
+
 ## 0.5.1 (2026-11-25)
 
 `encode()` now writes text outside ASCII in a rung comment, such as `é`, `中` or an emoji, as CLICK stores it. `decode()` reads it back. The comment of an undecoded marker rung now numbers its rung from 1, the same as CLICK, and `Undecoded` has a new field, `to_the_end`. Read Breaking changes before you upgrade.

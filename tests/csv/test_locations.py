@@ -268,6 +268,18 @@ class TestInstructions:
         exc = _raises(path, FieldError, "1FFFFh", line=2, rung_line=2, row=0, column=0)
         assert exc.field is not None
 
+    def test_math_formula_refused(self, tmp_path: Path) -> None:
+        """Each refusal of a formula has the cell's location and its own span. The span
+        indexes into the formula argument without the spaces at its ends."""
+        af = "math(  DS0 + DS0 ,DS1,mode=decimal)"
+        path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
+        exc = _raises(path, AddressError, "DS0", line=2, rung_line=2, row=0, column=AF)
+        assert [(e.field, e.span) for e in exc.errors] == [
+            ("Math.expression", (0, 3)),
+            ("Math.expression", (6, 9)),
+        ]
+        assert all(CsvLocation.of(e) == CsvLocation.of(exc) for e in exc.errors)
+
     def test_condition_token_not_understood(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("+"), "out(Y001)")])
         _raises(

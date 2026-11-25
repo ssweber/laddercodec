@@ -298,6 +298,7 @@ has these attributes:
 | `reason`   | a `Reason`, listed below                                                               |
 | `click_id` | CLICK's id for the error where it has one (`OBJ-005`), or `None`                       |
 | `obj`      | the instruction being built                                                            |
+| `span`     | where a refusal of a Math formula is in the formula, `(start, end)`, or `None`         |
 
 `reason` is one of `address`, `bank`, `range`, `pointer`, `kind`, `form`,
 `not_writable`, `flag`, `choice`, `conflict` and `missing` (each is described under
@@ -314,6 +315,55 @@ unchanged, you get the blob that Decoding describes for it. If you change it wit
 `replace()`, the copy is checked again, and `replace()` raises the `FieldError` that
 building it raises. If you read it from CSV, it has no bytes to write, and
 `encode()` raises that error.
+
+### Find The Refused Text In A Formula
+
+```python
+from laddercodec import FieldError, Math
+
+formula = "DS0 + DS0"
+try:
+    Math(formula, "DS1")
+except FieldError as exc:
+    for error in exc.errors:
+        if error.span is not None:
+            start, end = error.span
+            print(error.span, formula[start:end], error)
+# (0, 3) DS0 Math.expression: 'DS0' is outside DS1-DS4500
+# (6, 9) DS0 Math.expression: 'DS0' is outside DS1-DS4500
+```
+
+The two refusals have the same message, and `span` tells them apart. It is the place of
+the refused text in the formula, and `formula[start:end]` is that text. The offsets count
+from the start of the string that you passed, with its spaces, tabs and letter case.
+
+- A refusal of a word, a constant, an address or a RAND bound spans that token. A sign is
+  part of the span when the message names it: `- 007` in `DS1 * ( - 007 )`.
+- A refused character spans that one character, such as `~`, a pointer's `[`, or the `"`
+  that starts a text constant.
+- A `)` with no `(` spans that `)`. Parentheses nested too deep span the `(` that opens
+  the ninth level.
+- A refusal of a range spans `A : B`. This includes SUM's refusal of a bank, as in
+  `SUM ( CT1 : CT5 )`.
+- A refusal of a function call's form spans the call, such as `SUM ( DS1 + DS2 )`. A RAND
+  with equal bounds spans the call too, such as `RAND ( 1 , 1 )`.
+- A refusal of the order spans the two tokens that can't stand together, such as
+  `DS1 DS2`, or the one token at fault, such as the `+` at the end of `DS1 +`.
+- A refusal of a nickname spans the first `<...>` in the formula, such as `<Tank>` in
+  `<Tank> + DS1`.
+
+Any other refusal spans the character or token at fault.
+
+`span` is `None` when no one part of the formula is at fault. That is so for a blank
+formula, a formula that is too long, a `(` with no `)`, a key that only the other mode
+takes, and a formula that is not a string, such as `Math(5, "DS1")`. It is also `None` for
+a refusal of any other field or any other instruction.
+
+If `read_csv` refused the formula, the span indexes into the first argument of `math(...)`
+without the spaces or tabs at its ends, and the error's `location` names the cell. For a decoded
+Math, the span indexes into the Math's `expression`, not into the formula text that CLICK
+stored. The two differ where CLICK stored an address as it was typed, such as `ds001`,
+because the decoder reads it as `DS1`.
 
 ### Show Your Names In A Refusal
 
