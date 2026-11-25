@@ -1199,34 +1199,37 @@ that the copy still holds then raises, even if you listed its code.
 If you list a name that is not a code, or pass both `allow=` and `unchecked=True`,
 `read_csv` raises `CsvReadError` before it reads the file.
 
-### Build one in Python
+### Build such an instruction in Python
 
 ```python
-from laddercodec import Coil, ModbusTcpTarget, Send, replace
+from laddercodec import Coil, ModbusTcpTarget, Send
 
 coil = Coil("X001", allow=["bank-not-allowed"])
 target = ModbusTcpTarget("plc", "192.168.1.10", 502, 256, allow=["invalid-modbus-target"])
 send = Send(target, "DS1", "DS1", 1, "C1", "C2", "C3", "", allow=["invalid-modbus-target"])
-moved = replace(coil, operand="X002", allow=["bank-not-allowed"])
 ```
 
 Each instruction class, Modbus target and `ModbusAddress` takes `allow=` as a
 keyword. The constructor keeps the refusals that you list, as `read_csv(path,
 allow=...)` keeps them, with the same limits. A refusal that you don't list raises,
-as it does without `allow=`. `encode()`, `write_csv`, `lay_out()` and `check()` take
-the instruction as they take one that `read_csv` read with `allow=`.
+as it does without `allow=`. `encode()`, `write_csv`, `lay_out()` and `check()`
+accept the instruction and treat it the same as one that `read_csv` read with
+`allow=`.
 
 The instruction does not store `allow`. Equality, hashing and `repr` ignore it. A
 class that has no checks, such as `End`, accepts `allow=` and ignores it.
 `allow=None` and `allow=()` change nothing.
 
 A Modbus target that holds a refused value needs `allow=` too, because building it
-raises before the `Send` exists. A `Send` or `Receive` built with `allow=` builds its
-target and its `ModbusAddress` again with its own list. A refusal there that the list
-leaves out raises.
+raises before the `Send` exists. If you pass `allow=` to a `Send` or `Receive`, it
+builds its target and its `ModbusAddress` again with the Send's list. A refusal of the
+target that this list does not name raises, even if you allowed it when you built the
+target. If you build the `Send` without `allow=`, it accepts a target that you built
+with `allow=` as it is.
 
 `replace()` checks a changed copy again, as it does for an instruction that
-`read_csv` read. To keep a refusal in the copy, pass `allow=` to `replace()` too.
+`read_csv` read. It does not accept `allow=`. To build a changed copy that keeps a
+refusal, call the constructor with `allow=`.
 
 A bad `allow=` raises `LaddercodecError` when you build the instruction. For the
 same value, `read_csv` raises `CsvReadError`, which is a subclass of

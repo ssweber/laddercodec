@@ -318,7 +318,7 @@ building it raises. If you read it from CSV, it has no bytes to write, and
 
 To build an instruction that holds a refused value and encode it, list the codes of
 its refusals in `allow=`, such as `Coil("X001", allow=["bank-not-allowed"])`
-([Build one in Python](csv-format.md#build-one-in-python)).
+([Build such an instruction in Python](csv-format.md#build-such-an-instruction-in-python)).
 
 ### Find The Refused Text In A Formula
 
