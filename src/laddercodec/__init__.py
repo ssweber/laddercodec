@@ -105,7 +105,7 @@ from .operands.constants import constant_text
 from .operands.unchecked import replace
 from .paste import addresses
 from .refused import RefusedFieldWarning
-from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
+from .undecoded import UndecodedCommentWarning, UndecodedRungWarning, marker_rung
 
 __all__ = [
     "encode",
@@ -148,6 +148,7 @@ __all__ = [
     "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
+    "marker_rung",
     "Condition",
     "Instruction",
     "ConditionToken",

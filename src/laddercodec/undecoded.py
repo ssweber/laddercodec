@@ -63,9 +63,14 @@ class UndecodedRungWarning(UserWarning):
             super().__init__(text)
             return
         prefix = f"program {program!r}, " if program is not None else ""
+        note = (
+            f"; decoding stopped, so this marker stands for rung {marker.rung} to the end"
+            if marker.to_the_end
+            else ""
+        )
         super().__init__(
             f"{prefix}{marker.where} is not decoded, and an undecoded marker stands in for it: "
-            f"{marker.error}"
+            f"{marker.error}{note}"
         )
 
 
@@ -135,12 +140,6 @@ def reason(exc: BaseException) -> str:
 
     If the message is empty, return the name of the exception's type."""
     return one_line(str(exc)) or type(exc).__name__
-
-
-def to_the_end(error: str, rung: int) -> str:
-    """Return *error* with a note that decoding stopped, for a marker that stands for rung
-    *rung* and every rung after it."""
-    return f"{error}; decoding stopped, so this marker stands for rung {rung} to the end"
 
 
 def comment_note(error: str) -> str:
@@ -460,7 +459,6 @@ __all__ = [
     "reason",
     "recover_text",
     "recovered_comment",
-    "to_the_end",
     "warn_comments",
     "warn_undecoded",
 ]

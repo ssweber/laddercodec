@@ -156,11 +156,13 @@ def _cells(data: bytes, failed: list[UndecodedRungWarning]) -> Iterator[_Cell]:
     row_infos, is_multi = _walk_grid(data, GRID_FIRST_ROW_START + payload_len, total_grid_rows)
     for rung, (_, rows) in enumerate(_rung_rows(row_infos, is_multi, total_grid_rows)):
         if not rows:
-            failed.append(_unread_rest(Undecoded("the rung has no data rows", rung)))
+            failed.append(
+                _unread_rest(Undecoded("the rung has no data rows", rung, to_the_end=True))
+            )
             return
         for row, (tag, cursor, error) in enumerate(rows):
             if tag != _DATA:
-                failed.append(_unread_rest(Undecoded(str(error), rung, row)))
+                failed.append(_unread_rest(Undecoded(str(error), rung, row, to_the_end=True)))
                 return
             for column, (start, end, has_instruction) in enumerate(_walk_row_cells(data, cursor)):
                 if has_instruction:

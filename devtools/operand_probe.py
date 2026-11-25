@@ -815,10 +815,12 @@ PROBES: dict[str, Probe] = {
             "row": "int?",
             "column": "int?",
             "stop": _lit("end", "return", "", "END"),
+            "to_the_end": "bool",
         },
         baselines=lambda ns: {
             "rung": dict(error="unknown wire flags", rung=0),
             "cell": dict(error="unknown wire flags", rung=2, row=1, column=31, stop="return"),
+            "to_the_end": dict(error="unknown wire flags", rung=3, row=0, to_the_end=True),
         },
     ),
     "Math": Probe(

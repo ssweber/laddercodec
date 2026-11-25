@@ -16,6 +16,12 @@
 ### Added
 
 - `UndecodedCommentWarning.partial` is True when the decoder read a comment but could not read some of the text in one of the comment's fonts. The decoder puts U+FFFD in place of that text. It reads fonts of charset 0 (Windows code page 1252) and 134 (GBK).
+- `Undecoded.to_the_end` is True when decoding stopped at the marker's rung. The marker then stands for that rung and every rung after it. `write_csv()` writes it as `to_the_end=1` at the end of the `undecoded(...)` token, and `read_csv()` reads it back.
+- `marker_rung()` is exported from `laddercodec`. It returns the one-row rung that stands in for an `Undecoded` marker.
+
+### Changed
+
+- The comment of a marker rung counts the rung and the row from 1, as CLICK shows them: `UNDECODED: CLICK rung 2, row 1: <error>`. 0.5.0 counted from 0 (`UNDECODED: rung 1, row 0: <error>`), and it ended `Undecoded.error` with `; decoding stopped, so this marker stands for rung N to the end`. If you matched that text, read `Undecoded.to_the_end`, and read `Undecoded.rung` and `row`, which still count from 0.
 
 ### Fixed
 

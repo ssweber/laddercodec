@@ -735,11 +735,13 @@ Producer may emit:
     the rung with blank rows, as it does for other tall boxes. CLICK stores some
     boxes at 1 row: one pasted from an earlier version and not yet saved by its
     dialog. Such a box writes `rows=1,sub=1` and reads back at 1 row.
-- `undecoded("<error>",rung=N,row=R,column=C,stop=end)` - the marker that stands in
+- `undecoded("<error>",rung=N,row=R,column=C,stop=end,to_the_end=1)` - the marker that stands in
   for a rung laddercodec could not decode ([Decoding](decoding.md#rungs-that-dont-decode)).
   `rung`, `row` and `column` count from 0 (column 31 is AF). `row` and `column` are
   omitted when the failure is not at one row or cell. `stop` is `end` in the main
-  program and `return` in a subroutine. A consumer runs the marker as that
+  program and `return` in a subroutine. `to_the_end=1` comes last. It says that the
+  marker stands for its rung and every rung after it, and it is omitted when the
+  marker stands for its rung alone. A consumer runs the marker as that
   instruction, so the program stops where the rung was. `encode()` refuses the
   marker, so it never reaches CLICK. `write_csv()` also writes a marker, with an
   `UndecodedRungWarning`, for a rung it can't write, such as one holding an
