@@ -665,7 +665,7 @@ def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> 
 # character, write its $hh code. A single Copy's text accepts any 16-bit character that CLICK
 # keeps, as Compare's right side and Search's text do.
 _NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
-_PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
+_PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\)\. Write "
 _COPY_TEXT_RULE = r"text holds characters U\+0001 to U\+FFFF, no NUL and no surrogate"
 #: Texts that a single Copy refuses. NUL is refused because it ends a stored string. A
 #: surrogate and a character above U+FFFF are refused because neither is a 16-bit character.
@@ -677,6 +677,21 @@ def test_fill_text_is_printable_ascii(text: str) -> None:
     if len(text) == 3:  # a Fill value takes one character
         with pytest.raises(FieldError, match=rf"^Fill.value: .* {_PRINTABLE_RULE}"):
             Fill(text, "TXT2", "TXT5")
+
+
+@pytest.mark.parametrize(("text", "code"), [('"é"', "$E9"), ('"\x7f"', "$7F"), ('"\t"', "$09")])
+def test_printable_refusal_suggests_the_bare_code(text: str, code: str) -> None:
+    """The refusal of a character outside printable ASCII names its bare ``$hh`` code. A
+    Fill and Compare's Data A accept that code."""
+    then = f"Write it as its $hh code, such as {code}."
+    with pytest.raises(FieldError) as caught:
+        Fill(text, "TXT2", "TXT5")
+    assert str(caught.value).endswith(then)
+    Fill(code, "TXT2", "TXT5")
+    with pytest.raises(FieldError) as caught:
+        CompareContact("==", text, "TXT1")
+    assert str(caught.value).endswith(then)
+    CompareContact("==", code, "TXT1")
 
 
 @pytest.mark.parametrize("text", _NOT_COPY_TEXT)

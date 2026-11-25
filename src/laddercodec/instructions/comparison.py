@@ -14,6 +14,7 @@ from ..codes import Code
 from ..errors import CsvReadError
 from ..model import (
     Condition,
+    FieldError,
     InstructionType,
     Reason,
 )
@@ -194,18 +195,35 @@ _CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numer
 _TEXT_OPS = ("==", "!=")
 
 
-def _operand_group(value: str, name: str, constants: Constants) -> str:
+def _operand_group(
+    value: str, name: str, constants: Constants, other: tuple[str, Constants] | None = None
+) -> str:
     """Return the group of a compare operand: ``"hex"``, ``"numeric"`` or ``"text"``.
 
     Raise :class:`FieldError` if the operand is neither an address in a data bank that a
-    compare accepts nor one of the ``constants`` that its side of the dialog accepts."""
-    operand = check_operand(value, name, _DATA_BANKS, constants)
+    compare accepts nor one of the ``constants`` that its side of the dialog accepts.
+    ``other`` is the other operand and its constants. The address that a refusal suggests
+    is in the other operand's group."""
+    group = None if other is None else _group_or_none(*other)
+    example = None if group is None else GROUP_BANKS[group]
+    operand = check_operand(value, name, _DATA_BANKS, constants, example=example)
     const = operand.constant
     if const is not None:
         if const.kind is Kind.TEXT and not constants.printable:
             check_kept_text(value, str(const.value), name)
         return _CONSTANT_GROUPS.get(const.kind, "text")
     return next(group for group, banks in GROUP_BANKS.items() if operand.bank in banks)
+
+
+def _group_or_none(value: object, constants: Constants) -> str | None:
+    """Return the group of the compare operand ``value`` (:func:`_operand_group`), or None
+    if ``value`` is not text or its side of the dialog refuses it."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return _operand_group(value, "CompareContact.operand", constants)
+    except FieldError:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -248,8 +266,8 @@ class CompareContact(Condition, AllowsRefusals):
             # normalize_address returns a constant as it was written, so an operand that is a
             # constant is safe to normalize.
             check.normalize("left", "right", values=("left", "right"))
-            left = check("left", _operand_group, _DATA_A)
-            right = check("right", _operand_group, _DATA_B)
+            left = check("left", _operand_group, _DATA_A, (self.right, _DATA_B))
+            right = check("right", _operand_group, _DATA_B, (self.left, _DATA_A))
             if left is not None and right is not None and left != right:
                 check.refuse(
                     ("left", "right"),

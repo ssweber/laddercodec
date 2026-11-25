@@ -21,7 +21,7 @@ from ..binary_helpers import tag_value
 from ..codes import Code
 from ..errors import CsvReadError
 from ..model import Address, InstructionType, PinnedInstruction, Reason, check_address
-from ..operands.address import address_above
+from ..operands.address import address_above, example_end
 from ..operands.checks import Refusals
 from ..operands.message import Op, says
 from ..operands.unchecked import AllowsRefusals
@@ -65,8 +65,16 @@ class Shift(PinnedInstruction, AllowsRefusals):
             check.normalize("start_bit", "end_bit")
             # Both ends must be C bits. CLICK refuses any other bank with OBJ-004, and that
             # includes an end in another bank than the start.
-            start = check("start_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
-            end = check("end_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
+            # The example for a refused end is the bit above the other end, so that the two
+            # ends differ.
+            start = check(
+                "start_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004",
+                example=example_end(self.end_bit),
+            )  # fmt: skip
+            end = check(
+                "end_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004",
+                example=example_end(self.start_bit),
+            )  # fmt: skip
             # CLICK refuses an end equal to the start with OBJ-012. CLICK normalizes an
             # address as it is typed (C001 becomes C1), so this compares the parsed
             # addresses, not the text. A start above the end is allowed, and it reverses

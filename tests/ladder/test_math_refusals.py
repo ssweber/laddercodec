@@ -570,3 +570,62 @@ def test_formula_display_form_refusals_read_on() -> None:
         (_EXPR, "form", None),
         (_EXPR, "bank", "OBJ-1002"),
     ]
+
+
+# A refusal of a key from the other mode's keypad tells you to set the other mode only when
+# that mode accepts the formula after the changes that the refusal names.
+@pytest.mark.parametrize(
+    ("expression", "dest", "mode", "then", "advised"),
+    [
+        (
+            "DH1 AND 3",
+            "DH9",
+            "decimal",
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write 3 as 3h.",
+            ("DH1 AND 3h", "DH9"),
+        ),
+        (
+            "SIN ( 2h )",
+            "DF9",
+            "hex",
+            "Take SIN out of the formula, or set mode to decimal. In a decimal Math, write 2h "
+            "as 2.",
+            ("SIN ( 2 )", "DF9"),
+        ),
+        (
+            "SUM ( C1 : C8 ) XOR 3",
+            "DS9",
+            "decimal",
+            "Take XOR out of the formula, or set mode to hex. In a hex Math, write its bits as "
+            "DH, XD or YD registers. Write 3 as 3h. Write the result to a DH or YD register.",
+            ("SUM ( DH1 : DH8 ) XOR 3h", "DH9"),
+        ),
+        (
+            "DS1 AND DS2",
+            "DS9",
+            "decimal",
+            "Take AND out of the formula, or set mode to hex. In a hex Math, write its "
+            "registers as DH, XD or YD. Write the result to a DH or YD register.",
+            ("DH1 AND DH2", "DH9"),
+        ),
+        (
+            "DH1 AND DH2",
+            "DH9",
+            "decimal",
+            "Set mode to hex, or take AND out of the formula.",
+            ("DH1 AND DH2", "DH9"),
+        ),
+        ("DS1 AND 1.5", "DS9", "decimal", "Take AND out of the formula.", None),
+        ("PI * ( DS1 AND 3 )", "DS9", "decimal", "Take AND out of the formula.", None),
+        ("SIN ( DS1 ) + 10000h", "DS9", "hex", "Take SIN out of the formula.", None),
+    ],
+)
+def test_mode_advice_is_accepted_in_the_other_mode(
+    expression: str, dest: str, mode: str, then: str, advised: tuple[str, str] | None
+) -> None:
+    with pytest.raises(FieldError) as caught:
+        Math(expression, dest, mode=mode)
+    (error,) = [e for e in caught.value.errors if e.reason is Reason.CONFLICT]
+    assert str(error).endswith(f"(OBJ-1006). {then}")
+    if advised is not None:
+        Math(*advised, mode="hex" if mode == "decimal" else "decimal")

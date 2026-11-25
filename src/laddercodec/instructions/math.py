@@ -275,7 +275,7 @@ class Math(Instruction, AllowsRefusals):
                     check.run(check_writable_sd, dest, check.field("dest"), click_id="OBJ-003")
                 if not check.refused("expression"):
                     # Each refusal of the formula is recorded on the field Math.expression.
-                    formula = check.run(parse, self.expression, self.mode)
+                    formula = check.run(parse, self.expression, self.mode, dest=self.dest)
                     if formula is not None:
                         object.__setattr__(self, "expression", formula.written)
             else:

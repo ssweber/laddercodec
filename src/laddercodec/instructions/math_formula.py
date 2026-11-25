@@ -88,7 +88,7 @@ from ..model import (
     to_display,
 )
 from ..operands.address import bank_prefix
-from ..operands.banks import WORD_IO_BANKS, XY_BANKS, Bank, banks, bits_per_register
+from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS, Bank, banks, bits_per_register
 from ..operands.constants import (
     FLOAT32_MAX,
     INT16_MAX,
@@ -839,31 +839,130 @@ def _integer_reason(text: str, body: str) -> Reason:
     return Reason.FORM if INT32_MIN <= int(text) <= INT32_MAX else Reason.RANGE
 
 
-def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldError]:
+def _is_sum(texts: Sequence[str], i: int) -> bool:
+    """Return whether the token texts from ``i`` are ``SUM ( a : b )``."""
+    return (
+        texts[i : i + 2] == ["SUM", "("]
+        and texts[i + 3 : i + 4] == [":"]
+        and texts[i + 5 : i + 6] == [")"]
+    )
+
+
+def _listed(names: Sequence[str]) -> str:
+    """Return ``names`` as words, such as ``DH, XD or YD``."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+
+
+def _other_constant(text: str, mode: str) -> str | None:
+    """Return the constant ``text`` of a ``mode`` Math as the other mode writes it, or
+    ``text`` if the other mode reads it as it is. Return None if the other mode has no form
+    for it.
+
+    A decimal integer from -65535 to 65535 is written in hex, so ``3`` becomes ``3h``. A
+    hex constant is written as a decimal integer, so ``1Fh`` becomes ``31``. A real has no
+    hex form.
+    """
+    sign, body = (text[0], text[1:]) if text[:1] in _SIGNS else ("", text)
+    # A constant above 65535 (FFFFh) has no form in the other mode. Its length is checked
+    # before it is converted, because Python refuses to convert a string of more than 4300
+    # digits.
+    if (digits := _hex_digits(body)) is not None:
+        if mode == "decimal":
+            return text
+        return f"{sign}{int(digits, 16)}" if len(digits.lstrip("0")) <= 4 else None
+    if mode == "decimal" and body.isascii() and body.isdigit():
+        digits = body.lstrip("0") or "0"
+        if len(digits) > 5 or (value := int(digits)) > 0xFFFF:
+            return None
+        return f"{sign}{hex_display(f'{value:X}')}"
+    return text if mode == "hex" else None
+
+
+def _mode_changes(tokens: Sequence[Token], mode: str, dest: str | None) -> list[str] | None:
+    """Return what else to change in a ``mode`` Math for the other mode to accept it, as
+    sentences that start with a verb. ``dest`` is the Math's result.
+
+    Return None if no change makes the other mode accept the formula. That is so when the
+    formula holds a key that only ``mode`` takes, or a constant that the other mode can't
+    write, or a RAND bound that the other mode refuses.
+    """
+    from .math import RESULT_BANKS  # math imports this module
+
+    own = DECIMAL_ONLY if mode == "decimal" else HEX_ONLY
+    if any(t.kind in ("op", "func", "pi") and t.text in own for t in tokens):
+        return None
+    other_mode = "hex" if mode == "decimal" else "decimal"
+    operands = _OPERANDS[other_mode]
+    texts = [t.text for t in tokens]
+    in_sum = {i + k for i in range(len(texts) - 5) for k in (2, 4) if _is_sum(texts, i)}
+    in_rand = {
+        i + k
+        for i in range(len(texts) - 5)
+        for k in (2, 4)
+        if texts[i : i + 2] == ["RAND", "("] and texts[i + 3] == ","
+    }
+    registers = bits = False
+    constants: dict[str, str] = {}
+    for i, token in enumerate(tokens):
+        if token.kind == "const":
+            written = _other_constant(token.text, mode)
+            if written is None:
+                return None
+            if written != token.text:
+                constants.setdefault(token.text, written)
+        parts = address_parts(token.text) if token.kind == "addr" else None
+        if parts is None:
+            continue
+        bank = parts[0]
+        if i in in_rand and bank not in operands.in_rand:
+            return None
+        if bank in operands.anywhere or (i in in_sum and bank in operands.in_sum):
+            continue
+        if bank in BIT_BANKS:
+            bits = True
+        else:
+            registers = True
+    takes = _listed([bank for bank in ADDRESS_BANKS if bank in operands.anywhere])
+    changes = []
+    if registers or bits:
+        which = "registers and bits" if registers and bits else "bits" if bits else "registers"
+        changes.append(f"write its {which} as {takes}{' registers' if bits else ''}")
+    if constants:
+        each = [f"{text} as {written}" for text, written in constants.items()]
+        changes.append(f"write {' and '.join(each)}")
+    results = RESULT_BANKS[other_mode]
+    if dest is not None and (parts := address_parts(dest)) is not None and parts[0] not in results:
+        named = _listed([bank for bank in ADDRESS_BANKS if bank in results])
+        changes.append(f"write the result to a {named} register")
+    return changes
+
+
+def _check_mode(
+    tokens: Sequence[Token], mode: str, shown: str, dest: str | None = None
+) -> list[FieldError]:
     """Return a refusal for each key of the other mode's keypad in ``tokens`` (grammar step 8).
 
     Each refusal names ``Math.mode`` as well, because a Math of the other mode accepts the
-    key. If the formula holds a register that the other mode refuses, the refusal names the
-    registers that the other mode takes.
+    key. If the other mode refuses some of the formula's registers, bits or constants, or
+    the result ``dest``, the refusal says what to write for them
+    (:func:`_mode_changes`). If no change makes the other mode accept the formula, the
+    refusal says only to take the key out.
     """
     other = HEX_ONLY if mode == "decimal" else DECIMAL_ONLY
     other_mode = "hex" if mode == "decimal" else "decimal"
-    takes = _OPERANDS[other_mode].anywhere
-    foreign = any(
-        (parts := address_parts(token.text)) is not None and parts[0] not in takes
-        for token in tokens
-        if token.kind == "addr"
-    )
-    registers = [bank for bank in ADDRESS_BANKS if bank in takes]
-    named = f"{', '.join(registers[:-1])} or {registers[-1]}"
+    changes = _mode_changes(tokens, mode, dest)
 
     def then(key: str) -> str:
-        if foreign:
-            return (
-                f"Take {key} out of the formula, or set mode to {other_mode} and write its "
-                f"registers as {named}."
-            )
-        return f"Set mode to {other_mode}, or take {key} out of the formula."
+        if changes is None:
+            return f"Take {key} out of the formula."
+        if not changes:
+            return f"Set mode to {other_mode}, or take {key} out of the formula."
+        first, *rest = changes
+        later = "".join(f" {change[0].upper()}{change[1:]}." for change in rest)
+        return (
+            f"Take {key} out of the formula, or set mode to {other_mode}. "
+            f"In a {other_mode} Math, {first}.{later}"
+        )
 
     return [
         make_refusal(
@@ -1240,7 +1339,7 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
     found: list[FieldError] = []
     sum_at: dict[int, int] = {}  # the index of each end of a SUM range -> index of its SUM
     for i in range(len(texts) - 5):
-        if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
+        if _is_sum(texts, i):
             sum_at.update({i + 2: i, i + 4: i})
     rand_bounds = {i + k for i in _rand_calls(tokens) for k in (2, 4)}
     sum_refused: set[int] = set()  # the SUMs refused for their bank, once each
@@ -1567,13 +1666,14 @@ def stored_reals_written(expression: str) -> str:
     return " ".join(words)
 
 
-def parse(text: str, mode: str) -> Formula:
+def parse(text: str, mode: str, *, dest: str | None = None) -> Formula:
     """Parse a Math formula as CLICK's Math dialog reads it, and return the :class:`Formula`.
 
     ``mode`` is ``"decimal"`` or ``"hex"``. If the dialog would refuse the formula, raise
     :class:`FieldError`. The error is the first refusal found, and its
     :attr:`~FieldError.errors` holds every refusal found. The module docstring says which
-    refusals stop the parse.
+    refusals stop the parse. ``dest`` is the Math's result. If you pass it, a refusal that
+    tells you to set the other mode also says when the result must move to another bank.
     """
     raws = _lex(text)
     if not raws:
@@ -1619,7 +1719,7 @@ def parse(text: str, mode: str) -> Formula:
             else:
                 tokens[k] = Token("const", t.text, internal, span=t.span)
         shown = " ".join(t.text for t in tokens)
-    found += _check_mode(tokens, mode, shown)
+    found += _check_mode(tokens, mode, shown, dest)
     if not known:
         _raise(found)
     if (error := _check_order(tokens, mode)) is not None:

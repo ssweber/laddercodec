@@ -11,7 +11,7 @@
   "send fc15 984 1 <- C1 x1968": {"verdict": "accepted"},
   "send fc15 984 1 <- X001 x16": {"verdict": "accepted"},
   "send fc06 click DS1 <- X001": {"verdict": "refused", "error": "AddressError", "field": "Send.source", "message": "Send source: 'X001' is not allowed; Send source takes DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT (OBJ-004)"},
-  "send fc16 984 400001 <- TXT1 x1": {"verdict": "refused", "error": "FieldError", "field": "Send.quantity", "message": "Send.quantity: 1 is outside 2-246 TXT characters (OBJ-010). Send an even count of characters, such as quantity=2."},
+  "send fc16 984 400001 <- TXT1 x1": {"verdict": "refused", "error": "FieldError", "field": "Send.quantity", "message": "Send.quantity: 1 is outside 2-246 TXT characters (OBJ-010). Send an even count of characters, such as TXT1..TXT2."},
   "send fc05 984 0 <- C1": {"verdict": "refused", "error": "FieldError", "field": "Send.remote_start", "message": "Send.remote_start: 0 is outside the MODBUS 984 ranges 1-65535, 400001-465535"},
   "send fc05 hex 0h <- C1": {"verdict": "accepted"},
   "send fc16 hex FFFCh <- DS1 x1": {"verdict": "accepted"},

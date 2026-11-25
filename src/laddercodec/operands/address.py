@@ -17,7 +17,7 @@ import sys
 from collections.abc import Collection, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeAlias
 
 from ..codes import Code
 from .banks import WORD_IO_BANKS, XY_BANKS
@@ -488,23 +488,98 @@ def address_shape(text: str) -> tuple[str, str] | None:
     return None if match is None else (match.group(1), match.group(2))
 
 
-def example_address(bank: str | None, banks: Collection[str] | None) -> str:
+#: What the other fields of an instruction need of the example in a refusal of one field
+#: (:func:`example_address`): an address, or the banks that suit the other fields.
+Example: TypeAlias = "Address | Collection[str]"
+
+
+def example_address(
+    bank: str | None, banks: Collection[str] | None, prefer: Example | None = None
+) -> str:
     """Return an address that a field of ``banks`` takes, as the example in a refusal.
 
-    The address is in ``bank`` if the field takes that bank. Otherwise it is in the field's
-    first bank in :data:`ADDRESS_BANKS`. ``banks`` None means that the field takes every
-    bank. The address is the first of its bank, such as DS1, except in SC and SD. There it
-    is the lowest address in :data:`~laddercodec.operands.checks.WRITABLE_SC` or
+    ``prefer`` says what the instruction's other fields need, so that the instruction
+    accepts the example in this field too:
+
+    - An :class:`Address`, such as the address after the start of a range, is the example
+      if the field takes it. In SC and SD it must also be writable. If the field does not
+      take it, the example is in its bank.
+    - A collection of banks, such as the banks of the other operand's compare group, limits
+      the example to those banks.
+
+    If the field takes no bank that ``prefer`` names, the example is chosen as if there
+    were no ``prefer``. The address is in ``bank`` if the field takes that bank. Otherwise
+    it is in the field's first bank in :data:`ADDRESS_BANKS`. ``banks`` None means that the
+    field takes every bank. The address is the first of its bank, such as DS1, except in SC
+    and SD. There it is the lowest address in
+    :data:`~laddercodec.operands.checks.WRITABLE_SC` or
     :data:`~laddercodec.operands.checks.WRITABLE_SD`, SC50 or SD29, so that a field that
     writes the bank takes it too.
     """
     # Imported here because the checks module imports this one.
     from .checks import WRITABLE_SC, WRITABLE_SD
 
-    if bank not in ADDRESS_BANKS or (banks is not None and bank not in banks):
-        bank = next((b for b in ADDRESS_BANKS if banks is None or b in banks), "DS")
-    number = {"SC": min(WRITABLE_SC), "SD": min(WRITABLE_SD)}.get(bank, 1)
+    writable = {"SC": WRITABLE_SC, "SD": WRITABLE_SD}
+    takes = [b for b in ADDRESS_BANKS if banks is None or b in banks]
+    if isinstance(prefer, Address):
+        if (
+            prefer.bank in takes
+            and prefer.number >= 0
+            and _in_range(prefer.bank, str(prefer.number), prefer.upper)
+            and prefer.number in writable.get(prefer.bank, {prefer.number})
+        ):
+            return prefer.display
+        prefer = {prefer.bank}
+    if prefer is not None:
+        paired = [b for b in takes if b in prefer]
+        if paired and bank not in paired:
+            bank = paired[0]
+    if bank not in takes:
+        bank = takes[0] if takes else "DS"
+    number = min(writable[bank]) if bank in writable else 1
     return Address(bank, number, False).display
+
+
+def nearby(address: Address | None, step: int) -> Address | None:
+    """Return the address ``step`` numbers after ``address`` in its bank, as the preferred
+    example of :func:`example_address`. Return None if ``address`` is None.
+
+    The number may be outside the bank. :func:`example_address` then uses only the bank.
+    """
+    return None if address is None else Address(address.bank, address.number + step)
+
+
+def _read(value: object) -> Address | None:
+    """Return the address that ``value`` spells, or None for other text and for a value that
+    is not text."""
+    return parse_address(value) if isinstance(value, str) else None
+
+
+def example_end(
+    start: object,
+    count: int = 2,
+    *,
+    one_module: bool = False,
+    among: Collection[int] | None = None,
+) -> Address | None:
+    """Return the end of a range of ``count`` addresses from ``start``, as the preferred
+    example for a refused end (:func:`example_address`). Return None if ``start`` is no
+    address.
+
+    With the default count of 2, the end is :func:`address_above` the start, with its
+    ``one_module`` and ``among``.
+    """
+    first = _read(start)
+    if first is None or count != 2:
+        return nearby(first, count - 1)
+    return address_above(first, one_module=one_module, among=among)
+
+
+def example_start(end: object, count: int = 2) -> Address | None:
+    """Return the start of a range of ``count`` addresses that ends at ``end``, as the
+    preferred example for a refused start (:func:`example_address`). Return None if
+    ``end`` is no address."""
+    return nearby(_read(end), 1 - count)
 
 
 def check_address(
@@ -518,6 +593,7 @@ def check_address(
     bank_ids: Mapping[str, str] | None = None,
     range_ids: Mapping[str, str] | None = None,
     outside_range_of: str | None = None,
+    example: Example | None = None,
 ) -> Address:
     """Parse a CLICK address, or raise :class:`AddressError` naming ``field``.
 
@@ -542,6 +618,9 @@ def check_address(
     with one of those ids says that the address is outside the range of
     ``outside_range_of``, the field's noun, or of the label or field when that is not
     given.  It also says what the field takes.
+
+    ``example`` says what the instruction's other fields need of the address that the
+    refusal of text that is no address suggests (:func:`example_address`).
     """
     name = label or field
     value = require_text(value, field, label)
@@ -557,7 +636,7 @@ def check_address(
     parts = _address_parts(value)
     if parts is None:
         pointer = split_pointer(value)
-        example = example_address(None if pointer is None else pointer[0], banks)
+        suggested = example_address(None if pointer is None else pointer[0], banks, example)
         raise make_refusal(
             AddressError,
             name,
@@ -565,7 +644,7 @@ def check_address(
             field=field,
             reason=Reason.ADDRESS,
             code=Code.NOT_AN_ADDRESS,
-            then=f"Write an address, such as {example}.",
+            then=f"Write an address, such as {suggested}.",
         )
     bank, digits, upper = parts
     if bank not in ADDRESS_BANKS:

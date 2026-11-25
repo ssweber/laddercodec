@@ -39,6 +39,7 @@ from ..codes import Code
 from .address import (
     ADDRESS_BANKS,
     Address,
+    Example,
     check_address,
     example_address,
     normalize_fields,
@@ -510,15 +511,21 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
                 code=Code.CONSTANT_OUT_OF_RANGE,
             )
         if constants.printable and not printable(text):
+            number = ord(text[0]) if len(text) == 1 else None
+            # The message names no code from $80 to $9F, because the character that CLICK
+            # reads for each of them is not known.
+            if number is not None and (number < 0x80 or 0xA0 <= number <= 0xFF):
+                then = f"Write it as its $hh code, such as ${number:02X}."
+            elif number is None:
+                then = "Write printable ASCII only, or one character alone as its $hh code."
+            else:
+                then = "Write printable ASCII only."
             raise at.error(
                 value,
-                says(
-                    "is refused",
-                    "text holds printable ASCII only (space to ~); write another character as "
-                    "its $hh code",
-                ),
+                says("is refused", "text holds printable ASCII only (space to ~)"),
                 Reason.FORM,
                 code=Code.INVALID_TEXT_CONSTANT,
+                then=then,
             )
     if constants.max_length is not None and len(value) > constants.max_length:
         raise at.error(
@@ -562,13 +569,19 @@ SOURCE_POINTER_BANKS = POINTER_BANKS | {"SD"}
 
 
 def pointer_refusal(
-    value: str, field: str, label: str | None, banks: Collection[str] | None
+    value: str,
+    field: str,
+    label: str | None,
+    banks: Collection[str] | None,
+    example: Example | None = None,
 ) -> FieldError:
     """Return the refusal, an :class:`AddressError`, of the pointer ``value`` in a field that
     takes no pointer.
 
     The example address in its next sentence is in the pointer's bank if the field takes
     that bank (``DS1`` for ``DS[DS1]``), and in the field's first bank otherwise.
+    ``example`` says what the instruction's other fields need of it
+    (:func:`~laddercodec.operands.address.example_address`).
     """
     bank = value.partition("[")[0]
     return _at(field, label).error(
@@ -577,7 +590,7 @@ def pointer_refusal(
         Reason.POINTER,
         cls=AddressError,
         code=Code.POINTER_OUTSIDE_COPY,
-        then=f"Write an address, such as {example_address(bank, banks)}.",
+        then=f"Write an address, such as {example_address(bank, banks, example)}.",
     )
 
 
@@ -662,6 +675,7 @@ def check_operand(
     label: str | None = None,
     bank_id: str | None = None,
     bank_code: Code = Code.BANK_NOT_ALLOWED,
+    example: Example | None = None,
 ) -> Operand:
     """Check one operand and return it as an :class:`Operand`.  Raise :class:`FieldError`
     naming ``field`` if it is refused.
@@ -684,6 +698,9 @@ def check_operand(
     By default, a field that takes only decimal integers refuses another constant, such as
     ``3.5``, ``-5`` or ``FFh``, as an address.  Its message names the constant's kind and
     the field's range and banks.
+
+    ``example`` says what the instruction's other fields need of the address that a refusal
+    suggests (:func:`~laddercodec.operands.address.example_address`).
     """
     at = _at(field, label)
     if value == "":
@@ -701,7 +718,7 @@ def check_operand(
     parts = split_pointer(value)
     if parts is not None:
         if not pointer:
-            raise pointer_refusal(value, at.field, at.label, banks)
+            raise pointer_refusal(value, at.field, at.label, banks, example)
         bank, index_text = parts
         allowed = set(pointer_banks).intersection(ADDRESS_BANKS if banks is None else banks)
         if bank not in allowed:
@@ -725,7 +742,9 @@ def check_operand(
                 set_parts(exc, dataclasses.replace(kept, then=then))
             raise
         return Operand(bank=bank, index=index)
-    address = check_address(value, field, banks, label=label, bank_id=bank_id, bank_code=bank_code)
+    address = check_address(
+        value, field, banks, label=label, bank_id=bank_id, bank_code=bank_code, example=example
+    )
     return Operand(bank=address.bank, address=address)
 
 
@@ -810,6 +829,7 @@ def check_out_target(
     label: str | None = None,
     bank_id: str | None = None,
     not_writable_id: str | None = None,
+    example: Example | None = None,
 ) -> Address:
     """Check an address a coil writes; return it.
 
@@ -818,10 +838,11 @@ def check_out_target(
     :data:`WRITABLE_SC`.  When the instruction is immediate and the target is not Y, the
     refusal is a conflict between ``field`` and the instruction's ``immediate`` field.
     ``bank_id`` and ``not_writable_id`` are the ids CLICK's dialog gives for a bank the field
-    does not take and for an SC bit it can't write, where they are known.
+    does not take and for an SC bit it can't write, where they are known.  ``example``
+    says what the instruction's other fields need of the address that a refusal suggests.
     """
     at = _at(field, label)
-    address = check_address(value, field, banks, label=label, bank_id=bank_id)
+    address = check_address(value, field, banks, label=label, bank_id=bank_id, example=example)
     # Immediate first: an immediate SC target is refused whatever its number.
     if immediate and address.bank != "Y":
         raise at.error(
