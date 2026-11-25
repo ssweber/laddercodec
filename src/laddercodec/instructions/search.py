@@ -44,7 +44,7 @@ from ..operands.checks import (
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
 from ..operands.errors import FieldError
 from ..operands.message import Op, parts_of, says, set_parts
-from ..operands.unchecked import read_in_another_form
+from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .comparison import GROUP_BANKS, CompareOp, bank_group
 from .copy import check_box_operand, check_range, check_range_ends
 from .family import AfInstructionFamilySpec, fixed_cell_params
@@ -165,7 +165,7 @@ _SEARCH_TAGS = (
 
 
 @dataclass(frozen=True)
-class Search(Instruction):
+class Search(Instruction, AllowsRefusals):
     """A search instruction.
 
     Attributes
@@ -198,7 +198,7 @@ class Search(Instruction):
     continuous: bool = False
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             # A constant search value comes back from normalize_address as written.
             check.normalize(

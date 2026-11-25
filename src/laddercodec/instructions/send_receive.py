@@ -92,7 +92,7 @@ class ModbusRtuTarget(AllowsRefusals):
     #: Slave ID: a number, or the DS register CLICK reads it from (``"DS2420"``).
     device_id: int | str
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not isinstance(self.com_port, str) or self.com_port not in _RTU_PORT_MODE:
                 check.refuse(
@@ -120,7 +120,7 @@ class ModbusTcpTarget(AllowsRefusals):
     device_id: int | str
     com_port: ModbusTcpPort = "ethernet"
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not isinstance(self.com_port, str) or self.com_port not in _TCP_PORT_MODE:
                 check.refuse(
@@ -295,7 +295,7 @@ class ModbusAddress(AllowsRefusals):
     address: str  # "400001" or "0h"
     register_type: ModbusRegisterType | None = None  # only for a hex address
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if self.register_type is not None and self.register_type not in REGISTER_TYPES:
                 check.refuse(
@@ -1682,7 +1682,7 @@ def _target_fields(
 
 
 @dataclass(frozen=True)
-class Receive(Instruction):
+class Receive(Instruction, AllowsRefusals):
     """A Modbus Receive (RD) instruction."""
 
     target: ModbusRtuTarget | ModbusTcpTarget
@@ -1700,7 +1700,7 @@ class Receive(Instruction):
     #: when it equals the default.
     function_code: ReceiveFunctionCode | None = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             _normalize_operands(
                 check, self, ("dest", "receiving", "success", "error", "exception_response")
@@ -1801,7 +1801,7 @@ class Receive(Instruction):
 
 
 @dataclass(frozen=True)
-class Send(Instruction):
+class Send(Instruction, AllowsRefusals):
     """A Modbus Send (SD) instruction."""
 
     target: ModbusRtuTarget | ModbusTcpTarget
@@ -1819,7 +1819,7 @@ class Send(Instruction):
     #: equals the default.
     function_code: SendFunctionCode | None = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             _normalize_operands(
                 check, self, ("source", "sending", "success", "error", "exception_response")

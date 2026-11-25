@@ -41,7 +41,7 @@ from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
 from .operands.errors import Reason as Reason
 from .operands.message import make_refusal, operand, says, wrong_type
-from .operands.unchecked import AllowsRefusals, holds_refusals, rebuilt
+from .operands.unchecked import holds_refusals, rebuilt
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -52,11 +52,11 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-class Condition(AllowsRefusals):
+class Condition:
     """Base class for condition-side instructions (Contact, CompareContact).
 
-    The constructor of each subclass takes the keyword-only ``allow``, as
-    :class:`Instruction` describes.
+    The constructor of each condition class in laddercodec accepts the keyword-only
+    ``allow``, as :class:`Instruction` describes.
     """
 
     # Plain class attributes and not dataclass fields, so that they take no part in
@@ -79,16 +79,16 @@ class Condition(AllowsRefusals):
         raise NotImplementedError
 
 
-class Instruction(AllowsRefusals):
+class Instruction:
     """Base class for instructions in the AF (output) column, such as Coil, Timer and Copy.
 
-    The constructor of each subclass takes the keyword-only ``allow``, a list of the codes
-    of the refusals that you accept, such as ``Coil("X001", allow=["bank-not-allowed"])``.
-    The instruction keeps a refusal whose codes are all listed, as
-    ``read_csv(path, allow=...)`` keeps it, and ``encode()`` writes it from its fields. Any
-    other refusal raises. The instruction does not store ``allow``. A bad ``allow`` raises
-    :class:`~laddercodec.LaddercodecError`. A dataclass that subclasses this class must be
-    frozen.
+    The constructor of each instruction class in laddercodec accepts the keyword-only
+    ``allow``, a list of the codes of the refusals that you accept, such as
+    ``Coil("X001", allow=["bank-not-allowed"])``. It builds an instruction whose refusals
+    all have a listed code instead of raising, with the same limits as
+    ``read_csv(path, allow=...)``. ``encode()`` writes that instruction from its fields.
+    Any other refusal raises. The instruction does not store ``allow``. A bad ``allow``
+    raises :class:`~laddercodec.LaddercodecError`.
     """
 
     # Keep this a plain class attribute. As a dataclass field in a subclass it would

@@ -15,6 +15,7 @@ from ..errors import CsvReadError
 from ..model import Instruction, Reason, check_program_name
 from ..operands.checks import Refusals
 from ..operands.message import says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -28,12 +29,12 @@ _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 
 
 @dataclass(frozen=True)
-class Call(Instruction):
+class Call(Instruction, AllowsRefusals):
     """Subroutine call instruction."""
 
     subroutine: str  # subroutine name (e.g. "coverage_sub")
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not self.subroutine:
                 check.refuse(

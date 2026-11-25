@@ -28,6 +28,7 @@ from ..operands.checks import (
     check_out_target,
 )
 from ..operands.message import operand, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ _COIL_FORM = (
 
 
 @dataclass(frozen=True)
-class Coil(Instruction):
+class Coil(Instruction, AllowsRefusals):
     """An output coil: ``out``, ``latch`` (Set) or ``reset``, on one bit or a range.
 
     ``Coil("Y001", kind="latch")`` is the CSV token ``latch(Y001)``, and
@@ -105,7 +106,7 @@ class Coil(Instruction):
     immediate: bool = False
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             # Test against a tuple, not the dict, so that an unhashable kind is refused and
             # does not raise TypeError.

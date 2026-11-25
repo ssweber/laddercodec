@@ -11,13 +11,16 @@ constructor, from the values that ``read_csv`` read. The tests show that:
 - ``allow`` takes no part in equality, hashing or ``repr``;
 - a bad ``allow`` raises ``LaddercodecError``;
 - a Send or Receive builds its Modbus target again with its own ``allow``;
-- ``replace`` checks a changed copy again, unless you pass ``allow`` to it;
+- ``replace`` checks a changed copy again and raises ``TypeError`` for ``allow``;
+- each instruction class in laddercodec accepts ``allow``, and a subclass of
+  ``Condition`` or ``Instruction`` that a caller writes does not need to;
 - ``lay_out`` and ``check()`` take a rung that holds such an instruction.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import inspect
 import warnings
 from pathlib import Path
 from typing import Any
@@ -55,8 +58,10 @@ from laddercodec.instructions import (
     Send,
     Timer,
 )
+from laddercodec.model import Condition, Instruction
 from laddercodec.operands.address import NotDisplayForm, display_form_only
 from laddercodec.operands.unchecked import (
+    AllowsRefusals,
     allowed,
     rebuilt,
     refusals,
@@ -235,33 +240,29 @@ def test_replace_checks_a_changed_copy_again() -> None:
     held = Coil("X001", allow=[BANK])
     with pytest.raises(FieldError, match="^Coil.operand"):
         laddercodec.replace(held, operand="X002")
-    with pytest.raises(FieldError, match="^Coil.operand"):
-        laddercodec.replace(held, operand="X002", allow=())
     same = laddercodec.replace(held, operand="X001")
     assert allowed(same)
     assert same.build_blob() == held.build_blob()
 
 
-def test_replace_with_allow_builds_the_copy_as_the_constructor() -> None:
+@pytest.mark.parametrize("allow", [None, (), [BANK]])
+def test_replace_raises_type_error_for_allow(allow) -> None:
     held = Coil("X001", allow=[BANK])
-    moved = laddercodec.replace(held, operand="X002", allow=[BANK])
-    assert moved == Coil("X002", allow=[BANK])
-    assert allowed(moved)
-    with pytest.raises(FieldError, match="^Coil.operand"):
-        laddercodec.replace(held, operand="X002", allow=[Code.BLANK_FIELD])
-    with pytest.raises(LaddercodecError, match="^Coil: allow='bank-not-allowed' is one code"):
-        laddercodec.replace(held, allow="bank-not-allowed")
-
-
-def test_replace_with_allow_marks_a_decoded_instruction_allowed() -> None:
     with unchecked():
         kept = Coil("X001")
-    assert not allowed(kept)
-    copy = laddercodec.replace(kept, allow=[BANK])
-    assert copy == kept
-    assert allowed(copy)
-    assert stored_blob(copy) is None
-    assert copy.build_blob() == Coil("X001", allow=[BANK]).build_blob()
+    for inst in (held, kept, Coil("Y001")):
+        with pytest.raises(TypeError, match=r"^replace\(\): Coil has no field 'allow'$"):
+            laddercodec.replace(inst, allow=allow)
+        with pytest.raises(TypeError, match=r"^replace\(\): Coil has no field 'allow'$"):
+            laddercodec.replace(inst, operand="Y002", allow=allow)
+    target = ModbusTcpTarget("plc", "192.168.1.10", 502, 1)
+    with pytest.raises(TypeError, match="ModbusTcpTarget has no field 'allow'$"):
+        laddercodec.replace(target, name="other", allow=allow)
+
+
+def test_replace_raises_type_error_for_a_name_that_is_not_a_field() -> None:
+    with pytest.raises(TypeError, match=r"^replace\(\): Coil has no field 'bogus'$"):
+        laddercodec.replace(Coil("Y001"), bogus=1)
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +382,56 @@ def test_an_empty_allow_builds_as_without_allow(empty) -> None:
 
 def test_a_class_that_holds_no_refusal_ignores_allow() -> None:
     assert End(allow=[BANK]) == End()
+
+
+def _subclasses(cls: type) -> set[type]:
+    found = set()
+    for sub in cls.__subclasses__():
+        found |= {sub} | _subclasses(sub)
+    return found
+
+
+#: Every dataclass in laddercodec that subclasses Condition or Instruction, and the
+#: Modbus classes that a Send or Receive holds.
+CONSTRUCTORS = sorted(
+    (
+        cls
+        for cls in _subclasses(Condition) | _subclasses(Instruction)
+        if cls.__module__.startswith("laddercodec.") and dataclasses.is_dataclass(cls)
+    ),
+    key=lambda cls: cls.__name__,
+) + [ModbusAddress, ModbusRtuTarget, ModbusTcpTarget]
+
+
+def test_the_constructor_list_finds_every_family() -> None:
+    names = {cls.__name__ for cls in CONSTRUCTORS}
+    assert {"Contact", "CompareContact", "Coil", "Timer", "Copy", "Send", "End"} <= names
+    assert len(names) == 33
+
+
+@pytest.mark.parametrize("cls", CONSTRUCTORS, ids=lambda cls: cls.__name__)
+def test_each_constructor_accepts_allow_as_a_keyword(cls) -> None:
+    assert issubclass(cls, AllowsRefusals)
+    param = inspect.signature(cls).parameters["allow"]
+    assert param.kind is inspect.Parameter.KEYWORD_ONLY
+    assert param.default is None
+
+
+def test_a_caller_subclass_of_condition_or_instruction_need_not_be_frozen() -> None:
+    assert not dataclasses.is_dataclass(Condition)
+    assert not dataclasses.is_dataclass(Instruction)
+
+    @dataclasses.dataclass
+    class Mine(Instruction):
+        value: int = 0
+
+        def __post_init__(self) -> None:
+            self.value += 1
+
+    mine = Mine(1)
+    mine.value = 5
+    assert mine.value == 5
+    assert "allow" not in inspect.signature(Mine).parameters
 
 
 # ---------------------------------------------------------------------------

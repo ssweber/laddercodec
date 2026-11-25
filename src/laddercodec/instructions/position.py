@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
 from ..errors import CsvReadError
 from ..model import Instruction
+from ..operands.unchecked import AllowsRefusals
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
     AfInstructionFamilySpec,
@@ -65,7 +66,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class PositionMove(Instruction):
+class PositionMove(Instruction, AllowsRefusals):
     """The Position instruction, with each field kept as the text that its tag stores.
 
     laddercodec does not interpret the fields. Each field is named after CLICK's tag id

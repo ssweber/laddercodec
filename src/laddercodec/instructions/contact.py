@@ -23,6 +23,7 @@ from ..model import (
 from ..operands.banks import BIT_BANKS
 from ..operands.checks import Refusals
 from ..operands.message import operand, says
+from ..operands.unchecked import AllowsRefusals
 from .family import ConditionInstructionFamilySpec
 
 ContactKind = Literal["no", "nc", "rise", "fall"]
@@ -78,7 +79,7 @@ def refuse_down_prefix(token: str, class_name: str) -> None:
 
 
 @dataclass(frozen=True)
-class Contact(Condition):
+class Contact(Condition, AllowsRefusals):
     """A contact: normally open (``no``), normally closed (``nc``), or an edge contact
     (``rise``, ``fall``).
 
@@ -90,7 +91,7 @@ class Contact(Condition):
     kind: ContactKind = "no"
     immediate: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.flag("immediate")
             check.normalize("operand")

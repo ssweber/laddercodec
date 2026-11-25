@@ -47,6 +47,7 @@ from ..model import FieldError, Instruction, Reason
 from ..operands.address import digits_value, too_long
 from ..operands.checks import Refusals
 from ..operands.message import Rule, make_refusal, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec, cell_rows_spec
 
 if TYPE_CHECKING:
@@ -354,7 +355,7 @@ def _split_raw_args(text: str) -> list[str]:
 
 
 @dataclass(frozen=True)
-class RawInstruction(Instruction):
+class RawInstruction(Instruction, AllowsRefusals):
     """An AF instruction kept as its blob, so that it is written back byte for byte.
 
     Attributes
@@ -422,7 +423,7 @@ class RawInstruction(Instruction):
         span = int(params.get("visual_rows", 1))
         return span, int(params.get("sub_rows", span))
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         # A decoded blob can hold any class name and any 16-bit part count.  The checks here
         # refuse a value of the wrong type, a part count outside 0 to 65535, and a row span or
         # sub-rows outside 1 to 255.

@@ -191,7 +191,7 @@ def test_guard_finds_the_known_flags() -> None:
 
 
 def test_guard_self_test() -> None:
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Unchecked(Instruction):
         flag: bool = False
         maybe: bool | None = None
@@ -199,7 +199,7 @@ def test_guard_self_test() -> None:
         def __post_init__(self) -> None:
             self.flag = check_flag(self.flag, "Unchecked.flag")
 
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Plain(Instruction):
         count: int = 0
 
@@ -227,28 +227,28 @@ def test_guard_counts_only_an_assignment_with_the_class_label() -> None:
 
 
 def test_guard_resolves_inherited_checks() -> None:
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Base(Instruction):
         flag: bool = False
 
         def __post_init__(self) -> None:
             self.flag = check_flag(self.flag, "Base.flag")
 
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Inherits(Base):
         pass
 
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Calls(Base):
         def __post_init__(self) -> None:
             super().__post_init__()
 
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class Skips(Base):
         def __post_init__(self) -> None:
             pass
 
-    @dataclasses.dataclass(frozen=True)
+    @dataclasses.dataclass
     class OwnLabel(Base):
         def __post_init__(self) -> None:
             self.flag = check_flag(self.flag, "OwnLabel.flag")

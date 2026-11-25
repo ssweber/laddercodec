@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..errors import CsvReadError
 from ..model import Instruction
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ _RETURN_TAGS = (0x3218, 0x0000)
 
 
 @dataclass(frozen=True)
-class Return(Instruction):
+class Return(Instruction, AllowsRefusals):
     """Return instruction."""
 
     @classmethod

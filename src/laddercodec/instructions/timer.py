@@ -19,6 +19,7 @@ from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
 from ..operands.message import Op, operand, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
 
 @dataclass(frozen=True)
-class Timer(PinnedInstruction):
+class Timer(PinnedInstruction, AllowsRefusals):
     """An on-delay or off-delay timer instruction.
 
     The timer sits in the AF column. CLICK stores it with the binary class name ``Tmr``
@@ -85,7 +86,7 @@ class Timer(PinnedInstruction):
     #: sit beside and below the box.
     pin_rows: tuple[int, ...] = (1,)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.flag("retained")
             if self.kind not in _TIMER_KINDS:

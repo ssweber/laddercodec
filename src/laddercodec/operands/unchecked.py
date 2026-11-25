@@ -195,8 +195,10 @@ def allow_codes(
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class AllowsRefusals:
-    """The base of each instruction class, Modbus target and Modbus address. It adds the
-    keyword-only ``allow`` to the constructor of each dataclass that subclasses it.
+    """A base class of each instruction class, Modbus target and Modbus address in
+    laddercodec. It adds the keyword-only ``allow`` to the constructor of each dataclass
+    that subclasses it. ``Condition`` and ``Instruction`` do not subclass it, so a
+    caller's own subclass of them does not accept ``allow``.
 
     ``allow`` lists the codes of the refusals that you accept, such as
     ``Coil("X001", allow=["bank-not-allowed"])``. The instance keeps a refusal only if
@@ -239,12 +241,12 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
     as usual.
 
     The wrapped ``__post_init__`` takes the ``allow`` of :class:`AllowsRefusals`. With
-    codes in it, construction runs inside ``unchecked(allow=codes)``. Each Modbus target or
-    Modbus address in a field that holds refusals is built again inside the same block
-    first. Then, if no :func:`unchecked` block was open when construction started, and
-    :func:`allowed` returns True for the instruction, construction checks that its blob
-    reads back to it (``writes_back``). If the blob does not, construction raises the
-    instruction's first refusal.
+    codes in it, construction runs inside ``unchecked(allow=codes)``. First, inside the
+    same block, it builds again each Modbus target or Modbus address in a field of the
+    instance, if that target or address holds refusals. Then, if no :func:`unchecked`
+    block was open when construction started, and :func:`allowed` returns True for the
+    instruction, construction checks that its blob reads back to it (``writes_back``). If
+    the blob does not, construction raises the instruction's first refusal.
     """
     build_blob = cls.__dict__.get("build_blob")
     if build_blob is not None:
@@ -277,6 +279,16 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
 
     @functools.wraps(post_init)
     def wrapper(self: Any, allow: Iterable[str] | None = None) -> None:
+        if allow is None:
+            if _KEPT.get() is not None:
+                keeping(self)
+                return
+            # Outside a block, the instance can't keep a refusal of its own. Only a Modbus
+            # target or address in a field can hold one, if it was built with allow=.
+            post_init(self)
+            if _nested_refusal(self):
+                _raise_unwritable(self)
+            return
         codes = allow_codes(allow, caller=type(self).__name__)
         outside = _KEPT.get() is None
         if codes:
@@ -293,6 +305,17 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
 
     cast("Any", cls).__post_init__ = wrapper
     return cls
+
+
+def _nested_refusal(inst: object) -> bool:
+    """Return whether a dataclass in a field of *inst*, or in a field of that dataclass,
+    holds a refusal."""
+    for value in getattr(inst, "__dict__", {}).values():
+        if hasattr(type(value), "__dataclass_fields__") and (
+            getattr(value, "_refusal", None) is not None or _nested_refusal(value)
+        ):
+            return True
+    return False
 
 
 def _raise_unwritable(inst: Any) -> None:
@@ -435,11 +458,9 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     - otherwise, if *inst* has no stored blob, ``encode()`` raises the first refusal that
       the copy holds.
 
-    *inst* does not remember the ``allow=`` that it was built with. To accept refusals in
-    the copy, pass ``allow`` again: ``replace(coil, operand="X002",
-    allow=["bank-not-allowed"])``. ``replace`` then builds the copy from its values as the
-    constructor builds it with that ``allow``, whether or not a field changes. The copy has
-    no stored blob. ``allow=None`` and ``allow=()`` change nothing.
+    ``allow`` is not a field, so ``replace(inst, allow=...)`` raises ``TypeError``. *inst*
+    does not remember the ``allow=`` that it was built with. To build a changed copy that
+    keeps a refusal, call the constructor with ``allow=``.
 
     A ``Rung`` is frozen too. ``replace(rung, instructions=...)`` returns a copy of the
     rung with those instructions. On a ``Rung``, no check runs. The copy holds the cells
@@ -448,18 +469,12 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     """
     if not is_dataclass(inst) or isinstance(inst, type):
         raise TypeError(f"replace() takes an instruction or a Rung, not {type(inst).__name__}")
-    if isinstance(inst, AllowsRefusals) and "allow" in changes:
-        changes = dict(changes)
-        allow = changes.pop("allow")
-        if allow_codes(allow, caller=type(inst).__name__):
-            with checked():
-                return cast("_T", dataclasses.replace(inst, **changes, allow=allow))
     names = {f.name for f in fields(inst)}
-    changed = {
-        name: value
-        for name, value in changes.items()
-        if name not in names or value != getattr(inst, name)
-    }
+    for name in changes:
+        # dataclasses.replace would pass allow on, because allow is an InitVar of the class.
+        if name not in names:
+            raise TypeError(f"replace(): {type(inst).__name__} has no field {name!r}")
+    changed = {name: value for name, value in changes.items() if value != getattr(inst, name)}
     if not changed:
         return rebuilt(inst)
     with checked():

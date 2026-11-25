@@ -38,6 +38,7 @@ from ..operands.checks import (
 )
 from ..operands.constants import INT16_MAX, Kind
 from ..operands.message import Op, operand, says
+from ..operands.unchecked import AllowsRefusals
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -151,7 +152,7 @@ _OUT_VARIANT_TAGS = (
 
 
 @dataclass(frozen=True)
-class OutVariant(Instruction):
+class OutVariant(Instruction, AllowsRefusals):
     """A CLICK v4 Out coil variant: toggle, debounce, flasher or timed."""
 
     kind: OutVariantKind
@@ -164,7 +165,7 @@ class OutVariant(Instruction):
     immediate: bool = False  # toggle only
     maintained: bool = False  # timed only
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             check.normalize(
                 "operand",

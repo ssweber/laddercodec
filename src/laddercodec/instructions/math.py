@@ -50,7 +50,7 @@ from ..operands.checks import (
 )
 from ..operands.constants import INT16_MAX, INT16_MIN
 from ..operands.message import make_refusal, says, wrong_type
-from ..operands.unchecked import read_in_another_form
+from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse, stored_reals_written
 from .math_formula import range_interiors as formula_range_interiors
@@ -199,7 +199,7 @@ def _nickname_span(expression: str) -> tuple[int, int] | None:
 
 
 @dataclass(frozen=True)
-class Math(Instruction):
+class Math(Instruction, AllowsRefusals):
     """A math instruction.
 
     Attributes
@@ -224,7 +224,7 @@ class Math(Instruction):
     mode: MathMode = "decimal"
     oneshot: bool = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # ty: ignore[invalid-dataclass]
         with Refusals(self) as check:
             if not is_choice(self.mode, RESULT_BANKS):
                 check.refuse(
