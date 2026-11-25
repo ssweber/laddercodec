@@ -473,8 +473,8 @@ def _decode_rtf(payload: bytes, unread: list[str] | None = None) -> str:
             text = read_bytes(data, charset, errors="replace")
             # Only GBK can fail. The cp1252 table reads every byte.
             message = (
-                f"font {group.font} has \\fcharset{charset}, and some of its bytes are not "
-                f"GBK. Each byte that GBK cannot read reads as U+FFFD"
+                f"font {group.font} has \\fcharset{charset}, and GBK cannot read some of "
+                f"its bytes. Each such byte reads as U+FFFD"
             )
         if charset not in READ_CHARSETS and max(data) >= 0x80:
             message = (
