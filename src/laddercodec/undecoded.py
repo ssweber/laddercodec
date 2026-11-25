@@ -6,9 +6,9 @@ fails, the decoder puts one marker rung (:func:`marker_rung`) in its place and w
 :class:`UndecodedRungWarning`. If only the comment fails and the rung's logic decodes, the
 rung keeps its logic and is not a marker. Its comment becomes :func:`comment_note`,
 followed by the text that :func:`recover_text` finds in the comment's bytes. The decoder
-then warns with :class:`UndecodedCommentWarning`. If only the text in a font whose charset
-laddercodec does not read fails, the comment keeps the rest of its text, and the decoder
-warns in the same way.
+then warns with :class:`UndecodedCommentWarning`. If a font in the comment has a charset
+that laddercodec does not read, or a GBK font holds bytes that GBK cannot read, the decoder
+reads the rest of the comment and warns in the same way, with ``partial`` set to True.
 """
 
 from __future__ import annotations
@@ -78,9 +78,10 @@ class UndecodedCommentWarning(UserWarning):
     of the comment's bytes, if there is any. If that text would make the comment too long
     to encode, it is cut short and ends with ``...``.
 
-    If only the text in one font cannot be decoded, because laddercodec does not read the
-    font's charset, ``partial`` is True. The rung's comment holds the decoded text, with
-    U+FFFD for each non-ASCII byte in that font.
+    If a font in the comment has a charset that laddercodec does not read, ``partial`` is
+    True. The decoder reads each non-ASCII byte in that font as U+FFFD and reads the rest of
+    the comment. ``partial`` is also True if a GBK font holds bytes that GBK cannot read.
+    The decoder reads each of those bytes as U+FFFD.
 
     The rung's ``comment_rtf`` keeps the comment's bytes. The rung is not a marker, so
     ``Program.undecoded`` does not list it.
@@ -391,9 +392,9 @@ def read_comment(rtf: bytes | None, rung: int, failed: list[CommentFailure]) -> 
 
     Return None if *rtf* is None. If *rtf* cannot be decoded, return
     :func:`recovered_comment` and add ``(rung, error, False)`` to *failed* for
-    :func:`warn_comments`. If only the text in a font whose charset laddercodec does not
-    read cannot be decoded, return the decoded comment and add ``(rung, error, True)`` for
-    each such font.
+    :func:`warn_comments`. If some bytes read as U+FFFD, because laddercodec does not read
+    their font's charset or GBK cannot read them, add ``(rung, error, True)`` to *failed*
+    for each font that holds such bytes, and return the decoded comment.
     """
     if rtf is None:
         return None

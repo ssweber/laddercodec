@@ -8,7 +8,8 @@ the table names its charset with ``\\fcharsetN``. laddercodec reads two charsets
 - 134, as GBK, where one character can take two bytes.
 
 In a font of any other charset, a byte below 0x80 reads as ASCII and each other byte reads
-as U+FFFD. The decoder warns when that happens.
+as U+FFFD. In a GBK font, each byte that GBK cannot read reads as U+FFFD. The decoder warns
+in both cases.
 
 Both readers of comment RTF use this module: ``decode._decode_rtf`` and
 ``undecoded.recover_text``.
@@ -54,7 +55,7 @@ def decode_cp1252(data: bytes) -> str:
 
 
 def read_bytes(data: bytes, charset: int, *, ansi: str = "cp1252", errors: str = "strict") -> str:
-    """Return the text bytes *data* of a font whose charset is *charset*.
+    """Return the text of *data*, the bytes of a font whose charset is *charset*.
 
     Charset 0 is read with the codec *ansi*. A charset that is not in
     :data:`READ_CHARSETS` gives ASCII for each byte below 0x80 and U+FFFD for each other

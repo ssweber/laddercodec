@@ -14,7 +14,7 @@ import pytest
 
 from laddercodec import Rung, UndecodedCommentWarning, decode, decode_program
 from laddercodec.decode import _decode_rtf
-from laddercodec.undecoded import comment_note, recover_text
+from laddercodec.undecoded import recover_text
 
 CAPTURES = Path(__file__).parent.parent / "fixtures" / "rung_comments"
 
@@ -192,13 +192,26 @@ def test_a_gbk_character_may_end_in_an_ascii_byte() -> None:
     assert _decode_rtf(_rtf(b"\\'81@", head)) == b"\x81@".decode("gbk")
 
 
-def test_a_gbk_lead_byte_with_no_second_byte_leaves_the_comment_undecoded() -> None:
-    rtf = _rtf(b"\\'d6\\f1  ok", _fonts(SIMSUN, b"\\f0\\fs20"))
+@pytest.mark.parametrize(
+    ("body", "want"),
+    [
+        (b"\\'d6\\f1  ok", "\ufffd ok"),
+        (b"\\'ff\\'ff\\f1  ok", "\ufffd\ufffd ok"),
+        (b"\\'d6\\'d0\\'d6\\f1  ok\\f0\\'d6", "\u4e2d\ufffd ok\ufffd"),
+    ],
+    ids=["lead-byte-alone", "not-gbk", "twice-in-one-font"],
+)
+def test_bytes_that_gbk_cannot_read_give_a_warning_and_keep_the_rest(
+    body: bytes, want: str
+) -> None:
+    rtf = _rtf(body, _fonts(SIMSUN, b"\\f0\\fs20"))
     [rung], caught = _decoded(_with_rtf(BASE, rtf))
+    assert rung.comment == want
     [warning] = [w.message for w in caught]
     assert isinstance(warning, UndecodedCommentWarning)
-    assert not warning.partial
-    assert rung.comment == f"{comment_note(warning.error)}\n\ufffd ok"
+    assert warning.partial
+    assert "font 0 has \\fcharset134" in warning.error
+    assert recover_text(rtf) == want
 
 
 UNKNOWN = b"{\\f0\\fnil\\fcharset0 Arial;}{\\f1\\fnil\\fcharset128 MS Gothic;}"

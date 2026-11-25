@@ -421,9 +421,10 @@ def _decode_rtf(payload: bytes, unread: list[str] | None = None) -> str:
     literal ``*``, ``_`` or ``\\`` where the Markdown reader would otherwise read the
     character as a marker or an escape.
 
-    If a font whose charset laddercodec does not read holds a byte from 0x80 up, that
-    byte reads as U+FFFD.  Then the function adds a message that names the font and its
-    charset to *unread*, if *unread* is given.
+    Some bytes read as U+FFFD: each byte from 0x80 up in a font whose charset laddercodec
+    does not read, and each byte in a GBK font that GBK cannot read.  For each such font,
+    the function adds one message that names the font and its charset to *unread*, if
+    *unread* is given.
     """
     # Find the body between the RTF prefix and suffix.
     if payload.startswith(_PREFIX):
@@ -463,16 +464,27 @@ def _decode_rtf(payload: bytes, unread: list[str] | None = None) -> str:
             return
         group = stack[-1]
         charset = charsets.get(group.font, ANSI_CHARSET)
-        runs.append((group.style, read_bytes(bytes(text_bytes), charset)))
-        if charset not in READ_CHARSETS and max(text_bytes) >= 0x80 and unread is not None:
+        data = bytes(text_bytes)
+        text_bytes.clear()
+        message = None
+        try:
+            text = read_bytes(data, charset)
+        except UnicodeDecodeError:
+            text = read_bytes(data, charset, errors="replace")
+            # Only GBK can fail. The cp1252 table reads every byte.
+            message = (
+                f"font {group.font} has \\fcharset{charset}, and some of its bytes are not "
+                f"GBK. Each byte that GBK cannot read reads as U+FFFD"
+            )
+        if charset not in READ_CHARSETS and max(data) >= 0x80:
             message = (
                 f"font {group.font} has \\fcharset{charset}. laddercodec reads only "
                 f"\\fcharset0 and \\fcharset134, so each non-ASCII byte in font "
                 f"{group.font} reads as U+FFFD"
             )
-            if message not in unread:
-                unread.append(message)
-        text_bytes.clear()
+        runs.append((group.style, text))
+        if message is not None and unread is not None and message not in unread:
+            unread.append(message)
 
     i = 0
     while i < len(body):
@@ -509,7 +521,8 @@ def _decode_rtf(payload: bytes, unread: list[str] | None = None) -> str:
                 i = next_i
                 continue
 
-            # Every other control can change the style or the font, or add a character.
+            # Read the bytes so far in the current font, because every other control can
+            # change the font or the style, or add a character.
             flush()
             if control == "~":
                 if not group.skip_destination:
