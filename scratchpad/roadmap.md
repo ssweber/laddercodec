@@ -396,6 +396,12 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   count up to 0xFE. If CLICK saves 64 to 126 characters in another form, `decode_program()` reads them wrong.
   Save a Compare whose text is 64, 126 and 127 characters long, and a Math formula of 500 characters to see
   that Math uses the same form.
+- **Comment text that no capture shows.** The decoder reads cp1252's five holes (0x81, 0x8D, 0x8F, 0x90 and
+  0x9D) as the C1 controls of the same numbers. In a font whose charset is not 0 or 134, it reads each ASCII
+  byte as ASCII and each other byte as U+FFFD. No capture shows a comment with either. Set `a`, U+0081, `b` in
+  CLICK's comment editor, and type a Japanese comment with an IME. Copy each rung back, and compare what
+  `decode()` reads with what the editor shows. Typing `中` with an IME is not tested either. CLICK wrote it
+  under a SimSun font when it was set as UTF-16.
 
 ## For pyrung's export (after the joint release; another repo first)
 
@@ -525,6 +531,11 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
+- **Three RTF forms that the comment readers disagree on.** `_decode_rtf` and `undecoded.recover_text` read
+  three RTF forms differently. CLICK writes none of them, so nothing waits on this. `_decode_rtf` ignores a
+  `\ucN` in the header, before `\fsN`, and `recover_text` reads it. A `\uN` above 0xFFFF reads as that
+  character in `_decode_rtf` and as nothing in `recover_text`. A brace as the fallback character of a `\uN`
+  opens or closes a group in `recover_text`, and `_decode_rtf` drops it.
 - **The `.python-version` pin.** It sets Python 3.13 for a fresh venv, because pyyaml has no wheel for
   3.15 and `make docs-build` fails without it. Delete the file when pyyaml ships a 3.15 wheel.
 - **Small cleanups.** `tests/csv/test_flag_keywords.py` has no `read_csv(unchecked=True)` case with a

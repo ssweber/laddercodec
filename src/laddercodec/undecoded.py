@@ -6,7 +6,9 @@ fails, the decoder puts one marker rung (:func:`marker_rung`) in its place and w
 :class:`UndecodedRungWarning`. If only the comment fails and the rung's logic decodes, the
 rung keeps its logic and is not a marker. Its comment becomes :func:`comment_note`,
 followed by the text that :func:`recover_text` finds in the comment's bytes. The decoder
-then warns with :class:`UndecodedCommentWarning`.
+then warns with :class:`UndecodedCommentWarning`. If a font in the comment has a charset
+that laddercodec does not read, or a GBK font holds bytes that GBK cannot read, the decoder
+reads the rest of the comment and warns in the same way, with ``partial`` set to True.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import warnings
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
+from ._rtf import ANSI_CHARSET, default_font, font_table, join_surrogates, read_bytes
 from .instructions.undecoded import Undecoded, UndecodedStop
 from .topology import CONDITION_COLUMNS
 
@@ -67,12 +70,20 @@ class UndecodedRungWarning(UserWarning):
 
 
 class UndecodedCommentWarning(UserWarning):
-    """Issued when a rung's comment cannot be decoded. The rung keeps its logic.
+    """Issued when a rung's comment, or part of it, cannot be decoded. The rung keeps its
+    logic.
 
-    The rung's comment becomes ``UNDECODED comment: <error>``. The next line holds the
-    plain text that can be read out of the comment's bytes, if there is any. If that text
-    would make the comment too long to encode, it is cut short and ends with ``...``. The
-    rung's ``comment_rtf`` keeps the comment's bytes. The rung is not a marker, so
+    If the whole comment cannot be decoded, the rung's comment becomes
+    ``UNDECODED comment: <error>``. The next line holds the plain text that can be read out
+    of the comment's bytes, if there is any. If that text would make the comment too long
+    to encode, it is cut short and ends with ``...``.
+
+    If a font in the comment has a charset that laddercodec does not read, ``partial`` is
+    True. The decoder reads each non-ASCII byte in that font as U+FFFD and reads the rest of
+    the comment. ``partial`` is also True if a GBK font holds bytes that GBK cannot read.
+    The decoder reads each of those bytes as U+FFFD.
+
+    The rung's ``comment_rtf`` keeps the comment's bytes. The rung is not a marker, so
     ``Program.undecoded`` does not list it.
 
     Attributes
@@ -84,16 +95,24 @@ class UndecodedCommentWarning(UserWarning):
     program:
         The name of the program when the warning comes from
         :func:`laddercodec.decode_program`, else ``None``.
+    partial:
+        True if the rest of the comment was decoded, else False.
     """
 
     def __reduce__(self):
-        return (type(self), (self.rung, self.error, self.program))
+        return (type(self), (self.rung, self.error, self.program, self.partial))
 
-    def __init__(self, rung: int, error: str, program: str | None = None) -> None:
+    def __init__(
+        self, rung: int, error: str, program: str | None = None, partial: bool = False
+    ) -> None:
         self.rung = rung
         self.error = error
         self.program = program
+        self.partial = partial
         prefix = f"program {program!r}, " if program is not None else ""
+        if partial:
+            super().__init__(f"{prefix}part of the comment of rung {rung} is not decoded: {error}")
+            return
         super().__init__(
             f"{prefix}the comment of rung {rung} is not decoded, and the rung keeps its "
             f"logic: {error}"
@@ -174,34 +193,53 @@ _HEX_PAIR = re.compile(r"[0-9A-Fa-f]{2}")
 
 
 def _rtf_text(payload: bytes) -> str:
-    """Return the text of RTF *payload*, with no styling."""
-    encoding = "cp1252"
+    """Return the text of RTF *payload*, with no styling.
+
+    Each text byte is read in the charset of the current font, as the decoder reads it. A
+    font of charset 0 is read in the code page that ``\\ansicpg`` names, or in cp1252. A
+    byte that the code page cannot read gives U+FFFD.
+    """
+    ansi = "cp1252"
     match = _RTF_CODE_PAGE.search(payload)
     if match is not None:
         try:
-            encoding = codecs.lookup(f"cp{match.group(1).decode('ascii')}").name
+            ansi = codecs.lookup(f"cp{match.group(1).decode('ascii')}").name
         except LookupError:
             pass
-    body = payload.decode(encoding, errors="replace")
+    charsets, _ = font_table(payload)
+    # One character for each byte, so that a byte keeps its value until it is read in the
+    # charset of its font.
+    body = payload.decode("latin-1")
 
     out: list[str] = []
-    stack: list[tuple[bool, int]] = []  # per open group: skipping it, and its \uc count
-    skip, uc = False, 1
+    text_bytes = bytearray()
+    # per open group: skipping it, its \uc count, and its font
+    stack: list[tuple[bool, int, int]] = []
+    skip, uc, font = False, 1, default_font(payload)
     first = False  # just after an opening brace
     fallback = 0  # characters left to drop after a \u
+
+    def flush() -> None:
+        if text_bytes:
+            charset = charsets.get(font, ANSI_CHARSET)
+            out.append(read_bytes(bytes(text_bytes), charset, ansi=ansi, errors="replace"))
+            text_bytes.clear()
+
     i, n = 0, len(body)
     while i < n:
         ch = body[i]
         if ch == "{":
-            stack.append((skip, uc))
+            flush()
+            stack.append((skip, uc, font))
             first = True
             i += 1
             continue
         if ch == "}":
+            flush()
             if not stack or (len(stack) == 1 and body[i + 1 :].strip(" \t\r\n\x00")):
                 i += 1  # stray, or closing the outermost group with text still to come
                 continue
-            skip, uc = stack.pop()
+            skip, uc, font = stack.pop()
             if not stack:
                 break  # the outermost group is closed, with only whitespace after it
             first = False
@@ -209,10 +247,12 @@ def _rtf_text(payload: bytes) -> str:
             continue
         was_first, first = first, False
         if ch != "\\":
-            if fallback:
+            if ch in "\r\n":
+                pass  # a line break in the RTF source is not text
+            elif fallback:
                 fallback -= 1
             elif not skip and ch >= " " and ch != "\x7f":
-                out.append(ch)
+                text_bytes.append(ord(ch))
             i += 1
             continue
         nxt = body[i + 1] if i + 1 < n else ""
@@ -222,16 +262,27 @@ def _rtf_text(payload: bytes) -> str:
                 if fallback:
                     fallback -= 1
                 elif not skip:
-                    out.append(bytes([int(digits, 16)]).decode(encoding, errors="replace"))
+                    text_bytes.append(int(digits, 16))
                 i += 4
             else:
                 i += 2
-        elif nxt.isalpha():
+            continue
+        if nxt and nxt in "\\{}":
+            if fallback:
+                fallback -= 1
+            elif not skip:
+                text_bytes.append(ord(nxt))
+            i += 2
+            continue
+        flush()
+        if nxt.isascii() and nxt.isalpha():
             word = _RTF_WORD.match(body, i)
             assert word is not None
             name, arg = word.group(1), word.group(2)
             i = word.end()
-            if name in _RTF_DESTINATIONS and was_first:
+            if fallback:
+                fallback -= 1  # a control word in the fallback counts as one character
+            elif name in _RTF_DESTINATIONS and was_first:
                 skip = True
             elif name == "uc" and arg is not None:
                 if len(arg) <= _MAX_ARG_DIGITS:
@@ -241,15 +292,17 @@ def _rtf_text(payload: bytes) -> str:
                 if not skip and -0x8000 <= value <= 0xFFFF:
                     out.append(chr(value % 0x10000))
                 fallback = uc
+            elif name == "f" and arg is not None and len(arg) <= _MAX_ARG_DIGITS:
+                font = int(arg)
             elif name in _RTF_CHARS and not skip:
                 out.append(_RTF_CHARS[name])
         else:
-            if nxt == "*":
+            if fallback and nxt:
+                fallback -= 1
+            elif nxt == "*":
                 skip = skip or was_first
             elif skip or not nxt:
                 pass
-            elif nxt in "\\{}":
-                out.append(nxt)
             elif nxt in "\r\n":
                 out.append("\n")
             elif nxt == "~":
@@ -257,9 +310,8 @@ def _rtf_text(payload: bytes) -> str:
             elif nxt == "_":
                 out.append("-")
             i += 2
-    # Join \u surrogate pairs; a lone half is dropped.
-    text = "".join(out).encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace")
-    return text.replace("\ufffd", "")
+    flush()
+    return "".join(char for _, char in join_surrogates((None, c) for text in out for c in text))
 
 
 def recover_text(payload: bytes) -> str:
@@ -330,29 +382,39 @@ def recovered_comment(error: str, payload: bytes) -> str:
     return write_text(cut(keep) if keep else note)
 
 
-def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
+#: A comment that did not decode: the rung's index, the error, and whether the rest of the
+#: comment decoded (:attr:`UndecodedCommentWarning.partial`).
+CommentFailure = tuple[int, str, bool]
+
+
+def read_comment(rtf: bytes | None, rung: int, failed: list[CommentFailure]) -> str | None:
     """Return the comment of rung *rung*, decoded from *rtf*.
 
     Return None if *rtf* is None. If *rtf* cannot be decoded, return
-    :func:`recovered_comment` and add ``(rung, error)`` to *failed* for
-    :func:`warn_comments`.
+    :func:`recovered_comment` and add ``(rung, error, False)`` to *failed* for
+    :func:`warn_comments`. If some bytes read as U+FFFD, because laddercodec does not read
+    their font's charset or GBK cannot read them, add ``(rung, error, True)`` to *failed*
+    for each font that holds such bytes, and return the decoded comment.
     """
     if rtf is None:
         return None
     from .decode import _decode_rtf  # decode imports this module
 
+    unread: list[str] = []
     try:
-        return _decode_rtf(rtf)
+        comment = _decode_rtf(rtf, unread)
     except BAD_BYTES as exc:
         error = reason(exc)
-        failed.append((rung, error))
+        failed.append((rung, error, False))
         return recovered_comment(error, rtf)
+    failed.extend((rung, error, True) for error in unread)
+    return comment
 
 
-def warn_comments(failed: Iterable[tuple[int, str]], *, program: str | None = None) -> None:
-    """Emit one :class:`UndecodedCommentWarning` per ``(rung, error)`` in *failed*."""
-    for rung, error in failed:
-        warnings.warn(UndecodedCommentWarning(rung, error, program), stacklevel=3)
+def warn_comments(failed: Iterable[CommentFailure], *, program: str | None = None) -> None:
+    """Emit one :class:`UndecodedCommentWarning` per ``(rung, error, partial)`` in *failed*."""
+    for rung, error, partial in failed:
+        warnings.warn(UndecodedCommentWarning(rung, error, program, partial), stacklevel=3)
 
 
 def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:

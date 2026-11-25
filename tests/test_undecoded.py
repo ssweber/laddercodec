@@ -554,6 +554,12 @@ def test_warnings_pickle() -> None:
     back_comment = pickle.loads(pickle.dumps(comment))
     assert (back_comment.rung, back_comment.error, back_comment.program) == (2, "why", "Sub")
     assert str(back_comment) == str(comment)
+    assert back_comment.partial is False
+    partial = UndecodedCommentWarning(2, "why", "Sub", partial=True)
+    back_partial = pickle.loads(pickle.dumps(partial))
+    assert (back_partial.rung, back_partial.error, back_partial.program) == (2, "why", "Sub")
+    assert back_partial.partial is True
+    assert str(back_partial) == str(partial)
 
 
 @pytest.mark.parametrize(

@@ -328,6 +328,19 @@ comment is the note alone.
 `encode()` writes the note and the text like any comment. A `*` or `_` pair in the
 text reads as styling when you encode it, as it does in any comment.
 
+The decoder reads text in a font of charset 0 (Windows code page 1252) or 134
+(GBK). In a font of any other charset, the decoder reads each non-ASCII byte as
+U+FFFD and each ASCII byte as ASCII. Some charsets write one character as two
+bytes, and the second byte can be ASCII. So where CLICK shows one character, the
+comment may show U+FFFD and then a stray ASCII letter. If the text in such a font is
+all ASCII, the decoder emits no warning. In a GBK font, the decoder reads each byte
+that GBK cannot read as U+FFFD.
+
+In both cases the decoder reads the rest of the comment as usual and puts no note
+in it. Then it emits an `UndecodedCommentWarning` with `partial` set to True. If
+you get this warning, compare the comment with what CLICK shows, and correct it
+before you encode the rung.
+
 A marker never reaches CLICK. `encode()` refuses it, and `check()` reports it as an
 `undecoded-rung` finding. `write_csv()` writes it as an `undecoded(...)` token, and
 `read_csv()` reads that token back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).

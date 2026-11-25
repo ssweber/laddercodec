@@ -4,6 +4,16 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
+## Unreleased
+
+### Added
+
+- `UndecodedCommentWarning.partial` is True when the decoder read a comment but read some of its text as U+FFFD. That happens to text in a font whose charset the decoder does not read, and to bytes that GBK cannot read. The decoder reads charsets 0 (Windows code page 1252) and 134 (GBK).
+
+### Fixed
+
+- `decode()` and `decode_program()` now read each rung comment as CLICK shows it. 0.5.0 lost the text up to the first space, or the whole comment if it had no space, when the comment started with a character outside ASCII such as `€`, `中` or an emoji, and it read an emoji later in a comment as two lone surrogates and text in a GBK font as Windows code page 1252. Decode the clipboard or program file again with this release to get the text back.
+
 ## 0.5.0 (2026-11-20)
 
 - This release breaks the API. Code that reads, builds or edits rungs in Python needs these changes:

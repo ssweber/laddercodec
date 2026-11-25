@@ -42,8 +42,12 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"\\uc0\\u65 x"), "Ax"),
         (_rtf(b"\\u65\\'41B"), "AB"),
         (_rtf(b"\\u"), ""),
-        (_rtf(b"\\u-3913\\u-8704?"), "\uf0b7"),
-        (_rtf(b"lone \\u-10179?end"), "lone end"),
+        # a control word after a \u is its one fallback character, so the ? is text
+        (_rtf(b"\\u-3913\\u-8704?"), "\uf0b7?"),
+        # a surrogate that is not part of a pair reads as U+FFFD
+        (_rtf(b"lone \\u-10179?end"), "lone \ufffdend"),
+        (_rtf(b"\\u-10179?\\u-8704?"), "\U0001f600"),
+        (_rtf(b"\\u55357?\\u56832?"), "\U0001f600"),
         (_rtf(b"a\\\\b\\{c\\}"), "a\\b{c}"),
         (_rtf(b"a\\~b\\_c"), "a b-c"),
         # A closing brace that closes the outermost group with text after it is stray.

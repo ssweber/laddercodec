@@ -44,6 +44,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
 from ._comment import PLAIN, Run, Style, write_runs
+from ._rtf import (
+    ANSI_CHARSET,
+    READ_CHARSETS,
+    font_table,
+    header_font,
+    join_surrogates,
+    read_bytes,
+)
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
@@ -79,6 +87,7 @@ from .topology import (
 )
 from .undecoded import (
     BAD_BYTES,
+    CommentFailure,
     Undecoded,
     marker_rung,
     read_comment,
@@ -273,16 +282,21 @@ _INSTR_DATA_OFFSET = 0x25
 class _RtfGroupState:
     """The state of one RTF group.
 
-    It holds the group's style, whether the group's text is skipped, and how many fallback
-    characters follow a ``\\u`` control.
+    It holds the group's style, whether the group's text is skipped, how many fallback
+    characters follow a ``\\u`` control, and the number of the current font.
     """
 
     style: Style
     skip_destination: bool = False
     unicode_skip: int = 1
+    font: int = 0
 
 
 _RTF_ANSI_CPG_RE = re.compile(rb"\\ansicpg(\d+)")
+# The \fsN control word that ends the RTF before the body. A space after the number ends
+# the control word and is not text.
+_RTF_FONT_SIZE_RE = re.compile(rb"\\fs-?\d+ ?")
+_RTF_HEX_PAIR_RE = re.compile(r"[0-9A-Fa-f]{2}")
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
@@ -312,11 +326,11 @@ def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
     if ch in "\\{}'~_-*":
         return ch, None, i + 2
 
-    if not ch.isalpha():
+    if not (ch.isascii() and ch.isalpha()):
         return ch, None, i + 2
 
     j = i + 1
-    while j < n and body[j].isalpha():
+    while j < n and body[j].isascii() and body[j].isalpha():
         j += 1
     word = body[i + 1 : j]
 
@@ -395,29 +409,33 @@ def _skip_rtf_fallback_chars(body: str, i: int, count: int) -> int:
     return i
 
 
-def _decode_rtf(payload: bytes) -> str:
+def _decode_rtf(payload: bytes, unread: list[str] | None = None) -> str:
     """Convert an RTF comment payload to markdown text.
 
-    It removes the RTF prefix and suffix around the comment text and decodes the
-    rest as cp1252.  Then it reads the control words in the body, so that they set
-    the style or add a line break or a character, and their names do not appear in
-    the text. :func:`write_runs` writes the styled text as Markdown. It puts a backslash
-    before a literal ``*``, ``_`` or ``\\`` where the Markdown reader would otherwise read
-    the character as a marker or an escape.
+    It removes the RTF prefix and suffix around the comment text.  Then it reads the
+    control words in the body, so that they set the style or the font or add a line break
+    or a character, and their names do not appear in the text.  It reads each text byte in
+    the charset of the current font (:mod:`laddercodec._rtf`).  A ``\\u`` surrogate pair
+    reads as one character, and a surrogate outside a pair reads as U+FFFD.
+    :func:`write_runs` writes the styled text as Markdown.  It puts a backslash before a
+    literal ``*``, ``_`` or ``\\`` where the Markdown reader would otherwise read the
+    character as a marker or an escape.
+
+    Some bytes read as U+FFFD: each byte from 0x80 up in a font whose charset laddercodec
+    does not read, and each byte in a GBK font that GBK cannot read.  For each such font,
+    the function adds one message that names the font and its charset to *unread*, if
+    *unread* is given.
     """
     # Find the body between the RTF prefix and suffix.
     if payload.startswith(_PREFIX):
         body_start = len(_PREFIX)
     else:
-        # The prefix is not the one encode() writes.  The body starts after the space
-        # that follows \fsNN.
-        idx = payload.find(b"\\fs")
-        if idx == -1:
+        # The prefix is not the one encode() writes.  The body starts where the \fsN
+        # control word ends.
+        match = _RTF_FONT_SIZE_RE.search(payload)
+        if match is None:
             raise DecodeError("Cannot locate RTF body: no \\fs marker in prefix")
-        space = payload.find(b" ", idx)
-        if space == -1:
-            raise DecodeError("Cannot locate RTF body: no space after \\fs marker")
-        body_start = space + 1
+        body_start = match.end()
 
     _assert_rtf_ansicpg_1252(payload, body_start)
 
@@ -430,28 +448,57 @@ def _decode_rtf(payload: bytes) -> str:
             raise DecodeError("Cannot locate RTF body: no \\par } in suffix")
         body_end = idx
 
-    body = payload[body_start:body_end].decode("cp1252")
+    header = payload[:body_start]
+    charsets, table_end = font_table(header)
+    # One character of the text for each byte, so that a byte keeps its value until it is
+    # read in the charset of its font.
+    body = payload[body_start:body_end].decode("latin-1")
 
-    stack = [_RtfGroupState(style=PLAIN)]
+    stack = [_RtfGroupState(style=PLAIN, font=header_font(header, table_end))]
     runs: list[Run] = []
-    i = 0
+    text_bytes = bytearray()
 
+    def flush() -> None:
+        """Read the text bytes collected so far in the current group's font."""
+        if not text_bytes:
+            return
+        group = stack[-1]
+        charset = charsets.get(group.font, ANSI_CHARSET)
+        data = bytes(text_bytes)
+        text_bytes.clear()
+        message = None
+        try:
+            text = read_bytes(data, charset)
+        except UnicodeDecodeError:
+            text = read_bytes(data, charset, errors="replace")
+            # Only GBK can fail. The cp1252 table reads every byte.
+            message = (
+                f"font {group.font} has \\fcharset{charset}, and some of its bytes are not "
+                f"GBK. Each byte that GBK cannot read reads as U+FFFD"
+            )
+        if charset not in READ_CHARSETS and max(data) >= 0x80:
+            message = (
+                f"font {group.font} has \\fcharset{charset}. laddercodec reads only "
+                f"\\fcharset0 and \\fcharset134, so each non-ASCII byte in font "
+                f"{group.font} reads as U+FFFD"
+            )
+        runs.append((group.style, text))
+        if message is not None and unread is not None and message not in unread:
+            unread.append(message)
+
+    i = 0
     while i < len(body):
         group = stack[-1]
         ch = body[i]
 
         if ch == "{":
-            stack.append(
-                _RtfGroupState(
-                    style=group.style,
-                    skip_destination=group.skip_destination,
-                    unicode_skip=group.unicode_skip,
-                )
-            )
+            flush()
+            stack.append(replace(group))
             i += 1
             continue
 
         if ch == "}":
+            flush()
             if len(stack) > 1:
                 stack.pop()
             i += 1
@@ -459,22 +506,25 @@ def _decode_rtf(payload: bytes) -> str:
 
         if ch == "\\":
             control, arg, next_i = _parse_rtf_control(body, i)
-            group = stack[-1]
 
             if control in {"\\", "{", "}"}:
                 if not group.skip_destination:
-                    runs.append((group.style, control))
-            elif control == "'":
-                if next_i <= len(body) and i + 4 <= len(body):
-                    hex_digits = body[i + 2 : i + 4]
-                    try:
-                        text = bytes([int(hex_digits, 16)]).decode("cp1252")
-                    except ValueError:
-                        text = ""
-                    if text and not group.skip_destination:
-                        runs.append((group.style, text))
+                    text_bytes.append(ord(control))
+                i = next_i
+                continue
+            if control == "'":
+                hex_digits = body[i + 2 : i + 4]
+                if _RTF_HEX_PAIR_RE.fullmatch(hex_digits):
+                    if not group.skip_destination:
+                        text_bytes.append(int(hex_digits, 16))
                     next_i = i + 4
-            elif control == "~":
+                i = next_i
+                continue
+
+            # Read the bytes so far in the current font, because every other control can
+            # change the font or the style, or add a character.
+            flush()
+            if control == "~":
                 if not group.skip_destination:
                     runs.append((group.style, " "))
             elif control == "_":
@@ -498,6 +548,9 @@ def _decode_rtf(payload: bytes) -> str:
                     group.style = replace(group.style, underline=False)
                 elif control == "plain":
                     group.style = PLAIN
+                elif control == "f":
+                    if arg is not None:
+                        group.font = arg
                 elif control == "uc":
                     if arg is not None:
                         group.unicode_skip = max(arg, 0)
@@ -517,10 +570,11 @@ def _decode_rtf(payload: bytes) -> str:
             continue
 
         if ch not in "\r\n" and not group.skip_destination:
-            runs.append((group.style, ch))
+            text_bytes.append(ord(ch))
         i += 1
 
-    return write_runs(runs)
+    flush()
+    return write_runs(join_surrogates((style, char) for style, text in runs for char in text))
 
 
 def _read_rung0_comment(data: bytes) -> tuple[bytes | None, int]:
@@ -874,7 +928,7 @@ def decode(data: bytes) -> list[Rung]:
     rung0_rtf, payload_len = _read_rung0_comment(data)
     grid_start = GRID_FIRST_ROW_START + payload_len
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
-    failed: list[tuple[int, str]] = []
+    failed: list[CommentFailure] = []
     if is_multi:
         rungs = _decode_multi(data, row_infos, total_grid_rows, rung0_rtf, failed)
         warn_legacy(rungs)
@@ -922,7 +976,7 @@ def decode_rung(data: bytes) -> Rung:
     if is_multi:
         raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    failed: list[tuple[int, str]] = []
+    failed: list[CommentFailure] = []
     rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
     warn_refused([rung])
@@ -967,7 +1021,7 @@ def decode_rungs(data: bytes) -> list[Rung]:
     if not is_multi and not (row_infos and row_infos[-1][0] == _LOST):
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
-    failed: list[tuple[int, str]] = []
+    failed: list[CommentFailure] = []
     rungs = _decode_multi(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy(rungs)
     warn_refused(rungs)
@@ -981,7 +1035,7 @@ def _decode_single(
     row_infos: list[_RowInfo],
     total_grid_rows: int,
     rung0_rtf: bytes | None,
-    failed: list[tuple[int, str]],
+    failed: list[CommentFailure],
 ) -> Rung:
     """Decode a single-rung buffer from pre-walked grid info."""
     [(_, data_rows)] = _rung_rows(row_infos, False, total_grid_rows)
@@ -993,7 +1047,7 @@ def _decode_multi(
     row_infos: list[_RowInfo],
     total_grid_rows: int,
     rung0_rtf: bytes | None,
-    failed: list[tuple[int, str]],
+    failed: list[CommentFailure],
 ) -> list[Rung]:
     """Decode a multi-rung buffer from pre-walked grid info."""
     rungs: list[Rung] = []
@@ -1074,7 +1128,7 @@ def _build_rung(
     rows: list[_RowInfo],
     rtf: bytes | None,
     rung: int,
-    failed: list[tuple[int, str]],
+    failed: list[CommentFailure],
 ) -> Rung:
     """Build rung number *rung* from its walked data rows.
 
