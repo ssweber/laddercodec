@@ -434,6 +434,7 @@ shape with that CLICK id. [Error codes](codes.md) lists every code.
 | `input-without-contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 | `undecoded-rung` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 | `layout-too-tall` | a rung that needs more than 32 rows, with every row that a box spans counted; CLICK can't hold one | none |
+| `comment-too-long` | a rung comment that `encode()` refuses, because its RTF body is longer than 1400 bytes ([Comments](encoding.md#comments)) | none |
 
 The net of a C000A finding is one that the rail reaches through a contact, not the
 rail itself. A rung whose rail reaches no box gets no `not-series-parallel`
@@ -469,6 +470,12 @@ rung, after its `undecoded-rung` findings. `encode()` refuses a rung of more tha
 rows. `read_csv()` and `write_csv()` refuse one too, unless CLICK's layout of it is
 rungs of 32 rows or fewer. That happens when CLICK splits the rung, or when the layout
 packs its rows.
+
+A rung whose comment `encode()` refuses as too long gets one `comment-too-long`
+finding for the whole rung. It comes after the rung's `undecoded-rung` and
+`layout-too-tall` findings, and before its other findings. The message says how
+many bytes CLICK would store and how many to cut. `check()` counts the bytes the
+same way that `encode()` does.
 
 `input-without-contact` on other pins (a counter's reset, a drum's jog) has no CLICK id.
 On a reset wired straight from the rail, or a reset whose contacts are all another

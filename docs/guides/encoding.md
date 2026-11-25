@@ -494,7 +494,8 @@ the limit:
 The limit is 1400 bytes of the RTF body. The limit counts each character in
 the form above. It also counts the group around each styled stretch, such as
 `{\b ` and `}`. If a comment is longer, `encode()` raises `EncodeError`, and the
-message says how many bytes to cut. For multi-row rungs
+message says how many bytes to cut. To find such a comment before you encode, call
+`check()`. It reports the rung with a `comment-too-long` finding. For multi-row rungs
 the practical limit can be lower; see
 [binary format](../internals/binary-format.md#comment-sizing).
 

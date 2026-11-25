@@ -9,6 +9,7 @@
 ### Added
 
 - `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
+- `check()` now reports a rung comment that `encode()` refuses as too long, with the new code `comment-too-long`. The message says how many bytes to cut. In 0.5.1, `check()` returned no finding for such a comment, and you learned of it only when `encode()` raised `EncodeError`.
 
 ## 0.5.1 (2026-11-25)
 
