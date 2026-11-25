@@ -575,6 +575,10 @@ def _txt_default(source: str, destination: str) -> tuple[bool | None, bool] | No
     return (None, False) if real else (True, False)
 
 
+#: The option of a single Copy case that picks Copy Binary, the ``to_binary`` converter.
+COPY_BINARY = "Copy Binary"
+
+
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
     if mode == "fill":
@@ -583,6 +587,8 @@ def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     # Character Value.
     txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
     convert = "to_value" if txt_choice else None
+    if mode == "single" and case.get("options", {}).get(COPY_BINARY) == 1:
+        return verdict_of(lambda: Copy(f["source"], f["destination"], convert="to_binary"))
     if mode == "single":
         # A copy of a number into TXT uses the dialog's default, Copy Value as text.
         default = _txt_default(f["source"], f["destination"])
@@ -2320,6 +2326,7 @@ RUNNER_GRIDS = (
     "ip_field",
     "ip_field_neg",
     "drum_events_exprs",
+    "saves",
 )
 
 

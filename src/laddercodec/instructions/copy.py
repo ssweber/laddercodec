@@ -357,6 +357,23 @@ def _real_hex_refusal(source: str) -> Rule | None:
     )  # fmt: skip
 
 
+def _real_digits_refusal(value: str) -> Rule | None:
+    """Return the reason a single Copy or a Fill refuses the real constant ``value`` if it
+    has more significant digits than CLICK keeps. Return None if it has at most that many.
+
+    CLICK keeps 7 significant digits of a real in a Copy source or a Fill value. It saves
+    ``1234567.8`` as ``1234568.0``, which is another value. The reason names the saved
+    text."""
+    kept = real_beyond_kept_digits(value)
+    if kept is None:
+        return None
+    return says(
+        "{value} has {count} significant digits",
+        "CLICK keeps {kept} significant digits: write {real}",
+        value=Op(value), count=significant_digits(value), kept=REAL_DIGITS, real=kept,
+    )  # fmt: skip
+
+
 # ---------------------------------------------------------------------------
 # Operands and banks (Single Copy, Fill and pointers)
 # ---------------------------------------------------------------------------
@@ -1281,8 +1298,9 @@ def _check_fill_txt_number(value: str, const: Constant) -> None:
     """Refuse an integer or hex constant of more than one character as a Fill into TXT.
 
     A Fill into TXT writes the text of its value into each register, and a register takes one
-    character. ``5`` is accepted. ``-5``, ``10h`` and ``123`` are refused. A real is
-    accepted whatever its length (``1234567.8``).
+    character. ``5`` is accepted. ``-5``, ``10h`` and ``123`` are refused. This check
+    accepts a real whatever its length, such as ``123456.7``. A Fill refuses a real of more
+    than 7 significant digits into any bank (:func:`_real_digits_refusal`).
     """
     if const.kind in (Kind.INTEGER, Kind.HEX) and len(value) > 1:
         raise _refusal(
@@ -1747,25 +1765,11 @@ class Copy(Instruction, AllowsRefusals):
             _check_termination_form(check, self)
             if const is not None:
                 const = check("source", _check_source_text)
-            kept = None
+            digits = None
             if const is not None and const.kind is Kind.FLOAT:
-                kept = real_beyond_kept_digits(self.source)
-            if kept is not None:
-                # CLICK keeps 7 significant digits of a real. It cuts a real with more
-                # digits when it saves it.
-                check.refuse(
-                    "source",
-                    says(
-                        "{source} has {count} significant digits",
-                        "CLICK keeps {kept} significant digits: write {real}",
-                        source=Op(self.source),
-                        count=significant_digits(self.source),
-                        kept=REAL_DIGITS,
-                        real=kept,
-                    ),  # fmt: skip
-                    Reason.FORM,
-                    code=Code.INVALID_CONSTANT,
-                )
+                digits = _real_digits_refusal(self.source)
+            if digits is not None:
+                check.refuse("source", digits, Reason.FORM, code=Code.INVALID_CONSTANT)
             elif const is not None:
                 # Write the source in the form that CLICK stores.
                 object.__setattr__(self, "source", _source_display(self.source, const.kind))
@@ -2366,6 +2370,11 @@ class Fill(Instruction, AllowsRefusals):
                     const = check("value", check_constant, constants)
                     if const is not None and dest.bank == "TXT":
                         check.run(_check_fill_txt_number, self.value, const)
+                    digits = None
+                    if const is not None and const.kind is Kind.FLOAT:
+                        digits = _real_digits_refusal(self.value)
+                    if digits is not None:
+                        check.refuse("value", digits, Reason.FORM, code=Code.INVALID_CONSTANT)
             if sd and dest is not None and last is not None and not check.refused("dest_end"):
                 # A Fill into SD needs every SD in its range to be writable (OBJ-004).
                 # CLICK checks this after the pairing of the value with the range. It

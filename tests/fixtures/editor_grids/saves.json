@@ -1,0 +1,263 @@
+{
+ "cases": [
+  {
+   "row": "j4.fill",
+   "case": "fill 5 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill 1.5 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1.5",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill 1234567.8 -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "1234567.8",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"HELLO\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"HELLO\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"é\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"é\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.fill",
+   "case": "fill \"<TAB>\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\t\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> DD[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> DD[DS1] (Copy Binary)",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "DD[DS1]"
+   },
+   "options": {
+    "Copy Binary": 1
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF1 -> DD[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF1",
+    "destination": "DD[DS1]"
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DD1 -> DF[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DD1",
+    "destination": "DF[DS1]"
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "DF[DS1] -> CTD1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DF[DS1]",
+    "destination": "CTD1"
+   }
+  },
+  {
+   "row": "j4.copy.pointer",
+   "case": "CTD1 -> DF[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "CTD1",
+    "destination": "DF[DS1]"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e6",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e6"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 9999999",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "9999999"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e7",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e7"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e8",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e8"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e9",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e9"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.5e10",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.5e10"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1e-5",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1e-5"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.0E-10",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.0E-10"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = +2.50",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "+2.50"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.2345e-04",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.2345e-04"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.2345678e15",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1.2345678e15"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 0.0015",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "0.0015"
+   }
+  },
+  {
+   "row": "j4.math.decimal",
+   "case": "DF1 = 1.",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DF1",
+    "formula": "1."
+   }
+  }
+ ]
+}

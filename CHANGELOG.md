@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `Fill()` and `read_csv()` now raise `FieldError` (a `ValueError`) with the code `invalid-constant` for a real with more than 7 significant digits, the same as a single `Copy`. CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. 0.5.1 encoded such a real as typed. Write the real that the message names.
+
 ### Added
 
 - The constructor of each instruction class, Modbus target and `ModbusAddress` now accepts `allow=`, a list of refusal codes, with the same limits as `read_csv(path, allow=...)`. It builds an instruction whose refusals all have a listed code instead of raising, and `encode()` writes it: `Coil("X001", allow=["bank-not-allowed"])`.

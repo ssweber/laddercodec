@@ -45,7 +45,8 @@ DIALOGS = {
     "copy": Dialog(
         ("single", "block", "pack", "unpack"),
         frozenset({"source", "source_end", "destination", "destination_end", "termination_code"}),
-        frozenset({"5019", "5020", "5036", "5037", "5021", "5024"}),
+        # The runner also takes an option by the label of its button: Copy Binary is 5020.
+        frozenset({"5019", "5020", "5036", "5037", "5021", "5024", "Copy Binary"}),
     ),
     "out": Dialog((), frozenset({"address", "address_end"})),
     # Set and Reset have the fields of Out.
@@ -67,12 +68,14 @@ DIALOGS = {
         frozenset({"5021", "5022"}),
     ),
 }
-#: Copy's Fill mode, which the runner does not drive yet. A Fill case names its fields as the
-#: runner names the Copy dialog's fields. Only the files in FILL_FILES hold Fill cases, and
-#: they hold nothing else.
+#: Copy's Fill mode. A Fill case names its fields as the runner names the Copy dialog's
+#: fields. Only the files in FILL_FILES hold Fill cases, and they hold nothing else, except
+#: the files in FILL_MIXED_FILES.
 FILL = ("copy", "fill")
 FILL_FIELDS = {"source", "destination", "destination_end"}
 FILL_FILES = {"copy_fill.json", "preflight_fill.json", "risky_fill.json"}
+#: The grids that ClickNick wrote with Fill cases beside the cases of other dialogs.
+FILL_MIXED_FILES = {"saves.json"}
 #: The dialogs that the runner does not drive yet. Until it does, a case names the mode, the
 #: fields, the lists and the option buttons by laddercodec's names. Only a dialog's own three
 #: files (UNDRIVEN_FILES) hold its cases, and they hold nothing else.
@@ -457,7 +460,7 @@ def test_cases_are_in_the_runners_shape() -> None:
                 assert undriven == undriven_file, where
             dialog = UNDRIVEN[undriven] if undriven else DIALOGS[case["instruction"]]
             is_fill = (case["instruction"], case.get("mode")) == FILL
-            assert is_fill == fill_file, where
+            assert is_fill == fill_file or path.name in FILL_MIXED_FILES, where
             if is_fill:
                 fields = FILL_FIELDS
             elif dialog.modes:

@@ -497,7 +497,7 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
         # a number into TXT is accepted if it is a digit or a real
         ("5", "TXT2", "TXT5"),
         ("1.5", "TXT2", "TXT5"),
-        ("1234567.8", "TXT2", "TXT5"),
+        ("123456.7", "TXT2", "TXT5"),
         ('"~"', "TXT2", "TXT5"),
         ("$00", "TXT2", "TXT5"),
         ("$7E", "TXT2", "TXT5"),
@@ -506,6 +506,43 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
 def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) -> None:
     fill = Fill(value, start, end)
     assert parse_af_blob(fill.build_blob()) == fill
+
+
+@pytest.mark.parametrize(
+    ("typed", "start", "end", "count", "saved"),
+    [
+        ("1234567.8", "TXT1", "TXT2", 8, "1234568.0"),  # CLICK saves this Fill as 1234568.0
+        ("1234567.8", "DF1", "DF2", 8, "1234568.0"),
+        ("1.2345678", "DF1", "DF2", 8, "1.234568"),
+        ("0.33333334", "DF1", "DF2", 8, "0.3333333"),
+        ("12345678.9", "DD1", "DD2", 9, "1.234568E+07"),
+        ("3.4028235E+38", "DS10", "DS11", 8, "3.402823E+38"),
+    ],
+)
+def test_fill_refuses_a_real_beyond_seven_significant_digits(
+    tmp_path: Path, typed: str, start: str, end: str, count: int, saved: str
+) -> None:
+    """A Fill refuses a real with more than 7 significant digits into each of four banks.
+
+    CLICK keeps 7 significant digits of a Fill's value, so it saves a longer real as another
+    value. A single Copy refuses such a source with the same code. The message names the
+    text that CLICK saves. A Fill that is decoded with such a real keeps the refusal."""
+    with pytest.raises(FieldError) as raised:
+        Fill(typed, start, end)
+    error = raised.value
+    assert (error.field, error.reason, error.click_id) == ("Fill.value", Reason.FORM, None)
+    assert str(error) == (
+        f"Fill.value: {typed} has {count} significant digits; "
+        f"CLICK keeps 7 significant digits: write {saved}"
+    )
+    with pytest.raises(FieldError) as copy_raised:
+        Copy(typed, "DF1")
+    assert error.code == copy_raised.value.code
+    with pytest.raises(FieldError, match=re.escape(f"write {saved}")):
+        _read_af(tmp_path, f"fill({typed},{start}..{end})")
+    assert Fill(saved, start, end).value == saved
+    tags = {0x6074: typed, 0x6076: start, 0x6077: end, 0x2223: "2"}
+    kept(from_tags_af("Copy", 0x2721, tags), "Fill.value")
 
 
 @pytest.mark.parametrize("fmt", ["to_text", "to_binary"])

@@ -178,8 +178,10 @@ it as type `8` with `0x2206` = 1, with a pointer on either side too (`DF[DS1]` i
 `CTD1` into `DF[DS1]`). The encoder writes that for `convert=to_binary`.
 
 CLICK keeps 7 significant digits of a real constant: `3.4028235E+38` is saved as
-`3.402823E+38`, into DF1 and into TXT1 alike. laddercodec rejects a real typed with more.
-The message names the constant of 7 digits to write.
+`3.402823E+38`, into DF1 and into TXT1 alike. CLICK keeps 7 significant digits of a Fill's
+value too. It saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. laddercodec rejects a
+real typed with more, in a single Copy and in a Fill. The message names the constant of 7
+digits to write.
 
 A number constant or register copied into TXT needs a converter. CLICK's dialog saves Copy
 Value as text, or Copy Binary. It never saves type `0` here. Copy Value as text is by
