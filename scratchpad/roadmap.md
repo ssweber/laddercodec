@@ -471,9 +471,9 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   row runs from the rail to its pin, and a `T` or `|` can't go in column A. So any wire down to a later
   output crosses every pin row. CLICK joins the wires where they cross, and its Syntax Check refuses the
   rung: C0208 for a Counter's Reset, C0210 for a Shift Register's Clock, C0205 for a Timer's Reset.
-  `lay_out` keeps refusing the shape. pyrung refuses it when a program is built, and writes the next output
-  as a rung of its own (`.continued()`).
-- **Email, Home, Position and Velocity have no pin rows (CLICK v4.00, 2026-11-25).** Each box is three rows
+  `lay_out` keeps refusing the shape. pyrung refuses the shape when a program is built. The user writes the
+  next output as a rung of its own with `.continued()`.
+- **Email, Home, Position and Velocity have no pin rows (CLICK v4.00, 2026-11-25):** Each box is three rows
   tall. A contact wired to row 2 or 3 is C0202 "Missing line connection". Their inputs, such as Home's limit
   switches, are dialog fields. pyrung wires nothing to them, so `lay_out` needs nothing for them.
 - **Refusal strings (Sam, 2026-11-19):** the `.code` names and the `.field` and `.fields` strings

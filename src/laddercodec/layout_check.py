@@ -4,8 +4,8 @@ CLICK pastes and saves a rung whose circuit is not series-parallel, whose contac
 reaches, or whose box inputs do not each have a branch of their own.  It reports such a rung
 only when its syntax check runs.  laddercodec encodes and writes these rungs as drawn, and
 ``check()`` reports them.  ``check()`` also reports a rung that needs more than 32 rows.
-CLICK can't hold such a rung.  It also reports a rung comment that ``encode()`` refuses as
-too long.
+CLICK can't hold such a rung.  ``check()`` also reports a rung comment that ``encode()``
+refuses as too long.
 """
 
 from __future__ import annotations
@@ -118,8 +118,8 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
 
     ``check()`` also reports two problems that are not rules of CLICK's syntax check.  A
     rung that needs more than the 32 rows of a CLICK rung gets a ``"layout-too-tall"``
-    finding.  A comment that ``encode()`` refuses as too long gets a ``"comment-too-long"``
-    finding.
+    finding.  A rung whose comment ``encode()`` refuses as too long gets a
+    ``"comment-too-long"`` finding.
 
     An empty list means that every rung has all of these:
 
@@ -140,10 +140,9 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     A rung that holds an undecoded marker gets one ``"undecoded-rung"`` finding for each
     marker, at the marker's AF cell, before its other findings.  A marker rung, as the
     decoders make it, is one row of wires from the rail into the marker.  It gets no other
-    finding, because its wires only stand in for the rung or rungs that did not decode.  The
-    decoder writes its comment: the marker's headline, then the rung's own comment if that
-    decoded.  So a marker rung gets no ``"comment-too-long"`` finding, however long that
-    comment is.
+    finding, because its wires only stand in for the rung or rungs that did not decode.  That
+    includes ``"comment-too-long"``.  ``encode()`` refuses the rung for its marker, whatever
+    its comment.
 
     A rung that needs more than the 32 rows of a CLICK rung gets one ``"layout-too-tall"``
     finding about the whole rung, after its ``"undecoded-rung"`` findings.  The count
@@ -155,8 +154,8 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     gets one ``"comment-too-long"`` finding about the whole rung.  The size counts each
     character as ``encode()`` writes it.  The finding comes after the rung's
     ``"undecoded-rung"`` and ``"layout-too-tall"`` findings, and before its other findings.
-    ``encode()`` refuses a marker and a rung of more than 32 rows before it reads the
-    comment, and the findings come in the same order.
+    On one rung, ``encode()`` refuses a marker, or more than 32 rows, before it reads the
+    comment.  A comment that is not text gets no finding.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
@@ -336,7 +335,7 @@ def _comment_too_long(index: int, rung: Rung) -> list[Finding]:
 
     The finding has no CLICK id, because the limit is ``encode()``'s.
     """
-    if not rung.comment:
+    if not isinstance(rung.comment, str) or not rung.comment:
         return []
     size = len(_comment_bytes(rung.comment))
     if size <= COMMENT_MAX_BYTES:

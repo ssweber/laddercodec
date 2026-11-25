@@ -128,7 +128,24 @@ def test_the_finding_comes_after_an_undecoded_marker() -> None:
     ids=["long-error", "long-own-comment"],
 )
 def test_a_marker_rung_gets_no_comment_finding(error: str, own: str | None) -> None:
-    """The decoder writes a marker rung's comment, so you could not act on the finding."""
+    """A marker rung gets no finding but ``undecoded-rung``, whatever its comment.
+
+    ``encode()`` refuses the rung for its marker.
+    """
     rung = marker_rung(Undecoded(error, 3), own)
     assert rung.comment is not None and len(rung.comment) > COMMENT_MAX_BYTES
     assert [f.code for f in check(rung)] == [Code.UNDECODED_RUNG]
+    with pytest.raises(EncodeError, match="an undecoded marker"):
+        encode(rung)
+
+
+@pytest.mark.parametrize("comment", [5, b"a" * 1500], ids=["int", "bytes"])
+def test_a_comment_that_is_not_text_gets_no_finding(comment: object) -> None:
+    """``check()`` returns what it returned before it read comments."""
+    rung = Rung([[Contact("X001"), *["-"] * 30]], [Coil("Y001")], comment)  # type: ignore[arg-type]
+    assert check(rung) == []
+
+
+def test_encode_says_1_byte_when_one_byte_is_over() -> None:
+    with pytest.raises(EncodeError, match=r"Shorten the comment by at least 1 byte\.$"):
+        encode(_rung("a" * (COMMENT_MAX_BYTES + 1)))

@@ -159,10 +159,11 @@ _PAGE_SIZE = 0x1000
 
 
 def _comment_bytes(comment: str) -> bytes:
-    """Return the RTF body that ``encode()`` writes for the Markdown *comment*, of any length.
+    """Return the RTF body that ``encode()`` writes for the Markdown *comment*, without
+    checking its length.
 
-    ``check()`` measures a comment with this function, so that it and ``encode()`` agree on
-    the size.
+    ``check()`` and ``encode()`` both measure a comment with this function, so they agree on
+    its size.
     """
     return _build_rtf_body(comment).encode("ascii")
 
@@ -176,11 +177,12 @@ def _comment_body(comment: str, rung: int | None = None) -> bytes:
     body = _comment_bytes(comment)
     if len(body) > COMMENT_MAX_BYTES:
         which = "The comment" if rung is None else f"The comment of rung {rung}"
+        cut = len(body) - COMMENT_MAX_BYTES
         raise EncodeError(
             f"{which} is too long: CLICK would store {len(body)} bytes, and the limit is "
             f"{COMMENT_MAX_BYTES}. A character outside ASCII takes more than one byte: "
             f"é takes 4 (\\'e9), and a character that code page 1252 lacks takes 6 or "
-            f"more. Shorten the comment by at least {len(body) - COMMENT_MAX_BYTES} bytes."
+            f"more. Shorten the comment by at least {cut} byte{'' if cut == 1 else 's'}."
         )
     return body
 

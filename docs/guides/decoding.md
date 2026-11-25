@@ -473,10 +473,9 @@ packs its rows.
 
 A rung whose comment `encode()` refuses as too long gets one `comment-too-long`
 finding for the whole rung. It comes after the rung's `undecoded-rung` and
-`layout-too-tall` findings, and before its other findings. The message says how many bytes CLICK would store and
-how many to cut. `check()` counts the bytes the same way that `encode()` does. A
-marker rung as the decoders make it gets no `comment-too-long` finding, because the
-decoder wrote its comment.
+`layout-too-tall` findings, and before its other findings. The message says how
+many bytes CLICK would store and how many to cut. `check()` counts the bytes the
+same way that `encode()` does.
 
 `input-without-contact` on other pins (a counter's reset, a drum's jog) has no CLICK id.
 On a reset wired straight from the rail, or a reset whose contacts are all another
