@@ -34,7 +34,18 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Finding, Rung, check, decode, decode_program, encode, read_csv
+from laddercodec import (
+    EncodeError,
+    Finding,
+    Program,
+    Project,
+    Rung,
+    check,
+    decode,
+    decode_program,
+    encode,
+    read_csv,
+)
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
@@ -786,3 +797,61 @@ def test_only_an_unpowered_nop_goes_unreported(box: object) -> None:
     rung = _rung([[_contact("C1")] + ["-"] * 30, stub], [_out("Y1"), box])
     want = [] if box == "NOP" else [(0, "unpowered-box", None, 1, 31)]
     assert _cells(check(rung)) == want
+
+
+def _wide_rung(width: int, *, row: int = 0) -> Rung:
+    """Return a two-row rung whose row *row* has *width* condition cells."""
+    rows = [["-"] * 31, ["-"] * 31]
+    rows[row] = ["-"] * width
+    return Rung(rows, [_out("Y1"), _out("Y2")], None)
+
+
+#: Rungs of the wrong shape, each with the start of the message that encode() gives.
+_WRONG_SHAPES = {
+    "short-row": (_wide_rung(3), "Row 0: expected 31 columns, got 3. "),
+    "long-row": (_wide_rung(40), "Row 0: expected 31 columns, got 40. "),
+    "short-later-row": (_wide_rung(30, row=1), "Row 1: expected 31 columns, got 30. "),
+    # Without the check, the contact on row 1 would get a finding from the layout code.
+    "fewer-instructions": (
+        Rung([["-"] * 31, [Contact("X1")] + ["-"] * 30], [_out("Y1")], None),
+        "The rung has 2 rows, and instructions has 1 token. ",
+    ),
+    # Without the check, the second coil would get an unpowered-box finding on row 1.
+    "more-instructions": (
+        Rung([["-"] * 31], [_out("Y1"), _out("Y2")], None),
+        "The rung has 1 row, and instructions has 2 tokens. ",
+    ),
+    # Without the check, check() returns no finding.
+    "no-rows": (Rung([], [], None), "A rung has 1 to 32 rows. This one has 0. "),
+}
+
+_SUBROUTINE = Program(name="Sub", prog_idx=2, rungs=[_rung([["-"]], [_out("Y1")])])
+
+
+@pytest.mark.parametrize(
+    ("given", "label"),
+    [
+        (lambda bad: bad, ""),
+        (lambda bad: [_wide_rung(31), bad], "Rung 1: "),
+        (
+            lambda bad: Program(name="Main Program", prog_idx=1, rungs=[bad]),
+            "Main Program, rung 0: ",
+        ),
+        (
+            lambda bad: Project(
+                Program(name="Main Program", prog_idx=1, rungs=[]),
+                [_SUBROUTINE, Program(name="Bad", prog_idx=3, rungs=[bad])],
+            ),
+            "Bad, rung 0: ",
+        ),
+    ],
+    ids=["rung", "list", "program", "project"],
+)
+@pytest.mark.parametrize("shape", list(_WRONG_SHAPES))
+def test_a_rung_of_the_wrong_shape_raises_encode_error(given, label: str, shape: str) -> None:
+    """check() refuses the rung as encode() does, before the layout code reads a cell."""
+    bad, want = _WRONG_SHAPES[shape]
+    with pytest.raises(EncodeError, match=f"^{re.escape(want)}"):
+        encode(bad)
+    with pytest.raises(EncodeError, match=f"^{re.escape(label + want)}"):
+        check(given(bad))

@@ -16,6 +16,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
+from ._grid import _check_shape
 from ._layout import rows_needed, too_tall_message
 from ._layout.network import AF_X, BoxNode, Edge, GridCell, Network, Sink, cell_of, network
 from ._layout.tree import (
@@ -235,10 +236,16 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     ``"undecoded-rung"`` and ``"layout-too-tall"`` findings, and before its other findings.
     On one rung, ``encode()`` refuses a marker, or more than 32 rows, before it reads the
     comment.  A comment that is not text gets no finding.
+
+    ``check()`` raises :class:`~laddercodec.EncodeError` before it reports any finding if
+    a rung has no rows, if a rung has a row that does not have 31 condition cells, or if a
+    rung does not have one AF token for each row.  ``encode()`` refuses the same rung.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
     if isinstance(rungs, Project):
+        for program in (rungs.main, *rungs.subroutines):
+            _check_shapes(program.rungs, f"{program.name}, rung ")
         programs = check_project(rungs)
         answered = _answers(rungs, [f for _, found in programs for f in found])
         return [
@@ -247,13 +254,28 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
             for finding in _check_program(program, found, answered)
         ]
     if isinstance(rungs, Program):
+        _check_shapes(rungs.rungs, f"{rungs.name}, rung ")
         found = check_program(rungs)
         # A main program alone is a project with no subroutines.
         answered = _answers(Project(rungs), found) if rungs.prog_idx == 1 else None
         return _check_program(rungs, found, answered)
     if isinstance(rungs, Rung):
+        # encode() of one rung names no rung in its message, and neither does check().
+        _check_shape(rungs.conditions, rungs.instructions)
         rungs = [rungs]
+    else:
+        rungs = list(rungs)
+        _check_shapes(rungs, "Rung ")
     return [finding for index, rung in enumerate(rungs) for finding in _check_rung(index, rung)]
+
+
+def _check_shapes(rungs: Iterable[Rung], label: str) -> None:
+    """Raise ``EncodeError`` for the first rung in *rungs* that ``_check_shape`` refuses.
+
+    The message starts with *label* and the rung's index from 0, such as ``Rung 2: ``.
+    """
+    for index, rung in enumerate(rungs):
+        _check_shape(rung.conditions, rung.instructions, f"{label}{index}")
 
 
 def _answers(project: Project, found: list[ProgramFinding]) -> frozenset[Answer] | None:

@@ -27,6 +27,7 @@ from laddercodec import (
     Condition,
     Contact,
     Continue,
+    EncodeError,
     End,
     Finding,
     ForLoop,
@@ -789,11 +790,20 @@ NO_CSV: dict[str, Rung] = {
         [Coil("Y002")],
         5,  # type: ignore[arg-type]
     ),
-    # More condition rows than AF tokens.
-    "more_rows_than_af": Rung([[Contact("X002")] + ["-"] * 30, ["-"] * 31], [Coil("Y002")], None),
     # A caller's own condition with no to_csv().
     "condition_with_no_to_csv": Rung([[_NoCsv()] + ["-"] * 30], [Coil("Y002")], None),
 }
+
+
+def test_a_rung_with_more_rows_than_af_tokens_has_no_csv_form_and_is_refused() -> None:
+    """rung_rows() returns None for the rung, and check() raises before it reads the table."""
+    rung = Rung([[Contact("X002")] + ["-"] * 30, ["-"] * 31], [Coil("Y002")], None)
+    assert rung_rows(rung) is None
+    main = Program(MAIN, 1, [_for("X001"), rung, END])
+    assert answers(Project(main)) is None
+    for given in (main, Project(main)):
+        with pytest.raises(EncodeError, match="^Main Program, rung 1: The rung has 2 rows"):
+            check(given)
 
 
 @pytest.mark.parametrize("case", sorted(NO_CSV))

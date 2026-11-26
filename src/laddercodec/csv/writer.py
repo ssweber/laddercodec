@@ -48,6 +48,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import get_args
 
+from .._grid import _check_shape
 from .._layout import LayoutError, circuit, drawn
 from ..decode import Rung
 from ..errors import CsvWriteError
@@ -605,6 +606,7 @@ def _csv_rows(
     out: list[list[str]] = []
     rung_number = 0  # Counts the rungs written. A rung CLICK would split counts as several.
     for rung_index, rung in enumerate(rungs):
+        _check_shape(rung.conditions, rung.instructions, f"rungs[{rung_index}]", CsvWriteError)
         unknown = _unknown_cell(rung)
         if unknown is None:
             rows = decoded_rung_to_rows(rung, f"rungs[{rung_index}]")
