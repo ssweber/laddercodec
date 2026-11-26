@@ -1,0 +1,7 @@
+--------------------Configuration: q8_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Sub1
+
+q8_info - 0 error(s), 0 warning(s)

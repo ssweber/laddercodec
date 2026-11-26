@@ -28,7 +28,7 @@ from ._layout.tree import (
     reduce,
 )
 from ._program_check import ProgramFinding, check_program, check_project
-from .codes import Code
+from .codes import CLICK_IDS, Code
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .encode import COMMENT_MAX_BYTES, MAX_ROWS, _comment_bytes
 from .instructions.counter import Counter
@@ -221,20 +221,16 @@ def _check_program(program: Program, found: list[ProgramFinding]) -> list[Findin
     out: list[Finding] = []
     for index, rung in enumerate(program.rungs):
         out += [replace(f, program=name) for f in _check_rung(index, rung)]
-        out += [
-            Finding(
-                index,
-                f.code,
-                None,
-                False,
-                f.row,
-                AF_X,
-                f"row {f.row} from 0, column {OUTPUT_COLUMN}: {f.what} ({_UNKNOWN}). {f.then}",
-                name,
-            )
-            for f in by_rung.get(index, ())
-        ]
+        out += [_program_finding(index, f, name) for f in by_rung.get(index, ())]
     return out
+
+
+def _program_finding(rung: int, f: ProgramFinding, program: str) -> Finding:
+    click_id = CLICK_IDS[f.code][0] if f.captured else None
+    why = f"CLICK: {click_id}" if click_id else _UNKNOWN
+    where = f"row {f.row} from 0, column {OUTPUT_COLUMN}"
+    message = f"{where}: {f.what} ({why}). {f.then}"
+    return Finding(rung, f.code, click_id, click_id is not None, f.row, AF_X, message, program)
 
 
 @dataclass(frozen=True)

@@ -1,17 +1,22 @@
 """The rules of a CLICK program that ``check()`` reports on a ``Program`` or a ``Project``.
 
-These rules look across the rungs of a program, and through a Call into the subroutine that
-it names:
+These rules look across the rungs of a program, and from a Call into the subroutine that it
+names:
 
-- Each For has a Next after it, and each Next has an open For before it.  A Next closes the
-  nearest open For.
-- Loops nest at most 3 deep.  A Call inside a loop adds the loops of the subroutine that it
-  calls.  A Call inside that subroutine adds none, because only the main program can call a
-  subroutine.
-- Only the outermost For of a nest can use One Shot.
-- No Return and no End between a For and its Next.  A Return or End gets no finding when
-  the innermost loop around it has no Next.  That For gets its own finding.
-- Only the main program can call a subroutine.
+- A Next closes the nearest open For.  A Next with no open For before it gets a finding.
+- Loops nest at most 3 deep.  A For past that depth gets a finding, and it opens no loop.
+  Each loop around a Call in the main program counts in the subroutine that the Call names.
+- Only the outermost For of a nest can use One Shot.  A loop around the Call counts here too.
+- A Return or an End inside a loop of its own program gets a finding.
+- A loop that is still open at the last Return or End of its program gets a finding there.
+  The For gets the finding when no Return or End comes after it.
+- A Call in a subroutine gets a finding, because a paste into CLICK drops it.
+
+In a subroutine that main calls from inside a loop, a Next with no open For of its own closes
+one of the loops around the Call, and gets no finding.
+
+A finding is captured when CLICK's answer for its shape is recorded.  ``_Place`` says which
+programs those answers cover, and each rule says which of its shapes they cover.
 
 The rules read no For, Next, Return, End or Call after a program's first undecoded marker,
 because the rung that the marker stands for may hold a For or a Next.  A For that is open at
@@ -21,7 +26,7 @@ the marker gets no finding.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .codes import Code
@@ -45,7 +50,8 @@ _ORDINALS = {1: "1st", 2: "2nd", 3: "3rd"}
 class ProgramFinding:
     """One program rule that a program breaks, at the AF cell of row ``row`` of rung ``rung``.
 
-    ``what`` says what is wrong, and ``then`` says what to change.
+    ``what`` says what is wrong, and ``then`` says what to change.  ``captured`` says whether
+    CLICK's answer for the shape is recorded.
     """
 
     rung: int
@@ -53,10 +59,42 @@ class ProgramFinding:
     code: Code
     what: str
     then: str
+    captured: bool
+
+
+@dataclass(frozen=True)
+class _CallSite:
+    """A Call in the main program: its rung, and how many loops are open around it."""
+
+    rung: int
+    loops: int
+
+
+@dataclass(frozen=True)
+class _Place:
+    """Where a program sits in what ``check()`` was given.
+
+    ``answered`` is set for the programs that CLICK's recorded answers cover: the main
+    program, and a subroutine whose Calls in main all sit inside the same number of loops.
+    ``carried`` is the number of loops around those Calls, and ``site`` is the deepest of them.
+    """
+
+    is_main: bool
+    answered: bool
+    carried: int = 0
+    site: _CallSite | None = None
+    main_name: str = "the main program"
+
+
+_MAIN = _Place(is_main=True, answered=True)
 
 
 def _ordinal(n: int) -> str:
     return _ORDINALS.get(n, f"{n}th")
+
+
+def _loops(n: int) -> str:
+    return f"{n} loop{'' if n == 1 else 's'}"
 
 
 def _walk(program: Program) -> Iterator[tuple[int, int, object]]:
@@ -68,157 +106,222 @@ def _walk(program: Program) -> Iterator[tuple[int, int, object]]:
             yield index, row, token
 
 
-class _Calls:
-    """Finds the subroutine that a Call names, and how deep its own loops nest."""
+@dataclass
+class _Walk:
+    """The state of one walk through a program."""
 
-    def __init__(self, project: Project) -> None:
-        self._by_name: dict[str, Program] = {}
-        for sub in project.subroutines:
-            self._by_name.setdefault(sub.name, sub)
-        self._depth: dict[int, int] = {}
+    program: Program
+    place: _Place
+    found: list[ProgramFinding] = field(default_factory=list)
+    #: The open Fors of this program, outermost first, as (rung, row).
+    loops: list[tuple[int, int]] = field(default_factory=list)
+    #: The loops around the Call that are still open.  A Next with no open For of this
+    #: program closes one of them.
+    carried: int = 0
+    #: Whether a For of this program was past the depth limit.
+    refused: bool = False
+    #: The last Return or End, as (rung, row, name), when a loop of this program was open at it.
+    last_stop: tuple[int, int, str] | None = None
+    #: The Calls of the main program, each with the number of loops open around it.
+    calls: list[tuple[Call, _CallSite]] = field(default_factory=list)
 
-    def target(self, call: Call) -> Program | None:
-        """Return the subroutine whose name is ``call.subroutine`` as stored, or ``None``."""
-        name = call.subroutine
-        return self._by_name.get(name) if isinstance(name, str) else None
+    def __post_init__(self) -> None:
+        self.carried = self.place.carried
 
-    def depth(self, program: Program) -> int:
-        """Return how deep the loops of *program* nest, from its own Fors only.
+    @property
+    def top(self) -> bool:
+        """Whether the program is main, or a subroutine that main calls outside any loop."""
+        return self.place.answered and self.place.carried == 0
 
-        A Call in *program* adds no loops.  Such a Call gets a ``nested-call`` finding, because
-        only the main program can call a subroutine.
+    def carried_only(self, n: int) -> bool:
+        """Whether the program is a subroutine that main calls inside *n* loops, and none of
+        those loops is closed yet, and no loop of its own is open.
         """
-        key = id(program)
-        if key not in self._depth:
-            open_loops = deepest = 0
-            for _, _, token in _walk(program):
-                if isinstance(token, ForLoop):
-                    open_loops += 1
-                    deepest = max(deepest, open_loops)
-                elif isinstance(token, Next):
-                    open_loops = max(open_loops - 1, 0)
-            self._depth[key] = deepest
-        return self._depth[key]
+        return self.place.answered and self.place.carried == self.carried == n and not self.loops
 
+    def add(self, rung: int, row: int, code: Code, what: str, then: str, *, captured: bool) -> None:
+        self.found.append(ProgramFinding(rung, row, code, what, then, captured))
 
-def check_program(
-    program: Program,
-    *,
-    is_main: bool | None = None,
-    calls: _Calls | None = None,
-    main_name: str = "",
-) -> list[ProgramFinding]:
-    """Return the program rules that *program* breaks, in rung and row order.
+    def around(self) -> str:
+        """Name the Call that the loops this program did not open are around."""
+        site = self.place.site
+        where = f" on rung {site.rung} from 0" if site is not None else ""
+        return (
+            f"{self.place.main_name} calls {self.program.name}{where} inside "
+            f"{_loops(self.carried)}"
+        )
 
-    *is_main* says whether *program* is the main program.  When it is ``None``, a
-    ``prog_idx`` of 1 means main.  With *calls*, a Call inside a loop counts the loops of the
-    subroutine that it names.  *main_name* is the main program's name, for a message.
-    """
-    if is_main is None:
-        is_main = program.prog_idx == _MAIN_PROG_IDX
-    main = main_name or "the main program"
-    found: list[ProgramFinding] = []
-    #: The open Fors, outermost first, as (rung, row).
-    loops: list[tuple[int, int]] = []
-    #: For each open For, the Returns and Ends that it is the innermost loop around.  They
-    #: are reported when its Next closes the loop.  A For with no Next gets its own finding,
-    #: and they get none.
-    inside: list[list[ProgramFinding]] = []
-
-    def add(rung: int, row: int, code: Code, what: str, then: str) -> None:
-        found.append(ProgramFinding(rung, row, code, what, then))
-
-    for rung, row, token in _walk(program):
-        if isinstance(token, ForLoop):
-            if loops and token.oneshot:
-                add(
-                    rung,
-                    row,
-                    Code.FOR_ONESHOT_INSIDE_LOOP,
-                    f"this For has One Shot on, inside the loop that starts on rung {loops[-1][0]} "
-                    "from 0",
-                    f"Only the outermost For of a nest can use One Shot. Write it as "
-                    f"for({token.count}).",
-                )
-            loops.append((rung, row))
-            inside.append([])
-            if len(loops) > MAX_NESTING:
-                add(
-                    rung,
-                    row,
-                    Code.FOR_NESTING_DEPTH,
-                    f"this For starts a {_ordinal(len(loops))} loop inside the loop that starts on "
-                    f"rung {loops[-2][0]} from 0",
-                    f"Loops nest at most {MAX_NESTING} deep. Move this loop out of one of the "
-                    "loops around it.",
-                )
-        elif isinstance(token, Next):
-            if loops:
-                loops.pop()
-                found.extend(inside.pop())
+    def for_(self, rung: int, row: int, token: ForLoop) -> None:
+        own = len(self.loops)
+        if token.oneshot and own + self.carried:
+            if own:
+                what = f"inside the loop that starts on rung {self.loops[-1][0]} from 0"
             else:
-                add(
-                    rung,
-                    row,
-                    Code.NEXT_WITHOUT_FOR,
-                    "this Next has no For before it",
-                    "Delete the Next, or add a For rung before it, such as for(2).",
-                )
-        elif isinstance(token, (Return, End)):
-            if loops:
-                name = "Return" if isinstance(token, Return) else "End"
-                inside[-1].append(
-                    ProgramFinding(
-                        rung,
-                        row,
-                        Code.RETURN_INSIDE_LOOP,
-                        f"this {name} is inside the loop that starts on rung {loops[-1][0]} from 0",
-                        f"Move the {name.lower()}() rung after the loop's next() rung.",
-                    )
-                )
-        elif isinstance(token, Call):
-            sub = calls.target(token) if calls else None
-            if not is_main:
-                add(
-                    rung,
-                    row,
-                    Code.NESTED_CALL,
-                    f"this Call is in subroutine {program.name}, and only the main program can "
-                    "call a subroutine",
-                    f"Call {token.subroutine} from {main}.",
-                )
-            elif calls and sub is not None and loops:
-                inner = calls.depth(sub)
-                if inner and len(loops) + inner > MAX_NESTING:
-                    add(
-                        rung,
-                        row,
-                        Code.FOR_NESTING_DEPTH,
-                        f"this Call to {sub.name} is inside {len(loops)} "
-                        f"loop{'' if len(loops) == 1 else 's'}, and {sub.name}'s own loops nest "
-                        f"{inner} deep, so the loops nest {len(loops) + inner} deep",
-                        f"Loops nest at most {MAX_NESTING} deep. Call {sub.name} outside the loop "
-                        f"that starts on rung {loops[0][0]} from 0.",
-                    )
-    if not program.undecoded:
-        for rung, row in loops:
-            add(
+                what = f"and {self.around()}"
+            self.add(
+                rung,
+                row,
+                Code.FOR_ONESHOT_INSIDE_LOOP,
+                f"this For has One Shot on, {what}",
+                f"Only the outermost For of a nest can use One Shot. Write it as "
+                f"for({token.count}).",
+                captured=(self.top and own == 1) or self.carried_only(1),
+            )
+        if own + self.carried < MAX_NESTING:
+            self.loops.append((rung, row))
+            return
+        self.refused = True
+        if self.carried:
+            what = f"counting the loops around the Call: {self.around()}"
+            then = (
+                f"Loops nest at most {MAX_NESTING} deep, counting the loops around a Call. "
+                "Move this loop, or the Call, out of a loop."
+            )
+        else:
+            what = f"inside the loop that starts on rung {self.loops[-1][0]} from 0"
+            then = (
+                f"Loops nest at most {MAX_NESTING} deep. Move this loop out of one of the "
+                "loops around it."
+            )
+        self.add(
+            rung,
+            row,
+            Code.FOR_NESTING_DEPTH,
+            f"this For would start a {_ordinal(own + self.carried + 1)} loop, {what}",
+            then,
+            captured=(self.top and own == MAX_NESTING) or self.carried_only(MAX_NESTING),
+        )
+
+    def next_(self, rung: int, row: int) -> None:
+        if self.loops:
+            self.loops.pop()
+        elif self.carried:
+            self.carried -= 1
+        else:
+            self.add(
+                rung,
+                row,
+                Code.NEXT_WITHOUT_FOR,
+                "this Next has no open For before it",
+                "Delete the Next, or add a For rung before it, such as for(2).",
+                captured=self.top and (self.place.is_main or self.refused),
+            )
+
+    def stop(self, rung: int, row: int, token: Return | End) -> None:
+        if not self.loops:
+            self.last_stop = None
+            return
+        name = "Return" if isinstance(token, Return) else "End"
+        self.last_stop = (rung, row, name)
+        self.add(
+            rung,
+            row,
+            Code.RETURN_INSIDE_LOOP,
+            f"this {name} is inside the loop that starts on rung {self.loops[-1][0]} from 0",
+            f"Move the {name.lower()}() rung out of the loop.",
+            captured=self.top,
+        )
+
+    def call(self, rung: int, row: int, token: Call) -> None:
+        if self.place.is_main:
+            self.calls.append((token, _CallSite(rung, len(self.loops))))
+            return
+        self.add(
+            rung,
+            row,
+            Code.NESTED_CALL,
+            f"this Call is in subroutine {self.program.name}, and a paste into CLICK drops it",
+            f"Call {token.subroutine} from {self.place.main_name}.",
+            captured=False,
+        )
+
+    def end(self) -> None:
+        """Report a loop that is still open after the program's last rung."""
+        if not self.loops or self.program.undecoded:
+            return
+        start = self.loops[-1]
+        then = "Add a next() rung after the last rung of the loop."
+        if self.last_stop is not None and self.last_stop[:2] > start:
+            rung, row, name = self.last_stop
+            self.add(
                 rung,
                 row,
                 Code.FOR_WITHOUT_NEXT,
-                "this For has no Next after it",
-                "Add a next() rung after the last rung of the loop.",
+                f"the loop that starts on rung {start[0]} from 0 has no Next before this {name}",
+                then,
+                captured=self.top and len(self.loops) == 1,
             )
+        else:
+            rung, row = start
+            self.add(
+                rung,
+                row,
+                Code.FOR_WITHOUT_NEXT,
+                "this For has no Next, and no Return or End, after it",
+                then,
+                captured=False,
+            )
+
+
+def _run(program: Program, place: _Place) -> _Walk:
+    walk = _Walk(program, place)
+    for rung, row, token in _walk(program):
+        if isinstance(token, ForLoop):
+            walk.for_(rung, row, token)
+        elif isinstance(token, Next):
+            walk.next_(rung, row)
+        elif isinstance(token, (Return, End)):
+            walk.stop(rung, row, token)
+        elif isinstance(token, Call):
+            walk.call(rung, row, token)
+    walk.end()
+    return walk
+
+
+def _sorted(found: list[ProgramFinding]) -> list[ProgramFinding]:
     return sorted(found, key=lambda f: (f.rung, f.row))
+
+
+def check_program(program: Program) -> list[ProgramFinding]:
+    """Return the program rules that *program*, checked alone, breaks, in rung and row order.
+
+    A ``prog_idx`` of 1 means the main program.  Any other program is read as a subroutine
+    that the main program calls outside any loop.  CLICK's answers for a subroutine are
+    recorded only for a project that holds its Calls, so none of its findings is captured.
+    """
+    if program.prog_idx == _MAIN_PROG_IDX:
+        return _sorted(_run(program, _MAIN).found)
+    return _sorted(_run(program, _Place(is_main=False, answered=False)).found)
 
 
 def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]]:
     """Return the program rules that each program of *project* breaks: main first, then the
     subroutines in their order.
+
+    A Call names the first subroutine whose name matches without regard to case.  A
+    subroutine that main calls inside loops is walked with the most loops that any of its
+    Calls sits inside.
     """
-    calls = _Calls(project)
-    main_name = project.main.name
-    return [(project.main, check_program(project.main, is_main=True, calls=calls))] + [
-        (sub, check_program(sub, is_main=False, calls=calls, main_name=main_name))
-        for sub in project.subroutines
-    ]
+    main = _run(project.main, _MAIN)
+    by_name: dict[str, int] = {}
+    for index, sub in enumerate(project.subroutines):
+        by_name.setdefault(sub.name.casefold(), index)
+    sites: dict[int, list[_CallSite]] = {}
+    for call, site in main.calls:
+        name = call.subroutine
+        if isinstance(name, str) and name.casefold() in by_name:
+            sites.setdefault(by_name[name.casefold()], []).append(site)
+    out = [(project.main, _sorted(main.found))]
+    for index, sub in enumerate(project.subroutines):
+        calls = sites.get(index, [])
+        deepest = max(calls, key=lambda site: site.loops, default=None)
+        place = _Place(
+            is_main=False,
+            # main's Calls after its first marker are not read, so they may sit in other loops.
+            answered=len({site.loops for site in calls}) == 1 and not project.main.undecoded,
+            carried=deepest.loops if deepest else 0,
+            site=deepest,
+            main_name=project.main.name,
+        )
+        out.append((sub, _sorted(_run(sub, place).found)))
+    return out

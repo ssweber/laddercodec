@@ -1,0 +1,8 @@
+--------------------Configuration: q2a_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Main Program : Rung 4 : error C010D: Row 1, Column AF : For/Next nesting maximum is 3 in the Main Program and Called Subroutines.
+Main Program : Rung 9 : error C0101: Row 1, Column AF : There is no matching For instruction, or it does not originate from the same branch.
+
+q2a_info - 2 error(s), 0 warning(s)

@@ -1,0 +1,8 @@
+--------------------Configuration: q1d_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Main Program : Rung 5 : error C0115: Row 1, Column AF : RETURN or END instructions are not allowed inside For/Next loops.
+Main Program : Rung 5 : error C0102: Row 1, Column AF : There is no matching Next instruction, or it does not originate from the same branch.
+
+q1d_info - 2 error(s), 0 warning(s)
