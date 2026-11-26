@@ -39,7 +39,7 @@ CORPORA: dict[str, list[Path]] = {
 #: the layout that moves a rung out of its layout lowers a count, and the test fails.
 LAID_OUT = {
     "v4 checked": 74,
-    "v4 other": 290,
+    "v4 other": 293,
     "tumbler": 495,
     "ladder golden": 41,
     "coverage golden": 247,

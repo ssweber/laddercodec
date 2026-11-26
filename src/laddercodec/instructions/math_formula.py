@@ -1714,13 +1714,34 @@ def stored_reals_written(expression: str) -> str:
     it, a real out of range, and every other word stay as stored.
     """
     words = expression.split(" ")
+    for k in _stored_reals(words):
+        words[k] = held_for(words[k])
+    return " ".join(words)
+
+
+def rewrites_stored_reals(expression: str) -> bool:
+    """Return True if laddercodec writes any real of *expression*, a decimal formula that
+    CLICK stored, in a text other than CLICK's.
+
+    For each real, laddercodec writes :attr:`MathReal.stored` of the text that
+    :func:`stored_reals_written` holds for it. CLICK stores ``3.0E+38`` and ``1.50`` as
+    typed, and laddercodec writes ``3E+38`` and ``1.5``. CLICK stores ``1.2345E-04`` as
+    ``0.00012345``, and laddercodec writes ``0.00012345``. A real out of range is not
+    compared.
+    """
+    words = expression.split(" ")
+    return any(MathReal(held_for(words[k])).stored != words[k] for k in _stored_reals(words))
+
+
+def _stored_reals(words: Sequence[str]) -> list[int]:
+    """Return the index of each word that is a real in range, in a decimal formula that CLICK
+    stored."""
+    found = []
     for k, word in enumerate(words):
         constant = classify(word)
-        if constant is None or constant.kind is not Kind.FLOAT:
-            continue
-        if MathReal(word).in_range:
-            words[k] = held_for(word)
-    return " ".join(words)
+        if constant is not None and constant.kind is Kind.FLOAT and MathReal(word).in_range:
+            found.append(k)
+    return found
 
 
 def parse(text: str, mode: str) -> Formula:

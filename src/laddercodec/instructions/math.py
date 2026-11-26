@@ -52,7 +52,14 @@ from ..operands.constants import INT16_MAX, INT16_MIN
 from ..operands.message import make_refusal, says, wrong_type
 from ..operands.unchecked import AllowsRefusals, read_in_another_form
 from .family import AfInstructionFamilySpec
-from .math_formula import RESULT_BANKS, _parse, address_parts, parse, stored_reals_written
+from .math_formula import (
+    RESULT_BANKS,
+    _parse,
+    address_parts,
+    parse,
+    rewrites_stored_reals,
+    stored_reals_written,
+)
 from .math_formula import range_interiors as formula_range_interiors
 from .raw import _decompose_blob
 
@@ -383,6 +390,7 @@ def from_tags(
         tag_value(tags, 0x61FF),
         internal,
     ) or tag_value(tags, 0x6228)
+    stored_expression = expression
     if mode == "decimal":
         # CLICK saves some reals in a form that it cuts when that form is typed
         # (1.2345E-04 is saved as 0.00012345). The Math holds a form that CLICK keeps.
@@ -404,15 +412,21 @@ def from_tags(
         # (see laddercodec.operands.unchecked).  A refusal that no instruction can keep
         # still raises, and then the blob stays raw.
         return None
-    if dest != stored_dest or internal != stored_internal:
-        # CLICK saved the result or an address in the formula as the user typed it, not in
-        # display form.  Mark the Math so that encoding it writes the bytes CLICK stored.
-        read_in_another_form(math)
     # Older laddercodec wrote the H prefix only on a decimal constant, and a hex Math
     # refuses decimal constants.  So only a decimal Math is checked.
     findings = _legacy_findings(stored_internal) if mode == "decimal" else []
     if findings:
+        # The Math keeps no blob, so encoding it writes each constant in the form that CLICK
+        # runs as its value.
         object.__setattr__(math, "_legacy_findings", findings)
+    elif dest != stored_dest or internal != stored_internal:
+        # CLICK saved the result or an address in the formula as the user typed it, not in
+        # display form.  Mark the Math so that encoding it writes the bytes CLICK stored.
+        read_in_another_form(math)
+    elif mode == "decimal" and rewrites_stored_reals(stored_expression):
+        # CLICK saved a real in a text other than the one that laddercodec writes, such as
+        # 3.0E+38 for 3E+38.  Mark the Math so that encoding it writes the bytes CLICK stored.
+        read_in_another_form(math)
     return math
 
 

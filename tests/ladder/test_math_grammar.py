@@ -28,7 +28,7 @@ from laddercodec.binary_helpers import (
 )
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math import Math, _reconstruct_expression
-from laddercodec.instructions.math_formula import parse
+from laddercodec.instructions.math_formula import parse, stored_reals_written
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
@@ -762,6 +762,15 @@ def test_fixtures_hold_native_math() -> None:
     assert len(_SCR_BLOBS) > 100
 
 
+#: The captures in which CLICK stored a real in a text other than the one that laddercodec
+#: writes, as (CLICK's text, laddercodec's text). Decoded, each Math writes back CLICK's blob
+#: (tests/test_v4_captures.py).
+_CLICK_REAL_TEXTS = {
+    "v4_captures/math_real_point_zero.bin": ("3.0E+38", "3E+38"),
+    "v4_captures/math_real_trailing_zero.bin": ("1.50", "1.5"),
+}
+
+
 @pytest.mark.parametrize(
     ("path", "native", "mode", "tags"),
     _BLOBS + _SCR_BLOBS,
@@ -770,7 +779,11 @@ def test_fixtures_hold_native_math() -> None:
 def test_reader_prints_every_stored_math(
     path: str, native: bool, mode: str, tags: dict[int, str]
 ) -> None:
-    """Each stored formula, parsed, prints back the four strings that its blob stores."""
+    """Each stored formula, parsed, prints back the four strings that its blob stores.
+
+    In the captures of ``_CLICK_REAL_TEXTS``, the printed strings hold laddercodec's text of
+    the real in place of CLICK's.
+    """
     expression = _reconstruct_expression(tags[0x61FF], tags[0x61FD])
     if not native and path.endswith("math_wide.bin"):
         if len(tags[0x6229]) > 270:
@@ -789,11 +802,20 @@ def test_reader_prints_every_stored_math(
         with pytest.raises(FieldError, match=re.escape(xy_range_message(expression))):
             parse(expression, mode)
         return
+    if mode == "decimal":
+        # Read each real as the decoder reads it: 0.00012345 is held as 1.2345E-04.
+        expression = stored_reals_written(expression)
     formula = parse(expression, mode)
-    assert formula.template == tags[0x61FF]
-    assert formula.internal(template=True) == tags[0x6229]
-    assert formula.internal() == tags[0x61FD]
-    display = tags[0x6228]
+    stored = {tag: tags[tag] for tag in (0x61FF, 0x6228, 0x6229, 0x61FD)}
+    if path in _CLICK_REAL_TEXTS:
+        click_text, our_text = _CLICK_REAL_TEXTS[path]
+        for tag, value in stored.items():
+            assert click_text in value
+            stored[tag] = value.replace(click_text, our_text)
+    assert formula.template == stored[0x61FF]
+    assert formula.internal(template=True) == stored[0x6229]
+    assert formula.internal() == stored[0x61FD]
+    display = stored[0x6228]
     if tags.get(0x2224) == "1":
         # With nicknames shown, the display names each address by its project nickname in
         # <...>, and no other field holds the nickname. Replace each one with @ and compare

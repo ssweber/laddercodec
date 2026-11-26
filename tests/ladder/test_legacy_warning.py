@@ -15,7 +15,7 @@ import pytest
 
 from laddercodec import LegacyEncodingWarning, Math, Rung, decode, decode_program, encode
 from laddercodec.instructions import from_tags_af
-from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.instructions.raw import RawInstruction, _compose_blob, _decompose_blob
 from tests.kept_refusals import kept
 from tests.undecoded_captures import decode_capture
 
@@ -112,6 +112,37 @@ def test_no_fixture_warns():
             decode_program(path.read_bytes())
             decoded += 1
     assert decoded >= 200
+
+
+@pytest.mark.parametrize(
+    ("address", "real"),
+    [("DS1", "1.50"), ("DS001", "1.5")],
+    ids=["real as typed", "address as typed"],
+)
+def test_legacy_math_in_another_text_writes_w_form(address, real):
+    """A legacy Math that also holds a real or an address in another text writes
+    ``W70000`` when you encode it again.
+
+    An older laddercodec wrote ``H70000``, and it also wrote a real (``1.50``) and an
+    address (``DS001``) as typed. The decoded Math warns and keeps no blob.
+    """
+    blob = Math(expression="DS1 + 70000 + 1.5", dest="DF1").build_blob()
+    class_name, type_code, parts, extra, fields = _decompose_blob(blob)
+    stored = {
+        0x61FF: f"@ + 70000 + {real}",
+        0x6228: f"{address} + 70000 + {real}",
+        0x6229: f"@#+#H70000#+#F{real}",
+        0x61FD: f"{address}#+#H70000#+#F{real}",
+    }
+    fields = [(tag, sentinel, stored.get(tag, value)) for tag, sentinel, value in fields]
+    legacy = _compose_blob(class_name, type_code, parts, extra, fields)
+    data = encode(Rung([[""] * 31], [RawInstruction("Math", legacy)], None))
+    [rung], found = _decode_recording(data)
+    assert [w.token for w in found] == ["H70000"]
+    assert rung.instructions == (Math(expression="DS1 + 70000 + 1.5", dest="DF1"),)
+    again = encode(rung)
+    assert _u16("DS1#+#W70000#+#F1.5") in again
+    assert _u16("H70000") not in again
 
 
 def test_hex_mode_legacy_h_is_a_refusal_not_a_legacy_finding():
