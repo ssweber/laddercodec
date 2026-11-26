@@ -512,8 +512,8 @@ for finding in check(read_bundle("my_program")):
     print(f"{finding.program}, rung {finding.rung}: {finding.message}")
 # Sub1, rung 0: row 0 from 0, column AF: this For would start a 4th loop, counting the
 # loops around the Call: Main Program calls Sub1 on rung 3 from 0 inside 3 loops
-# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move the
-# Call on rung 3 from 0 of Main Program out of the loop that starts on rung 2 from 0.
+# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move Main
+# Program's Call on rung 3 from 0 out of the loop that starts on rung 2 from 0.
 ```
 
 Each finding's `program` is the `Program.name` of the program that holds the rung.
@@ -570,11 +570,12 @@ that CLICK answered. The whole project must have the shape of a project that CLI
 checked, and CLICK must have reported that finding there. A larger project that
 contains an answered shape is not captured.
 
-The shape is each program's name, and for each rung its AF tokens and whether it has a
-condition other than wires. Each For, with or without One Shot, each Next, Return, End,
-Break and Continue, and each Call with its subroutine name, is its own kind of token.
-Every other instruction is one kind. A main program alone has the shape of a project
-with no subroutines. A subroutine alone is never captured. `nested-call` has no CLICK
+The shape is the project's exact CSV: each program's name, and every row of every
+rung as the CSV writes it, comment rows included. Every cell counts: each wire, each
+contact with its address, each instruction with its fields. The rows are the rung's
+own rows, not laid out again. The subroutines may come in any order. A main program
+alone has the shape of a project with no subroutines. A subroutine alone, and a rung
+with a cell that the CSV can't hold, are never captured. `nested-call` has no CLICK
 id.
 
 ## Round-trip identity

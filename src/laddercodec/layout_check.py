@@ -158,12 +158,12 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
 
     A program finding is at the instruction's AF cell.  Its message ends with what to change.
     It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
-    checked, and only when CLICK reported that finding there.  The shape is, for each
-    program, its name, and for each rung its AF tokens and whether it has a condition other
-    than wires.  A For with or without One Shot, a Next, a Return, an End, a Break, a
-    Continue and a Call with its subroutine name are each their own kind of token.  Every
-    other instruction is one kind.  A main program alone has the shape of a project with no
-    subroutines.  A subroutine alone is never captured.
+    checked, and only when CLICK reported that finding there.  The shape is the project's
+    exact CSV: each program's name, and every row of every rung as the CSV writes it, comment
+    rows included.  The rows are the rung's own rows, not laid out again.  The subroutines
+    may come in any order.  A main program alone has the shape of a project with no
+    subroutines.  A subroutine alone, and a rung with a cell that the CSV can't hold, are
+    never captured.
 
     ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
     marker, because the rung that the marker stands for may hold a For or a Next.  A

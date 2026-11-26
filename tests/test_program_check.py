@@ -32,6 +32,7 @@ from laddercodec import (
     RawInstruction,
     Return,
     Rung,
+    Timer,
     Undecoded,
     check,
     decode_program,
@@ -269,8 +270,8 @@ def test_messages() -> None:
         "calls Sub1 on rung 3 from 0 inside 3 loops (CLICK: C010D)" in carried.message
     )
     assert _then(carried) == (
-        "Loops nest at most 3 deep, counting the loops around a Call. Move the Call on rung 3 "
-        "from 0 of Main Program out of the loop that starts on rung 2 from 0."
+        "Loops nest at most 3 deep, counting the loops around a Call. Move Main Program's Call "
+        "on rung 3 from 0 out of the loop that starts on rung 2 from 0."
     )
     (oneshot,) = findings("q3a")
     assert (
@@ -435,6 +436,10 @@ def test_every_end_after_an_open_for_is_inside_the_loop() -> None:
 
 
 X2_END = _rung(End(), "X002")
+CUT_FOR = Rung([[Contact("X001")] + [""] * 30], [ForLoop(count="2")], None)
+EMPTY_NEXT = Rung([[""] * 31], [Next()], None)
+EMPTY_OUT = Rung([[""] * 31], [Coil("Y001")], None)
+TIMER = Rung([["-"] * 31, [""] * 31], [Timer("on_delay", "T1", "TD1", "5", "Ts"), ""], None)
 X2_RET = _rung(Return(), "X002")
 
 #: Projects near an answered case that CLICK has not checked, as (main, subroutines).
@@ -477,6 +482,23 @@ UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
     ),
     # A rung after the End that is inside a loop.
     "after_stop": ([_for("X001"), END, OUT], {}),
+    # q1a with the For cut off from the rail: X001, then 30 empty cells.
+    "q1a_for_cut_from_rail": ([CUT_FOR, OUT, END], {}),
+    # q1b with the Next rung's cells all empty.
+    "q1b_next_with_empty_cells": ([OUT, EMPTY_NEXT, END], {}),
+    # q1b with the Out rung's cells all empty.
+    "q1b_out_with_empty_cells": ([EMPTY_OUT, NEXT, END], {}),
+    # q1a with the contact C1 on the For.
+    "q1a_contact_c1": ([_for("C1"), OUT, END], {}),
+    # q1a with for(DS1).
+    "q1a_for_ds1": ([_rung(ForLoop(count="DS1"), "X001"), OUT, END], {}),
+    # q1a with a Timer inside the loop in place of the Out.
+    "q1a_timer_in_loop": ([_for("X001"), TIMER, END], {}),
+    # q2a with the string "for" in place of its second For.
+    "q2a_string_for": (
+        [_for("X001"), _rung("for"), _for(), _for(), OUT, *[NEXT] * 4, END],
+        {},
+    ),
 }
 
 

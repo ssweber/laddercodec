@@ -118,7 +118,7 @@ src/laddercodec/
 │                         #   location.py (CsvLocation: the file, line, rung, row and column a read error names)
 └── resources/
     ├── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis
-    └── program_answers.json  # The program shapes CLICK answered (make program-answers writes it)
+    └── program_answers.json  # The exact CSV of each project CLICK checked, with its errors (make program-answers)
 ```
 
 ## Key Modules
@@ -164,7 +164,7 @@ Fixtures are in `tests/fixtures/`:
 - `tumbler/`: 34 real programs, each a `.scr` paired with a clipboard capture of the same program.
 - `v4_captures/`: CLICK v4 copy-backs of pyrung capture stubs, and pasted/checked pairs the layout tests use.
 - `layout_check/`, `pinned_or/`: inputs for `check()` and pinned-box tests.
-- `program_check/`: `click/` holds CLICK v4.00's Syntax Check answers for the program rules of `check()`, with CLICK's saves, byte for byte. `make program-answers` (`devtools/gen_program_answers.py`) writes `src/laddercodec/resources/program_answers.json` from them: the table of answered project shapes that gives a program finding its CLICK id. `tests/test_program_check.py` fails when the table is out of date. `own/` holds bundles that CLICK did not check, with laddercodec's expected findings in that test file.
+- `program_check/`: `click/` holds CLICK v4.00's Syntax Check answers for the program rules of `check()`, with CLICK's saves, byte for byte. `make program-answers` (`devtools/gen_program_answers.py`) writes `src/laddercodec/resources/program_answers.json` from them: the table, keyed by each checked project's exact CSV, that gives a program finding its CLICK id. `tests/test_program_check.py` fails when the table is out of date. `own/` holds bundles that CLICK did not check, with laddercodec's expected findings in that test file.
 
 ## Golden Fixtures
 

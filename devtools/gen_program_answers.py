@@ -5,8 +5,10 @@
 Each case in ``tests/fixtures/program_check/click/`` holds the bundle that was pasted into
 CLICK (``program/``), CLICK's saves of it (``pasted/``, ``info/``, ``checked/``) and CLICK's
 Syntax Check output (``<case>_errors.txt``).  The table maps the shape of the pasted project,
-and the shape of each save, to the program findings that CLICK reported for the case.  A save
-has the shape of the pasted project, unless CLICK dropped a rung's Call at the paste.
+and the shape of each save, to the program findings that CLICK reported for the case.  A
+project's shape is its exact CSV: the name of each program, and every row of every rung, comment
+rows included.  A save has the shape of the pasted project, unless CLICK dropped a rung's Call
+at the paste.
 ``check()`` gives a program finding its CLICK id only when the shape of the project that it
 checks is in the table, and the table lists that finding.
 
@@ -55,12 +57,17 @@ def shapes(case: Path) -> list[Any]:
     from laddercodec import Project, decode_program, read_bundle
     from laddercodec._program_check import project_shape
 
-    found = [project_shape(read_bundle(case / "program"))]
+    pasted = project_shape(read_bundle(case / "program"))
+    if pasted is None:
+        raise SystemExit(f"{case.name}: program/ has a cell with no CSV text")
+    found = [pasted]
     for save in SAVES:
         files = sorted((case / save).glob("Scr*.tmp"), key=lambda p: int(p.stem[3:]))
         if files:
             main, *subs = (decode_program(p.read_bytes()) for p in files)
             shape = project_shape(Project(main, subs))
+            if shape is None:
+                raise SystemExit(f"{case.name}: {save} has a cell with no CSV text")
             if shape not in found:
                 found.append(shape)
     return found

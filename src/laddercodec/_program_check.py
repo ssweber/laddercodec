@@ -34,9 +34,10 @@ from importlib import resources
 from typing import TYPE_CHECKING
 
 from .codes import Code
+from .instructions import Condition, Instruction, Tee
 from .instructions.call import Call
 from .instructions.end import End
-from .instructions.forloop import Break, Continue, ForLoop, Next
+from .instructions.forloop import ForLoop, Next
 from .instructions.raw import RawInstruction
 from .instructions.return_ import Return
 from .instructions.undecoded import Undecoded
@@ -179,7 +180,7 @@ class _Walk:
         if site is None or site.inner is None:
             return "Move the Call out of a loop."
         return (
-            f"Move the Call on rung {site.rung} from 0 of {self.place.main_name} out of the loop "
+            f"Move {self.place.main_name}'s Call on rung {site.rung} from 0 out of the loop "
             f"that starts on rung {site.inner} from 0."
         )
 
@@ -349,52 +350,53 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
     return out
 
 
-_KINDS: tuple[tuple[type, str], ...] = (
-    (Next, "next"),
-    (Break, "break"),
-    (Continue, "continue"),
-    (Return, "return"),
-    (End, "end"),
-    (Undecoded, "undecoded"),
-)
+#: The wire strings of a condition cell, and the strings of an AF cell with no instruction.
+_WIRES = frozenset({"", "-", "|", "T"})
+_NO_INSTRUCTION = frozenset({"", "NOP"})
 
 
-def _kind(token: object) -> str:
-    """Return the kind of an AF token, as the shape of a project names it."""
-    if isinstance(token, ForLoop):
-        return "for-oneshot" if token.oneshot else "for"
-    if isinstance(token, Call):
-        return f"call:{token.subroutine}"
-    if isinstance(token, RawInstruction):
-        return f"raw:{token.class_name}"
+def _cell(token: object, strings: frozenset[str]) -> str | None:
+    """Return the CSV text of *token*, or ``None`` when it has none."""
     if isinstance(token, str):
-        return token.lower()
-    for cls, kind in _KINDS:
-        if isinstance(token, cls):
-            return kind
-    return "other"
+        return token if token in strings else None
+    if isinstance(token, (Tee, Condition, Instruction)):
+        return token.to_csv()
+    return None
 
 
-def rung_shape(rung: Rung) -> list[object]:
-    """Return whether *rung* has a condition cell other than wires, and the kind of each of
-    its AF tokens.
+def rung_rows(rung: Rung) -> list[list[str]] | None:
+    """Return *rung* as CSV rows: a ``["#", line]`` row for each line of its comment, then
+    one row for each of its rows, with the marker, the 31 condition cells and the AF cell.
+
+    Every row of the rung is kept, and no row is laid out again.  Return ``None`` when a
+    cell has no CSV text, such as an unknown condition.
     """
-    has_conditions = any(not isinstance(cell, str) for row in rung.conditions for cell in row)
-    return [has_conditions, [_kind(token) for token in rung.instructions]]
+    rows = [["#", line] for line in rung.comment.split("\n")] if rung.comment is not None else []
+    for index, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=True)):
+        cells = [_cell(c, _WIRES) for c in conditions] + [_cell(af, _NO_INSTRUCTION)]
+        if None in cells:
+            return None
+        rows.append(["R" if index == 0 else "", *(c for c in cells if c is not None)])
+    return rows
 
 
-def program_shape(program: Program) -> list[object]:
-    """Return the name of *program* and the shape of each of its rungs."""
-    return [program.name, [rung_shape(rung) for rung in program.rungs]]
+def _program_rows(program: Program) -> list[object] | None:
+    rungs = [rung_rows(rung) for rung in program.rungs]
+    return None if None in rungs else [program.name, rungs]
 
 
-def project_shape(project: Project) -> list[object]:
-    """Return the shape of *project*: main's shape, then the subroutines' shapes by name.
+def project_shape(project: Project) -> list[object] | None:
+    """Return the shape of *project*: its main program, then its subroutines sorted by name.
 
-    The subroutines are sorted by name, because their order in the project changes no answer.
+    Each program is its name and the CSV rows of each of its rungs (``rung_rows()``).  The
+    subroutines are sorted, because their order in the project changes no answer.  Return
+    ``None`` when a rung has a cell with no CSV text.
     """
-    subs = sorted((program_shape(sub) for sub in project.subroutines), key=lambda s: str(s[0]))
-    return [program_shape(project.main), subs]
+    main = _program_rows(project.main)
+    subs = [rows for rows in map(_program_rows, project.subroutines) if rows is not None]
+    if main is None or len(subs) != len(project.subroutines):
+        return None
+    return [main, sorted(subs, key=lambda s: str(s[0]))]
 
 
 def shape_key(shape: object) -> str:
@@ -417,4 +419,5 @@ def answers(project: Project) -> frozenset[Answer] | None:
     """Return the program findings that CLICK reported for a project of the same shape as
     *project*, or ``None`` when CLICK checked no project of that shape.
     """
-    return _table().get(shape_key(project_shape(project)))
+    shape = project_shape(project)
+    return None if shape is None else _table().get(shape_key(shape))
