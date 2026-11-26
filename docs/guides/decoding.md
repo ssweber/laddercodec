@@ -537,7 +537,9 @@ and `captured` `False`. Its message ends with what to change.
   program findings.
 - **Depth.** A For past the 3rd of a nest gets a `for-nesting-depth` finding. In a
   `Project`, a Call inside a loop adds the loops of the subroutine that it calls. The
-  Call gets the finding when those loops take the nest past 3. On a `Program` alone,
+  Call gets the finding when those loops take the nest past 3. Only the subroutine's
+  own Fors count. A Call inside the subroutine adds no loops, and it gets a
+  `nested-call` finding. On a `Program` alone,
   `check()` does not count the loops of a subroutine that it calls.
 - **Calls.** A Call names the subroutine whose `Program.name` equals
   `Call.subroutine`, with the same case and spaces. A Call to a name that no

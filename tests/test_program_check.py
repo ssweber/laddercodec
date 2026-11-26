@@ -8,6 +8,7 @@ recorded for none of these bundles, so every program finding has ``click_id`` No
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -168,12 +169,15 @@ def test_a_call_names_its_subroutine_exactly() -> None:
     ]
 
 
-def test_a_call_counts_the_loops_of_what_its_subroutine_calls() -> None:
+def test_a_call_counts_only_its_subroutine_own_loops() -> None:
+    # Sub1's Call to Sub2 adds no loops, so the Call in Main nests 1 + 1 deep.
     main = [_for("X001"), _call("Sub1"), NEXT, END]
     sub1 = [_for(), _call("Sub2"), NEXT, RET]
     sub2 = [_for(), _for(), OUT, NEXT, NEXT, RET]
+    assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [("Sub1", 1, Code.NESTED_CALL)]
+    main = [_for("X001"), _for(), _call("Sub2"), NEXT, NEXT, END]
     assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
-        (MAIN, 1, Code.FOR_NESTING_DEPTH),
+        (MAIN, 2, Code.FOR_NESTING_DEPTH),
         ("Sub1", 1, Code.NESTED_CALL),
     ]
 
@@ -193,15 +197,31 @@ def test_calls_that_loop_back_end_the_walk() -> None:
 @pytest.mark.parametrize("first", ["Sub1", "Sub2"])
 def test_subroutines_that_call_each_other_count_the_same_in_either_order(first: str) -> None:
     second = "Sub2" if first == "Sub1" else "Sub1"
-    main = [_for("X001"), _call(first), NEXT, _for(), _call(second), NEXT, END]
+    main = [_for("X001"), _for(), _call(first), NEXT, NEXT, _for(), _for(), _call(second)]
+    main += [NEXT, NEXT, END]
     sub1 = [_for(), _call("Sub2"), NEXT, RET]
     sub2 = [_for(), _for(), _call("Sub1"), NEXT, NEXT, RET]
+    # Each Call counts its subroutine's own loops: 2 + 1 for Sub1 and 2 + 2 for Sub2.
+    sub2_rung = 2 if first == "Sub2" else 7
     assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
-        (MAIN, 1, Code.FOR_NESTING_DEPTH),
-        (MAIN, 4, Code.FOR_NESTING_DEPTH),
+        (MAIN, sub2_rung, Code.FOR_NESTING_DEPTH),
         ("Sub1", 1, Code.NESTED_CALL),
         ("Sub2", 2, Code.NESTED_CALL),
     ]
+
+
+def test_many_subroutines_that_call_each_other_check_quickly() -> None:
+    # Every subroutine calls every other one, inside a loop.
+    names = [f"Sub{i}" for i in range(1, 13)]
+    subs = {
+        name: [_for(), *[_call(other) for other in names if other != name], NEXT, RET]
+        for name in names
+    }
+    main = [_for("X001"), *[_call(name) for name in names], NEXT, END]
+    start = time.perf_counter()
+    findings = check(_project(main, **subs))
+    assert time.perf_counter() - start < 1
+    assert [f.code for f in findings] == [Code.NESTED_CALL] * (12 * 11)
 
 
 def test_a_subroutine_called_from_two_loops() -> None:

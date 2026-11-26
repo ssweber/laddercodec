@@ -430,8 +430,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     and its Next must come from the same branch?
   - Depth: four nested loops in Main, and three loops in Main around a Call to a subroutine with one loop.
     Which program and which rung does CLICK name? `check()` expects no error for two loops in Main around a
-    Call to a subroutine that holds one loop. For a subroutine with four loops that Main calls outside any loop, `check()` reports the
-    subroutine's 4th For and not the Call.
+    Call to a subroutine that holds one loop. For a subroutine with four loops that Main calls outside any
+    loop, `check()` reports the subroutine's 4th For and not the Call. Through a Call, `check()` counts only
+    the subroutine's own loops. A Call inside the subroutine adds none, and it gets `nested-call`.
   - One Shot: on the inner For of two, and on the outer For only. Also on the For of a subroutine that Main
     calls inside a loop. `check()` looks for an inner One Shot within one program only.
   - A Return inside a loop in a subroutine, and an End inside a loop in Main.

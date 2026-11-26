@@ -132,7 +132,8 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       open For.
     - ``"for-nesting-depth"``: loops nest at most 3 deep.  The finding is at each For past
       the 3rd.  In a ``Project``, a Call inside a loop adds the loops of the subroutine that
-      it calls, and the finding is at the Call.
+      it calls, and the finding is at the Call.  Those are the subroutine's own loops.  A
+      Call inside the subroutine adds none.
     - ``"for-oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
     - ``"return-inside-loop"``: no Return and no End between a For and its Next.  A Return
       or End gets no finding when the innermost loop around it has no Next.  That For gets

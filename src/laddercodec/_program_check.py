@@ -6,7 +6,7 @@ it names:
 - Each For has a Next after it, and each Next has an open For before it.  A Next closes the
   nearest open For.
 - Loops nest at most 3 deep.  A Call inside a loop adds the loops of the subroutine that it
-  calls.
+  calls.  A Call inside that subroutine adds none, because only the main program can call.
 - Only the outermost For of a nest can use One Shot.
 - No Return and no End between a For and its Next.  A Return or End gets no finding when
   the innermost loop around it has no Next.  That For gets its own finding.
@@ -68,37 +68,36 @@ def _walk(program: Program) -> Iterator[tuple[int, int, object]]:
 
 
 class _Calls:
-    """Finds the subroutine that a Call names, and the depth of the loops it runs."""
+    """Finds the subroutine that a Call names, and how deep its own loops nest."""
 
     def __init__(self, project: Project) -> None:
         self._by_name: dict[str, Program] = {}
         for sub in project.subroutines:
             self._by_name.setdefault(sub.name, sub)
+        self._depth: dict[int, int] = {}
 
     def target(self, call: Call) -> Program | None:
         """Return the subroutine whose name is ``call.subroutine`` as stored, or ``None``."""
         name = call.subroutine
         return self._by_name.get(name) if isinstance(name, str) else None
 
-    def depth(self, program: Program, visiting: frozenset[int] = frozenset()) -> int:
-        """Return how deep loops nest when *program* runs, counting the loops of each
-        subroutine that it calls inside them.  A Call to a program that is already being
-        counted adds no loops.  Nothing is cached, because the depth of a subroutine depends on
-        which programs are already being counted.
+    def depth(self, program: Program) -> int:
+        """Return how deep the loops of *program* nest, from its own Fors only.
+
+        A Call in *program* adds no loops.  Such a Call gets a ``nested-call`` finding, because
+        only the main program can call a subroutine.
         """
-        visiting = visiting | {id(program)}
-        open_loops = deepest = 0
-        for _, _, token in _walk(program):
-            if isinstance(token, ForLoop):
-                open_loops += 1
-                deepest = max(deepest, open_loops)
-            elif isinstance(token, Next):
-                open_loops = max(open_loops - 1, 0)
-            elif isinstance(token, Call):
-                sub = self.target(token)
-                if sub is not None and id(sub) not in visiting:
-                    deepest = max(deepest, open_loops + self.depth(sub, visiting))
-        return deepest
+        key = id(program)
+        if key not in self._depth:
+            open_loops = deepest = 0
+            for _, _, token in _walk(program):
+                if isinstance(token, ForLoop):
+                    open_loops += 1
+                    deepest = max(deepest, open_loops)
+                elif isinstance(token, Next):
+                    open_loops = max(open_loops - 1, 0)
+            self._depth[key] = deepest
+        return self._depth[key]
 
 
 def check_program(
