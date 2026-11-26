@@ -577,10 +577,10 @@ and `missing-return`. Each message ends with what to change.
   `missing-end` or `missing-return` at the rung after its last rung. That finding's
   `rung` is `len(program.rungs)`, and its `row` and `column` are `None`. An End does
   not count in a subroutine, and a Return does not count in main. CLICK does not allow
-  either rung there, and `check()` reports nothing about it beyond the missing End or Return. A `Program` checked
-  alone gets neither finding. A `Program` is often a few rungs cut from a larger
-  program. A `missing-end` finding on every such `Program` would hide its other
-  findings.
+  either rung there, and `check()` reports nothing about it beyond the missing End or
+  Return. A `Program` checked alone gets neither finding. A `Program` is often a few
+  rungs cut from a larger program. A `missing-end` finding on every such `Program`
+  would hide its other findings.
 - **Layout.** The program rules read each rung as CLICK's check lays it out, the same
   way as `read_csv`. They read a rung that CLICK splits as the rungs that CLICK makes
   of it. Take a rung whose row 0 has a `-` in column A and a `T` in column B, and whose

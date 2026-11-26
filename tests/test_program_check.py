@@ -761,15 +761,15 @@ def test_a_shape_that_click_did_not_answer_has_no_click_id(case: str) -> None:
     assert all("(CLICK's response to this shape is not captured)" in f.message for f in findings)
 
 
-@pytest.mark.parametrize("case", sorted(CHANGED_ON_PASTE))
-def test_a_program_that_click_changed_on_paste_has_no_click_id(case: str) -> None:
+@pytest.mark.parametrize(("case", "code"), [("f3", Code.MISSING_END), ("f4", Code.MISSING_RETURN)])
+def test_a_program_that_click_changed_on_paste_has_no_click_id(case: str, code: Code) -> None:
     # The Return in Main (f3) and the End in Sub1 (f4) are not allowed there.  CLICK
     # replaced each rung with an empty one, so it never checked the program as pasted.
     project = read_bundle(CLICK / case / "program")
     findings = [f for f in check(project) if f.code in PROGRAM_CODES]
-    assert findings
+    assert [f.code for f in findings] == [code]
     assert answers(project) is None
-    assert [(f.click_id, f.captured) for f in findings] == [(None, False)] * len(findings)
+    assert [(f.click_id, f.captured) for f in findings] == [(None, False)]
 
 
 def test_the_table_reads_only_findings_that_click_reported() -> None:
