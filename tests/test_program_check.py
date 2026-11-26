@@ -63,7 +63,7 @@ PROGRAM_CODES = {
     Code.FOR_WITHOUT_NEXT,
     Code.NEXT_WITHOUT_FOR,
     Code.FOR_NESTING_DEPTH,
-    Code.FOR_ONESHOT_INSIDE_LOOP,
+    Code.ONESHOT_INSIDE_LOOP,
     Code.RETURN_INSIDE_LOOP,
     Code.NESTED_CALL,
 }
@@ -394,9 +394,7 @@ def test_inside_a_called_loop_only_the_answered_shapes_are_captured() -> None:
     assert _found(check(_project(main, Sub1=sub1))) == [("Sub1", 1, Code.RETURN_INSIDE_LOOP, None)]
     # One Shot on Sub1's second For, with 1 loop around the Call.
     sub1 = [_for(), _for(oneshot=True), OUT, NEXT, NEXT, RET]
-    assert _found(check(_project(main, Sub1=sub1))) == [
-        ("Sub1", 1, Code.FOR_ONESHOT_INSIDE_LOOP, None)
-    ]
+    assert _found(check(_project(main, Sub1=sub1))) == [("Sub1", 1, Code.ONESHOT_INSIDE_LOOP, None)]
     # Sub1's third loop, with 1 loop around the Call.  Its last Next closes the loop around
     # the Call.
     sub1 = [_for(), _for(), _for(), OUT, NEXT, NEXT, NEXT, RET]

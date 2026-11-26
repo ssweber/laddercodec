@@ -56,7 +56,7 @@ PROGRAM_CODES = frozenset(
         Code.FOR_WITHOUT_NEXT,
         Code.NEXT_WITHOUT_FOR,
         Code.FOR_NESTING_DEPTH,
-        Code.FOR_ONESHOT_INSIDE_LOOP,
+        Code.ONESHOT_INSIDE_LOOP,
         Code.RETURN_INSIDE_LOOP,
         Code.NESTED_CALL,
     }
@@ -195,7 +195,7 @@ class _Walk:
             self.add(
                 rung,
                 row,
-                Code.FOR_ONESHOT_INSIDE_LOOP,
+                Code.ONESHOT_INSIDE_LOOP,
                 f"this For has One Shot on, {what}",
                 f"Only the outermost For of a nest can use One Shot. Write it as "
                 f"for({token.count}).",

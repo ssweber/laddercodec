@@ -53,7 +53,7 @@ invalid-token invalid-raw invalid-undecoded invalid-tee invalid-circuit
 not-series-parallel no-rail feeds-no-box no-coil contact-feeds-only-nop unwired-input
 output-above-box-inputs shared-input-net input-without-contact input-shares-enable
 inputs-share-contacts unpowered-box shorted-contact undecoded-rung comment-too-long
-for-without-next next-without-for for-nesting-depth for-oneshot-inside-loop return-inside-loop
+for-without-next next-without-for for-nesting-depth oneshot-inside-loop return-inside-loop
 nested-call
 layout-too-wide layout-too-tall layout-nop-split layout-cannot-draw
 """.split()

@@ -59,7 +59,7 @@ is left.
 `NOP` (see Later).
 
 **Program check names (Sam).** Sam approves or renames the six codes of the program rules
-(`for-without-next`, `next-without-for`, `for-nesting-depth`, `for-oneshot-inside-loop`,
+(`for-without-next`, `next-without-for`, `for-nesting-depth`, `oneshot-inside-loop`,
 `return-inside-loop`, `nested-call`) and the field `Finding.program`. The PR that adds them stays open until
 he does. `nested-call` has no CLICK id, because CLICK drops a Call in a subroutine when it is pasted. If Sam
 renames or drops the code, the check follows him. Sam also decides whether `check()` reports a Call to a

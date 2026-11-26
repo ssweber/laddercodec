@@ -137,7 +137,7 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       before it gets a finding.
     - ``"for-nesting-depth"``: loops nest at most 3 deep.  A For past that depth gets a
       finding, and it opens no loop.
-    - ``"for-oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
+    - ``"oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
     - ``"return-inside-loop"``: a Return or End inside a loop of its own program gets a
       finding.  So does every Return or End after a For with no Next.
     - ``"for-without-next"``: a loop that is still open at the last Return or End of its

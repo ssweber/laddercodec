@@ -525,7 +525,7 @@ rules, because a list of rungs can be part of a program.
 | `for-without-next` | a loop that is still open at the last End or Return of its program | `C0102` |
 | `next-without-for` | a Next with no open For before it | `C0101` |
 | `for-nesting-depth` | a For that would nest loops more than 3 deep | `C010D` |
-| `for-oneshot-inside-loop` | a For with One Shot on, inside another loop | `C0111` |
+| `oneshot-inside-loop` | a For with One Shot on, inside another loop | `C0111` |
 | `return-inside-loop` | a Return or End inside a loop of its own program | `C0115` |
 | `nested-call` | a Call in a subroutine, which a paste into CLICK drops | none |
 
@@ -542,7 +542,7 @@ what to change.
 - **Calls.** In a `Project`, the loops around a Call in the main program count in the
   subroutine that the Call names. A For in that subroutine gets `for-nesting-depth`
   when those loops and its own nest more than 3 deep. It gets
-  `for-oneshot-inside-loop` when it has One Shot on and a loop is around the Call. In
+  `oneshot-inside-loop` when it has One Shot on and a loop is around the Call. In
   that subroutine, a Next with no open For of its own closes one of the loops around
   the Call, and gets no finding. A Return or End there gets `return-inside-loop` only
   inside a loop of the subroutine itself.

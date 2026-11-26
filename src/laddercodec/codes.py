@@ -225,7 +225,7 @@ class Code(StrEnum):
     """A Next with no open For before it."""
     FOR_NESTING_DEPTH = "for-nesting-depth"
     """A For that would nest loops more than 3 deep. The loops around a Call count in the subroutine that it calls."""
-    FOR_ONESHOT_INSIDE_LOOP = "for-oneshot-inside-loop"
+    ONESHOT_INSIDE_LOOP = "oneshot-inside-loop"
     """A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot."""
     RETURN_INSIDE_LOOP = "return-inside-loop"
     """A Return or an End inside a loop of its own program."""
@@ -309,7 +309,7 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.FOR_WITHOUT_NEXT: ("C0102",),
     Code.NEXT_WITHOUT_FOR: ("C0101",),
     Code.FOR_NESTING_DEPTH: ("C010D",),
-    Code.FOR_ONESHOT_INSIDE_LOOP: ("C0111",),
+    Code.ONESHOT_INSIDE_LOOP: ("C0111",),
     Code.RETURN_INSIDE_LOOP: ("C0115",),
 }
 """The CLICK ids that each code can come with.

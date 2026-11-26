@@ -168,7 +168,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `for-without-next` | A loop that is still open at the last Return or End of its program, or a For with no Next and no Return or End after it. | C0102 |
 | `next-without-for` | A Next with no open For before it. | C0101 |
 | `for-nesting-depth` | A For that would nest loops more than 3 deep. The loops around a Call count in the subroutine that it calls. | C010D |
-| `for-oneshot-inside-loop` | A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot. | C0111 |
+| `oneshot-inside-loop` | A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot. | C0111 |
 | `return-inside-loop` | A Return or an End inside a loop of its own program. | C0115 |
 | `nested-call` | A Call in a subroutine. A paste into CLICK drops it. |  |
 
