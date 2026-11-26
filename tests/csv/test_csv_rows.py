@@ -234,13 +234,36 @@ def test_the_undecoded_warning_points_at_the_caller(name: str, tmp_path: Path) -
     assert Path(warning.filename) == Path(__file__)
 
 
-@pytest.mark.parametrize("width", [3, 40])
+_FULL_ROW = ["-"] * 31
+
+#: Rungs of the wrong shape, each with the message that encode() gives for it.
+_WRONG_SHAPES = {
+    "short-row": (
+        Rung([_FULL_ROW, ["-"] * 3], [Coil("Y1"), Coil("Y2")], None),
+        "Row 1: expected 31 columns, got 3. ",
+    ),
+    "long-row": (
+        Rung([_FULL_ROW, ["-"] * 40], [Coil("Y1"), Coil("Y2")], None),
+        "Row 1: expected 31 columns, got 40. ",
+    ),
+    "fewer-instructions": (
+        Rung([_FULL_ROW, [Contact("X1"), *_FULL_ROW[1:]]], [Coil("Y1")], None),
+        "The rung has 2 rows, and instructions has 1 token. ",
+    ),
+    "more-instructions": (
+        Rung([_FULL_ROW], [Coil("Y1"), Coil("Y2")], None),
+        "The rung has 1 row, and instructions has 2 tokens. ",
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", list(_WRONG_SHAPES))
 @pytest.mark.parametrize("name", ["csv_rows", "write_csv", "write_bundle"])
-def test_a_row_of_the_wrong_width_raises_writer_error(
-    name: str, width: int, tmp_path: Path
+def test_a_rung_of_the_wrong_shape_raises_writer_error(
+    name: str, shape: str, tmp_path: Path
 ) -> None:
-    """The message names the rung, the row and its number of cells, and no file is made."""
-    bad = Rung([["-"] * 31, ["-"] * width], [Coil("Y1"), Coil("Y2")], None)
+    """The message names the rung and gives encode()'s message, and no file is made."""
+    bad, message = _WRONG_SHAPES[shape]
     rungs = [_split_rung(), bad]
     path = tmp_path / ("bundle" if name == "write_bundle" else "m.csv")
     calls = {
@@ -249,7 +272,7 @@ def test_a_row_of_the_wrong_width_raises_writer_error(
         "write_bundle": lambda: write_bundle(path, Project(Program("Main Program", 1, rungs))),
     }
     start = "Main program: " if name == "write_bundle" else ""
-    want = f"{start}rungs[1]: Row 1: expected 31 columns, got {width}. "
+    want = f"{start}rungs[1]: {message}"
     with pytest.raises(CsvWriteError, match=f"^{re.escape(want)}"):
         calls[name]()
     assert not path.exists()

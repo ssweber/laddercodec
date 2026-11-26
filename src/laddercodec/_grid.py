@@ -91,17 +91,26 @@ def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: 
         )
 
 
-def _check_columns(
+def _check_shape(
     condition_rows: Sequence[Sequence[object]],
+    af_tokens: Sequence[object],
     label: str = "",
     error: type[LaddercodecError] = EncodeError,
 ) -> None:
-    """Raise *error* for the first row of *condition_rows* that does not have 31 cells.
+    """Raise *error* if *af_tokens* does not have one token for each row of *condition_rows*,
+    or if a row does not have 31 cells.
 
-    ``encode()`` and ``check()`` raise ``EncodeError``, and ``write_csv`` raises
+    ``encode()`` and ``check()`` raise ``EncodeError``, and the CSV writers raise
     ``CsvWriteError``.  *label* works as it does for :func:`_validate_rung`.
     """
     prefix = f"{label}: " if label else ""
+    if len(af_tokens) != len(condition_rows):
+        rows = f"{len(condition_rows)} row{'' if len(condition_rows) == 1 else 's'}"
+        tokens = f"{len(af_tokens)} token{'' if len(af_tokens) == 1 else 's'}"
+        raise error(
+            f"{prefix}The rung has {rows}, and instructions has {tokens}. Pass one AF "
+            "token per row, with '' for a row that has no instruction."
+        )
     for row_idx, row in enumerate(condition_rows):
         if len(row) != CONDITION_COLUMNS:
             raise error(
@@ -141,14 +150,8 @@ def _validate_rung(
             f"{prefix}The rung has {rows}, and conditions has {len(condition_rows)}. "
             "Pass one list of 31 tokens per row."
         )
-    if len(af_tokens) != logical_rows:
-        tokens = f"{len(af_tokens)} token{'' if len(af_tokens) == 1 else 's'}"
-        raise EncodeError(
-            f"{prefix}The rung has {rows}, and instructions has {tokens}. Pass one AF "
-            "token per row, with '' for a row that has no instruction."
-        )
 
-    _check_columns(condition_rows, label)
+    _check_shape(condition_rows, af_tokens, label)
     for row_idx, row in enumerate(condition_rows):
         for col_idx, token in enumerate(row):
             if isinstance(token, Tee):
