@@ -83,7 +83,7 @@ class Finding:
 
         A program finding, such as ``"for-without-next"``, is captured only in a project
         of the exact shape of one that CLICK checked, and only when CLICK reported that
-        finding there.  A program that contains such a shape is not captured.  A
+        finding there.  A larger project that contains such a shape is not captured.  A
         ``"nested-call"`` finding has no CLICK id.
 
         These findings are provisional.  Their codes may be renamed or dropped once CLICK's
