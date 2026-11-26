@@ -471,20 +471,26 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   - A Call to a missing subroutine in a `Program` checked alone. It has no list of subroutines, so
     `check()` reports nothing.
   - A Call in Main whose `subroutine` is not text. `check()` reports no `call-without-subroutine` for it.
-  - What "always runs" means for an End or a Return (e1 to e8). `check()` counts one when every condition
-    cell of its row is a `-` or `T` wire. An End on a branch that only wires reach, such as row 1 of a rung
-    whose row 0 holds a `T`, does not count, so `check()` reports `missing-end`. A contact that is always on,
-    such as SC1, does not count either.
-  - An End in a subroutine, or a Return in Main. `check()` counts neither, so it reports `missing-return`
-    or `missing-end`.
-  - A subroutine with no rungs, or a Main with no rungs. `check()` reports `missing-return` or
-    `missing-end` at rung 0.
+  - What "always runs" means for an End or a Return, past the answered shapes. `check()` reads each rung as
+    CLICK's Syntax Check lays it out, and counts an End or a Return when every condition cell of its row in
+    that layout is a `-` or `T` wire. CLICK counted an End on row 1 that wires join to the rail through a `T`
+    in column B of row 0 (f2). Only a `T` in column B was tried. CLICK did not count an End behind SC1 (f6),
+    and SC1 is the only contact that is always on that was tried.
+  - **Sam:** an End in a subroutine, or a Return in Main. `check()` counts neither, so it reports
+    `missing-return` or `missing-end`. CLICK v4.00 was observed to paste an empty rung, with no message, in
+    place of a rung that holds an unconditional Return in Main or an unconditional End in a subroutine. Its
+    Syntax Check then reported C0201 or C0105 for a program that no longer held the rung. Sam decides
+    whether `check()` reports these rungs, or whether laddercodec refuses `return()` in Main and `end()` in
+    a subroutine. These two cases are not in the fixtures. `e3_return_in_main` and `e4_end_in_sub1` stay in
+    `UNANSWERED` until Sam decides.
+  - A Main with no rungs. `check()` reports `missing-end` at rung 0. CLICK reported C0105 at rung 1,
+    counted from 1, for a subroutine with no rungs (f5).
   - A program whose reading stops at an undecoded marker, or at a raw For, Next, Return, End or Call,
     before an End or a Return that always runs. `check()` reports neither `missing-end` nor
     `missing-return` for it.
   - `missing-end` or `missing-return` in a program of another length. `check()` reports it at the rung
-    after the last rung. CLICK reported it there for a 2-rung Main (e1), and for a 1-rung and a 2-rung
-    Sub1 (e4, e5).
+    after the last rung. CLICK reported it there for a 2-rung Main (e1, f6), a 3-rung Main (f1), and an
+    empty, a 1-rung and a 2-rung Sub1 (f5, e4, e5).
   - Shapes near an answered case. Each is a project whose main is `Main Program`. `check()` gives each the
     findings that its rules give, with no CLICK id. `tests/test_program_check.py` holds them in `UNANSWERED`.
     - An End inside 2 open loops: `For, For, X2 -> End, Next, Next, End`. `check()` reports
@@ -505,11 +511,10 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     - Two Calls to Sub1 inside 3 loops: Main `For, For, For, Call Sub1, X5 -> Call Sub1, Next x3, End`, Sub1
       `For, Out, Next, Return`.
     - A rung after an End that is inside a loop: `For, End, Out`.
-    - e1 with a third rung: `X1 -> Out, X2 -> End, Out`. `check()` reports `missing-end` at rung 3 from 0.
-    - e3 with the End on a branch that only wires reach. `check()` reports `missing-end`.
-    - e3 with a Return in place of the End: `X1 -> Out, Return`. `check()` reports `missing-end`.
+    - e3 with a Return in place of the End: `X1 -> Out, Return`. `check()` reports `missing-end`. CLICK's
+      paste drops the Return, so this case waits on Sam's decision above.
     - e4 with an End in place of Sub1's Return: Sub1 `X2 -> Out, End`. `check()` reports `missing-return`.
-    - e4 with no rungs in Sub1. `check()` reports `missing-return` at rung 0.
+      CLICK's paste drops the End, so this case waits on Sam's decision above.
 
 ## For pyrung's export (another repo first)
 

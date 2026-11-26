@@ -572,13 +572,20 @@ and `missing-return`. Each message ends with what to change.
   `check()` counts the deepest.
 - **End and Return.** In a `Project`, the main program needs an End that always runs,
   and each subroutine needs a Return that always runs. An End or Return always runs
-  when every condition cell of its row is a `-` or `T` wire. It can be on any rung. A
-  program without one gets `missing-end` or `missing-return` at the rung after its
-  last rung. That finding's `rung` is `len(program.rungs)`, and its `row` and `column`
-  are `None`. An End does not count in a subroutine, and a Return does not count in
-  main. A `Program` checked alone gets neither finding. A `Program` is often a few
-  rungs cut from a larger program. A `missing-end` finding on every such `Program`
-  would hide its other findings.
+  when every condition cell of its row is a `-` or `T` wire, in the layout that CLICK's
+  check draws for the rung. It can be on any rung. A program without one gets
+  `missing-end` or `missing-return` at the rung after its last rung. That finding's
+  `rung` is `len(program.rungs)`, and its `row` and `column` are `None`. An End does
+  not count in a subroutine, and a Return does not count in main. A `Program` checked
+  alone gets neither finding. A `Program` is often a few rungs cut from a larger
+  program. A `missing-end` finding on every such `Program` would hide its other
+  findings.
+- **Layout.** `check()` reads each rung as CLICK's check lays it out, the same way as
+  `read_csv`. It reads a rung that CLICK splits as the rungs that CLICK makes of it.
+  Take a rung whose row 0 has a `T` in column B, and whose row 1 has wires from column
+  B to an End. Wires alone join that End to the rail, so it always runs. A rung that
+  has no layout, such as one whose circuit is not series-parallel, is read as drawn.
+  A finding still gives the `rung` and `row` of your rung.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
   alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
   alone as a subroutine that main calls outside any loop.
@@ -602,10 +609,10 @@ contains an answered shape is not captured.
 
 The shape is the project's exact CSV: each program's name, a `#` row for each line of
 each rung's comment, and each row of the rung as it is, with each cell's CSV text.
-`check()` does not lay the rung out first. Every cell counts: each wire, each contact
-with its address, each instruction with its fields. The subroutines may come in any
-order. A main program alone has the shape of a project with no subroutines. A
-subroutine alone, and a rung with a cell that the CSV can't hold, are never captured.
+The shape is not laid out first. Every cell counts: each wire, each contact with its
+address, each instruction with its fields. The subroutines may come in any order. A
+main program alone has the shape of a project with no subroutines. A subroutine alone,
+and a rung with a cell that the CSV can't hold, are never captured.
 `nested-call` has no CLICK id.
 
 ## Round-trip identity
