@@ -58,14 +58,6 @@ is left.
 **After 0.5.1 (Sam).** Whether `read_csv` returns a rung of wires alone as drawn, or with CLICK's
 `NOP` (see Later).
 
-**Program check names (Sam).** Sam approves or renames the six codes of the program rules
-(`for-without-next`, `next-without-for`, `for-nesting-depth`, `oneshot-inside-loop`,
-`return-inside-loop`, `nested-call`) and the field `Finding.program`. The PR that adds them stays open until
-he does. `nested-call` has no CLICK id, because CLICK drops a Call in a subroutine when it is pasted. If Sam
-renames or drops the code, the check follows him. Sam also decides whether `check()` reports a Call to a
-missing subroutine (CLICK's C010C), and a Break or a Continue outside a loop (C010F and C0110). CLICK's
-answers for all three are in `tests/fixtures/program_check/click/` (cases q6a and q7).
-
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
 
 pyrung learns what a field takes by building the object and reading the error. That is on `main`. A
@@ -458,7 +450,27 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   - A Call to `sub1` that runs on the PLC. CLICK's Syntax Check matches the name to `Sub1` without regard to
     case (q6b). Whether the PLC runs Sub1 for that Call is not tested.
   - A Call in a subroutine, typed in CLICK's editor. A paste drops it (q5a, q5b), and the runner has no
-    command to type one.
+    command to type one. A Call in a subroutine that names a missing subroutine gets only `nested-call`,
+    not `call-without-subroutine`.
+  - A Break or a Continue in a subroutine that Main calls inside a loop. `check()` reads it as inside the
+    loop around the Call, and reports nothing. After a stray Next closes that loop, it reports
+    `break-outside-loop` or `continue-outside-loop`.
+  - A Break or a Continue in a subroutine that Main calls outside any loop, or that Main does not call.
+    `check()` reports it, as in Main (q7).
+  - A Break or a Continue after the last Next of a loop. `check()` reports it.
+  - A Break or a Continue after a For that gets `for-nesting-depth`. That For opens no loop, but the 3
+    loops around it are still open, so `check()` reports nothing.
+  - A Break or a Continue after an undecoded marker. `check()` reads nothing after the marker.
+  - A Next, a Break or a Continue in a subroutine, when the reading of Main stops at an undecoded marker
+    or at a raw For, Next, Return, End or Call. A Call after the stop may sit inside loops, so `check()`
+    reports none of these outside the subroutine's own loops. It still reports `for-nesting-depth` and
+    `oneshot-inside-loop` from the loops that it read, and misses those that loops after the stop
+    would add.
+  - A Call to a missing subroutine inside a loop, or in a project that has other subroutines. `check()`
+    reports `call-without-subroutine`, as in q6a. Main's Calls after an undecoded marker get nothing.
+  - A Call to a missing subroutine in a `Program` checked alone. It has no list of subroutines, so
+    `check()` reports nothing.
+  - A Call in Main whose `subroutine` is not text. `check()` reports no `call-without-subroutine` for it.
   - Shapes near an answered case. Each is a project whose main is `Main Program`. `check()` gives each the
     findings that its rules give, with no CLICK id. `tests/test_program_check.py` holds them in `UNANSWERED`.
     - An End inside 2 open loops: `For, For, X2 -> End, Next, Next, End`. `check()` reports
@@ -737,12 +749,11 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Home, Velocity, Position and Email status bits:** read-only `outputs` with busy, complete, success,
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0002, C0003, C000A, C0202, C0205 and
-  C0212. On a `Program` or a `Project`, it also reports C0101, C0102, C010D, C0111 and C0115.
-  It does not report these:
+  C0212. On a `Program` or a `Project`, it also reports C0101, C0102, C010C, C010D, C010F, C0110, C0111
+  and C0115. It does not report these:
   - Next alone on its rung (C0009);
   - a timer inside For/Next (C1004);
-  - Break or Continue without a contact, or outside a loop (C010F, C0110);
-  - a Call to a name that no subroutine has (C010C);
+  - Break or Continue without a contact (C000B, C000C);
   - a subroutine without an unconditional Return, and Main without an unconditional End;
   - the other timer, counter, shift and drum input-contact rules;
   - duplicate Timer or Counter addresses, and Out or Drum on a used timer address;
