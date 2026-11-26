@@ -55,6 +55,7 @@ output-above-box-inputs shared-input-net input-without-contact input-shares-enab
 inputs-share-contacts unpowered-box shorted-contact undecoded-rung comment-too-long
 for-without-next next-without-for for-nesting-depth oneshot-inside-loop return-inside-loop
 nested-call call-without-subroutine break-outside-loop continue-outside-loop
+missing-end missing-return
 layout-too-wide layout-too-tall layout-nop-split layout-cannot-draw
 """.split()
 
@@ -72,7 +73,7 @@ PAGE_GEN = _load("gen_codes", ROOT / "docs" / "gen_codes.py")
 
 def test_the_names_are_pinned() -> None:
     assert [code.value for code in Code] == NAMES
-    assert len(NAMES) == len(set(NAMES)) == 105
+    assert len(NAMES) == len(set(NAMES)) == 107
     assert all(code.name == code.value.upper().replace("-", "_") for code in Code)
 
 

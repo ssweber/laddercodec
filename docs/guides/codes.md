@@ -161,7 +161,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 
 ## Program findings
 
-`check()` reports these on a `Program` or a `Project`, at the instruction's AF cell.
+`check()` reports these on a `Program` or a `Project`, at the instruction's AF cell. It reports `missing-end` and `missing-return` only on a `Project`, at the rung after the program's last rung.
 
 | Code | Meaning | CLICK id |
 |---|---|---|
@@ -174,6 +174,8 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `call-without-subroutine` | A Call in the main program that names no subroutine of the project. The names match without regard to case. | C010C |
 | `break-outside-loop` | A Break that is not inside a For/Next loop. | C010F |
 | `continue-outside-loop` | A Continue that is not inside a For/Next loop. | C0110 |
+| `missing-end` | A main program with no End that always runs. An End behind a contact does not count. | C0201 |
+| `missing-return` | A subroutine with no Return that always runs. A Return behind a contact does not count. | C0105 |
 
 ## Layout
 

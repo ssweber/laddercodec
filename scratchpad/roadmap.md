@@ -464,22 +464,37 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   - A Next, a Break or a Continue in a subroutine, when the reading of Main stops at an undecoded marker
     or at a raw For, Next, Return, End or Call. A Call after the stop may sit inside loops, so `check()`
     reports none of these outside the subroutine's own loops. It still reports `for-nesting-depth` and
-    `oneshot-inside-loop` from the loops that it read, and misses those that loops after the stop
-    would add.
+    `oneshot-inside-loop` for the loops that it read. It misses the ones that a Call after the stop would
+    add.
   - A Call to a missing subroutine inside a loop, or in a project that has other subroutines. `check()`
     reports `call-without-subroutine`, as in q6a. Main's Calls after an undecoded marker get nothing.
   - A Call to a missing subroutine in a `Program` checked alone. It has no list of subroutines, so
     `check()` reports nothing.
   - A Call in Main whose `subroutine` is not text. `check()` reports no `call-without-subroutine` for it.
+  - What "always runs" means for an End or a Return (e1 to e8). `check()` counts one when every condition
+    cell of its row is a `-` or `T` wire. An End on a branch that only wires reach, such as row 1 of a rung
+    whose row 0 holds a `T`, does not count, so `check()` reports `missing-end`. A contact that is always on,
+    such as SC1, does not count either.
+  - An End in a subroutine, or a Return in Main. `check()` counts neither, so it reports `missing-return`
+    or `missing-end`.
+  - A subroutine with no rungs, or a Main with no rungs. `check()` reports `missing-return` or
+    `missing-end` at rung 0.
+  - A program whose reading stops at an undecoded marker, or at a raw For, Next, Return, End or Call,
+    before an End or a Return that always runs. `check()` reports neither `missing-end` nor
+    `missing-return` for it.
+  - `missing-end` or `missing-return` in a program of another length. `check()` reports it at the rung
+    after the last rung. CLICK reported it there for a 2-rung Main (e1), and for a 1-rung and a 2-rung
+    Sub1 (e4, e5).
   - Shapes near an answered case. Each is a project whose main is `Main Program`. `check()` gives each the
     findings that its rules give, with no CLICK id. `tests/test_program_check.py` holds them in `UNANSWERED`.
     - An End inside 2 open loops: `For, For, X2 -> End, Next, Next, End`. `check()` reports
       `return-inside-loop` at both Ends.
     - A Return inside a loop in Main: `For, X2 -> Return, Next, End`.
     - A loop open at a Return in Main: `For, Out, Return`. `check()` reports `return-inside-loop` and
-      `for-without-next` at the Return, as it does at an End.
+      `for-without-next` at the Return, as it does at an End. It also reports `missing-end`.
     - An End inside a loop in a subroutine that Main calls outside any loop: `For, X2 -> End, Next, Return`.
-    - A loop open at an End in a subroutine that Main calls outside any loop: `For, Out, End`.
+    - A loop open at an End in a subroutine that Main calls outside any loop: `For, Out, End`. `check()`
+      also reports `missing-return`.
     - 2 loops open at an End, with a Next after it: `For, For, End, Next`. `check()` reports
       `for-without-next` at the End, for the loop on rung 0.
     - One Shot on the 2nd For of a subroutine that Main calls outside any loop:
@@ -490,6 +505,11 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     - Two Calls to Sub1 inside 3 loops: Main `For, For, For, Call Sub1, X5 -> Call Sub1, Next x3, End`, Sub1
       `For, Out, Next, Return`.
     - A rung after an End that is inside a loop: `For, End, Out`.
+    - e1 with a third rung: `X1 -> Out, X2 -> End, Out`. `check()` reports `missing-end` at rung 3 from 0.
+    - e3 with the End on a branch that only wires reach. `check()` reports `missing-end`.
+    - e3 with a Return in place of the End: `X1 -> Out, Return`. `check()` reports `missing-end`.
+    - e4 with an End in place of Sub1's Return: Sub1 `X2 -> Out, End`. `check()` reports `missing-return`.
+    - e4 with no rungs in Sub1. `check()` reports `missing-return` at rung 0.
 
 ## For pyrung's export (another repo first)
 
@@ -750,19 +770,17 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0002, C0003, C000A, C0202, C0205 and
   C0212. On a `Program` or a `Project`, it also reports C0101, C0102, C010C, C010D, C010F, C0110, C0111
-  and C0115. It does not report these:
+  and C0115. On a `Project`, it also reports C0105 and C0201. It does not report these:
   - Next alone on its rung (C0009);
   - a timer inside For/Next (C1004);
   - Break or Continue without a contact (C000B, C000C);
-  - a subroutine without an unconditional Return, and Main without an unconditional End;
   - the other timer, counter, shift and drum input-contact rules;
   - duplicate Timer or Counter addresses, and Out or Drum on a used timer address;
   - an unused timer or counter bit;
   - a Math function not followed by an operator;
   - a motion instruction that names an axis that does not exist.
 
-  Decide which are worth a Finding. Sam decides whether a Break or Continue outside a loop, a Call to a
-  missing subroutine, and the unconditional Return and End join the program rules.
+  Decide which are worth a Finding. Sam decides which of them join the program rules.
 - **SCR decode of a Math whose range is refused** keeps only 6 of Math's 5510 fields. The SCR blob dataclass
   above fixes it.
 - **ASCII Send and Receive** are not modelled (they stay `raw`).

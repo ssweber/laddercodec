@@ -1,0 +1,6 @@
+--------------------Configuration: e2 - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+
+e2 - 0 error(s), 0 warning(s)

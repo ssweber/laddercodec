@@ -64,7 +64,7 @@ src/laddercodec/
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── paste.py              # addresses(): the addresses that a CLICK project must hold before a paste
 ├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
-├── _program_check.py     # The For/Next and Call rules that check() reports on a Program or a Project;
+├── _program_check.py     # The For/Next, Call, End and Return rules that check() reports on a Program or a Project;
 │                         #   answers(): the findings CLICK reported for a project of the same shape
 ├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
