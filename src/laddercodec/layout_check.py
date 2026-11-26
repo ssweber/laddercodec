@@ -146,15 +146,19 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     - ``"nested-call"``: a Call in a subroutine gets a finding, because a paste into CLICK
       drops it.  In a ``Project``, the main program is ``project.main``.  For a
       ``Program`` alone, it is the program with ``prog_idx`` 1.
+    - ``"call-without-subroutine"``: in a ``Project``, a Call in the main program that names
+      no subroutine of the project gets a finding.  A main ``Program`` alone gets none,
+      even in the shape of a project that CLICK checked.
+    - ``"break-outside-loop"`` and ``"continue-outside-loop"``: a Break or a Continue that is
+      not inside a loop gets a finding.
 
     In a ``Project``, the loops around a Call in the main program count in the subroutine
     that the Call names.  They count for its depth and for One Shot.  In that subroutine, a
-    Next with no open For of its own closes one of those loops, and gets no finding.  A Call
-    names the first subroutine whose name matches ``Call.subroutine`` without regard to case.
-    When main calls a subroutine from loops of different depths, the loops around the
-    deepest Call count.
-    ``check()`` reads any ``Program`` alone other than main as a subroutine that main calls
-    outside any loop.
+    Next with no open For of its own closes one of those loops, and gets no finding.  A Break
+    or a Continue there is inside those loops.  A Call names the first subroutine whose name
+    matches ``Call.subroutine`` without regard to case.  When main calls a subroutine from
+    loops of different depths, the loops around the deepest Call count.  ``check()`` reads
+    any ``Program`` alone other than main as a subroutine that main calls outside any loop.
 
     A program finding is at the instruction's AF cell.  Its message ends with what to change.
     It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
@@ -165,10 +169,13 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     shape of a project with no subroutines.  A subroutine alone, and a rung with a cell that
     the CSV can't hold, are never captured.
 
-    ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
-    marker, because the rung that the marker stands for may hold a For or a Next.  A
-    ``RawInstruction`` of one of those classes stops the reading in the same way.  A For that
-    is open where the reading stops gets no ``"for-without-next"`` finding.
+    ``check()`` reads no For, Next, Return, End, Call, Break or Continue after a program's
+    first undecoded marker, because the rung that the marker stands for may hold a For or a
+    Next.  A ``RawInstruction`` of class For, Next, Return, End or Call stops the reading in
+    the same way.  A For that is open where the reading stops gets no ``"for-without-next"``
+    finding.  When the reading of the main program stops, the loops around a later Call are
+    not known.  In that project, a Next, a Break or a Continue in a subroutine gets no
+    finding when the subroutine has no open For of its own.
 
     A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
     Within a program, the findings come in rung order.  A rung's own findings come first, then

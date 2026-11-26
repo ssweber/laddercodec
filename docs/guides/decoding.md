@@ -503,7 +503,7 @@ output. `check()` does not report that `NOP` either, and `read_csv` drops it. A
 ### Check a program or a project
 
 Pass `check()` a `Program` or a `Project`, and it also reports the rules that span
-rungs: For/Next loops and Calls.
+rungs: For/Next loops, Break and Continue, and Calls.
 
 ```python
 from laddercodec import check, read_bundle
@@ -528,6 +528,9 @@ rules, because a list of rungs can be part of a program.
 | `oneshot-inside-loop` | a For with One Shot on, inside another loop | `C0111` |
 | `return-inside-loop` | a Return or End inside a loop of its own program | `C0115` |
 | `nested-call` | a Call in a subroutine, which a paste into CLICK drops | none |
+| `call-without-subroutine` | a Call in the main program that names no subroutine of the project | `C010C` |
+| `break-outside-loop` | a Break that is not inside a loop | `C010F` |
+| `continue-outside-loop` | a Continue that is not inside a loop | `C0110` |
 
 Every finding of these rules is at the instruction's AF cell. Its message ends with
 what to change.
@@ -544,11 +547,15 @@ what to change.
   when those loops and its own nest more than 3 deep. It gets
   `oneshot-inside-loop` when it has One Shot on and a loop is around the Call. In
   that subroutine, a Next with no open For of its own closes one of the loops around
-  the Call, and gets no finding. A Return or End there gets `return-inside-loop` only
-  inside a loop of the subroutine itself.
+  the Call, and gets no finding. A Break or Continue there is inside the loops around
+  the Call. A Return or End there gets `return-inside-loop` only inside a loop of the
+  subroutine itself.
 - **Call names.** A Call names the first subroutine whose name matches
-  `Call.subroutine` without regard to case. A Call to a name that no subroutine has
-  gets no finding. When main calls a subroutine from loops of different depths,
+  `Call.subroutine` without regard to case. In a `Project`, a Call in the main program
+  that names no subroutine gets `call-without-subroutine`. A `Program` alone has no
+  list of subroutines. So a main `Program` alone gets no `call-without-subroutine`,
+  even in the shape of a project that CLICK checked. A Call in a subroutine gets only
+  `nested-call`. When main calls a subroutine from loops of different depths,
   `check()` counts the deepest.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
   alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
@@ -556,14 +563,14 @@ what to change.
 - **Order.** A `Project` is checked main first, then each subroutine in
   `project.subroutines`. In each program, a rung's own findings come first, then its
   program findings.
-- **Undecoded markers.** `check()` reads no For, Next, Return, End or Call after a
-  program's first undecoded marker, because the rung that the marker stands for may
-  hold a For or a Next. A `RawInstruction` of one of those classes stops the reading in
-  the same way. A For that is open where the reading stops gets no `for-without-next`
-  finding.
-
-`check()` does not report a Call to a name that no subroutine has, or a Break or
-Continue outside a loop. CLICK's syntax check reports both.
+- **Undecoded markers.** `check()` reads no For, Next, Return, End, Call, Break or
+  Continue after a program's first undecoded marker, because the rung that the marker
+  stands for may hold a For or a Next. A `RawInstruction` of class For, Next, Return,
+  End or Call stops the reading in the same way. A For that is open where the
+  reading stops gets no `for-without-next` finding. When the reading of the main
+  program stops, the loops around a later Call are not known. In that project, a
+  Next, a Break or a Continue in a subroutine gets no finding when the subroutine has
+  no open For of its own.
 
 A program finding has `captured=True` and its `click_id` only on the exact shapes
 that CLICK answered. The whole project must have the shape of a project that CLICK

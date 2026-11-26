@@ -231,6 +231,12 @@ class Code(StrEnum):
     """A Return or an End inside a loop of its own program."""
     NESTED_CALL = "nested-call"
     """A Call in a subroutine. A paste into CLICK drops it."""
+    CALL_WITHOUT_SUBROUTINE = "call-without-subroutine"
+    """A Call in the main program that names no subroutine of the project. The names match without regard to case."""
+    BREAK_OUTSIDE_LOOP = "break-outside-loop"
+    """A Break that is not inside a For/Next loop."""
+    CONTINUE_OUTSIDE_LOOP = "continue-outside-loop"
+    """A Continue that is not inside a For/Next loop."""
 
     # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``CsvWriteError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvReadError`` and ``write_csv`` raises a ``CsvWriteError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"
@@ -311,6 +317,9 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.FOR_NESTING_DEPTH: ("C010D",),
     Code.ONESHOT_INSIDE_LOOP: ("C0111",),
     Code.RETURN_INSIDE_LOOP: ("C0115",),
+    Code.CALL_WITHOUT_SUBROUTINE: ("C010C",),
+    Code.BREAK_OUTSIDE_LOOP: ("C010F",),
+    Code.CONTINUE_OUTSIDE_LOOP: ("C0110",),
 }
 """The CLICK ids that each code can come with.
 

@@ -19,11 +19,14 @@ from types import ModuleType
 import pytest
 
 from laddercodec import (
+    CLICK_IDS,
+    Break,
     Call,
     Code,
     Coil,
     Condition,
     Contact,
+    Continue,
     End,
     Finding,
     ForLoop,
@@ -52,10 +55,6 @@ CLICK = FIX / "click"
 CASES = sorted(p.name for p in CLICK.iterdir() if p.is_dir())
 SAVES = ("pasted", "info", "checked")
 
-#: CLICK errors whose rules ``check()`` does not report yet: a Call to a missing subroutine,
-#: and a Break or a Continue outside a loop.
-NOT_BUILT = {"C010C", "C010F", "C0110"}
-
 #: The cases whose Call in a subroutine CLICK dropped at the paste.
 DROPPED_CALL = {"q5a", "q5b"}
 
@@ -66,6 +65,9 @@ PROGRAM_CODES = {
     Code.ONESHOT_INSIDE_LOOP,
     Code.RETURN_INSIDE_LOOP,
     Code.NESTED_CALL,
+    Code.CALL_WITHOUT_SUBROUTINE,
+    Code.BREAK_OUTSIDE_LOOP,
+    Code.CONTINUE_OUTSIDE_LOOP,
 }
 
 MAIN = "Main Program"
@@ -127,8 +129,7 @@ def _errors(findings: list[Finding], programs: list[str]) -> list[Error]:
 
 
 def _expected(case: str) -> tuple[list[str], list[Error]]:
-    programs, errors = _click_errors(case)
-    return programs, [e for e in errors if e[2] not in NOT_BUILT]
+    return _click_errors(case)
 
 
 def _saves() -> list[tuple[str, str]]:
@@ -169,7 +170,7 @@ def test_the_table_of_answers_is_current() -> None:
 @pytest.mark.parametrize("case", CASES)
 def test_every_case_is_answered_from_its_program_and_its_saves(case: str) -> None:
     _, errors = _click_errors(case)
-    ids = {"C0101", "C0102", "C010D", "C0111", "C0115"}
+    ids = {CLICK_IDS[code][0] for code in PROGRAM_CODES if code in CLICK_IDS}
     expected = {(e[0], e[1], e[3]) for e in errors if e[2] in ids}
     projects = [read_bundle(CLICK / case / "program")]
     projects += [_scr_project(CLICK / case / s) for s in SAVES if (CLICK / case / s).is_dir()]
@@ -188,9 +189,10 @@ def test_a_call_in_a_subroutine_gets_nested_call(case: str) -> None:
     assert "a paste into CLICK drops it" in finding.message
 
 
-def test_rules_not_built_yet_are_in_clicks_answers() -> None:
+def test_every_id_in_clicks_answers_has_a_code() -> None:
     ids = {e[2] for case in CASES for e in _click_errors(case)[1]}
-    assert ids >= NOT_BUILT
+    assert ids <= {i for found in CLICK_IDS.values() for i in found}
+    assert ids >= {CLICK_IDS[code][0] for code in PROGRAM_CODES if code in CLICK_IDS}
 
 
 def test_every_case_has_an_errors_file_and_a_program() -> None:
@@ -287,6 +289,24 @@ def test_messages() -> None:
     )
     (nested,) = check(read_bundle(CLICK / "q5a" / "program"))
     assert _then(nested) == "Call Sub2 from Main Program."
+    (missing,) = findings("q6a")
+    assert missing.message == (
+        'row 0 from 0, column AF: this Call names "Nothing", and the project has no subroutine '
+        'of that name (CLICK: C010C). Add a subroutine named "Nothing", or delete the Call.'
+    )
+    stray_break, stray_continue = findings("q7")
+    assert stray_break.message == (
+        "row 0 from 0, column AF: this Break is not inside a loop (CLICK: C010F). Move the "
+        "break() rung between a for() rung and its next() rung, or delete it."
+    )
+    assert _then(stray_continue) == (
+        "Move the continue() rung between a for() rung and its next() rung, or delete it."
+    )
+    found = check(_project([_call("Nothing", "X001"), END], Sub1=[RET]))
+    assert _then(found[0]) == (
+        'Call a subroutine that the project has, such as call("Sub1"), or add a subroutine '
+        'named "Nothing".'
+    )
 
 
 def test_rungs_alone_get_no_program_finding() -> None:
@@ -339,7 +359,79 @@ def test_a_call_names_its_subroutine_without_regard_to_case() -> None:
         ("Sub1", 0, Code.FOR_NESTING_DEPTH, "C010D")
     ]
     main[3] = _call("Sub2")
-    assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == []
+    assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == [
+        (MAIN, 3, Code.CALL_WITHOUT_SUBROUTINE, None)
+    ]
+
+
+BREAK = _rung(Break(), "X002")
+CONTINUE = _rung(Continue(), "X003")
+
+
+def test_a_break_or_continue_inside_a_loop_gets_no_finding() -> None:
+    main = [_for("X001"), BREAK, CONTINUE, NEXT, END]
+    assert check(_project(main)) == []
+    # A For past the depth limit opens no loop, but the 3 loops around it are open.
+    main = [_for("X001"), _for(), _for(), _for(), BREAK, *[NEXT] * 3, END]
+    assert [f.code for f in check(_project(main))] == [Code.FOR_NESTING_DEPTH]
+
+
+def test_a_break_after_the_last_next_is_outside_the_loop() -> None:
+    main = [_for("X001"), NEXT, BREAK, CONTINUE, END]
+    assert _found(check(_project(main))) == [
+        (MAIN, 2, Code.BREAK_OUTSIDE_LOOP, None),
+        (MAIN, 3, Code.CONTINUE_OUTSIDE_LOOP, None),
+    ]
+
+
+def test_a_break_in_a_subroutine_counts_the_loops_around_the_call() -> None:
+    main = [_for("X001"), _call("Sub1"), NEXT, END]
+    assert check(_project(main, Sub1=[BREAK, CONTINUE, RET])) == []
+    # After a stray Next closes the loop around the Call, a Break is outside any loop.
+    assert _found(check(_project(main, Sub1=[NEXT, BREAK, RET]))) == [
+        ("Sub1", 1, Code.BREAK_OUTSIDE_LOOP, None)
+    ]
+    main = [_call("Sub1", "X001"), END]
+    assert _found(check(_project(main, Sub1=[BREAK, CONTINUE, RET]))) == [
+        ("Sub1", 0, Code.BREAK_OUTSIDE_LOOP, None),
+        ("Sub1", 1, Code.CONTINUE_OUTSIDE_LOOP, None),
+    ]
+
+
+def test_a_break_alone_in_a_program_gets_a_finding() -> None:
+    main = Program(MAIN, 1, [BREAK, END])
+    assert _found(check(main)) == [(MAIN, 0, Code.BREAK_OUTSIDE_LOOP, None)]
+    sub = Program("Sub1", 2, [CONTINUE, RET])
+    assert _found(check(sub)) == [("Sub1", 0, Code.CONTINUE_OUTSIDE_LOOP, None)]
+
+
+def test_a_break_after_an_undecoded_marker_gets_no_finding() -> None:
+    marker = marker_rung(Undecoded("why", 0))
+    found = check(_project([marker, BREAK, _call("Nothing"), END]))
+    assert [f.code for f in found] == [Code.UNDECODED_RUNG]
+
+
+@pytest.mark.parametrize(
+    "stop",
+    [marker_rung(Undecoded("why", 1)), _rung(RawInstruction("Call", b"\x00"))],
+    ids=["marker", "raw-call"],
+)
+def test_a_stop_in_main_hides_the_loops_around_a_later_call(stop: Rung) -> None:
+    # The Call after the stop sits inside the loop, but the walk of main does not reach it.
+    main = [_for("X001"), stop, _call("Sub1"), NEXT, END]
+    sub1 = [BREAK, CONTINUE, NEXT, RET]
+    found = [f for f in check(_project(main, Sub1=sub1)) if f.code in PROGRAM_CODES]
+    assert found == []
+
+
+def test_a_program_alone_gets_no_call_without_subroutine() -> None:
+    assert check(read_bundle(CLICK / "q6a" / "program").main) == []
+
+
+def test_a_call_in_a_subroutine_to_a_missing_name_gets_only_nested_call() -> None:
+    main = [_call("Sub1", "X001"), END]
+    sub1 = [_call("Nothing", "X002"), RET]
+    assert _found(check(_project(main, Sub1=sub1))) == [("Sub1", 0, Code.NESTED_CALL, None)]
 
 
 def test_a_call_in_a_subroutine_carries_no_loops() -> None:
@@ -437,6 +529,7 @@ def test_every_end_after_an_open_for_is_inside_the_loop() -> None:
 
 
 X2_END = _rung(End(), "X002")
+BREAK_X001 = _rung(Break(), "X001")
 CUT_FOR = Rung([[Contact("X001")] + [""] * 30], [ForLoop(count="2")], None)
 EMPTY_NEXT = Rung([[""] * 31], [Next()], None)
 EMPTY_OUT = Rung([[""] * 31], [Coil("Y001")], None)
@@ -483,6 +576,14 @@ UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
     ),
     # A rung after the End that is inside a loop.
     "after_stop": ([_for("X001"), END, OUT], {}),
+    # q6a with a subroutine that the Call does not name.
+    "q6a_with_a_subroutine": ([_call("Nothing", "X001"), END], {"Sub1": [RET]}),
+    # q6a with the Call inside a loop.
+    "q6a_call_inside_a_loop": ([_for("X001"), _call("Nothing"), NEXT, END], {}),
+    # q7 with the Break only.
+    "q7_break_only": ([BREAK_X001, END], {}),
+    # q7 with the Break after a closed loop.
+    "q7_after_a_loop": ([_for("X004"), NEXT, BREAK_X001, CONTINUE, END], {}),
     # q1a with the For cut off from the rail: X001, then 30 empty cells.
     "q1a_for_cut_from_rail": ([CUT_FOR, OUT, END], {}),
     # q1b with the Next rung's cells all empty.
