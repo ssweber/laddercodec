@@ -162,7 +162,7 @@ Fixtures are in `tests/fixtures/`:
 - `tumbler/`: 34 real programs, each a `.scr` paired with a clipboard capture of the same program.
 - `v4_captures/`: CLICK v4 copy-backs of pyrung capture stubs, and pasted/checked pairs the layout tests use.
 - `layout_check/`, `pinned_or/`: inputs for `check()` and pinned-box tests.
-- `program_check/`: bundles for the program rules of `check()`, with laddercodec's expected findings in `tests/test_program_check.py`.
+- `program_check/`: `click/` holds CLICK v4.00's Syntax Check answers for the program rules of `check()`, with CLICK's saves, byte for byte. `own/` holds bundles that CLICK did not check, with laddercodec's expected findings in `tests/test_program_check.py`.
 
 ## Golden Fixtures
 

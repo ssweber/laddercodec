@@ -1,42 +1,61 @@
 # Program check fixtures
 
-Each folder is a bundle that `read_bundle()` reads: `main.csv` and `subroutines/*.csv`.
-`tests/test_program_check.py` runs `check()` on each bundle as a `Project` and compares the
-findings with `EXPECTED` in that file. Those findings are what laddercodec's rules give.
-CLICK's Syntax Check answer is not recorded for any of these bundles.
+`tests/test_program_check.py` runs `check()` on these fixtures as a `Project`.
 
-A bundle with an expected finding:
+## click/: CLICK's answers
 
-- `for_without_next`: a For with no Next in Main.
-- `next_without_for`: a Next with no For in Main.
-- `for_and_next_split`: a For in Main and its Next in Sub1.
-- `two_fors_one_next`: two Fors and one Next in Main. The Next closes the second For.
-- `depth_4`: four nested loops in Main.
-- `depth_4_through_call`: three nested loops in Main around a Call to Sub1, which holds one
-  loop.
-- `depth_4_in_subroutine`: Main calls Sub1 outside any loop. Sub1 holds four nested loops.
-- `oneshot_inner`: One Shot on the inner For of two.
-- `return_inside_loop`: a Return inside a loop in Sub1.
-- `return_in_unclosed_loop`: a For with no Next in Sub1, with two Returns after it. The For
-  gets `for-without-next`, and neither Return gets a finding.
-- `end_inside_loop`: an End inside a loop in Main.
-- `nested_call`: Sub1 calls Sub2.
-- `self_call`: Sub1 calls Sub1.
+ClickNick's runner pasted each case into a new CLICK v4.00 project, with a C2-03CPU and no PLC, and ran
+Syntax Check. Each case folder holds these files, as the runner recorded them:
 
-A bundle with no finding:
+- `program/`: the bundle that was pasted, as `read_bundle()` reads it.
+- `pasted/`, `info/`, `checked/`: CLICK's `Scr*.tmp` files from three saves, and the CSVs that laddercodec
+  0.5.0 decoded from them. `pasted` is the save after the paste. `info` comes after Local Program
+  Information, and `checked` after Syntax Check. Case q8c runs Syntax Check before Local Program Information.
+- `<case>_errors.txt`: the Syntax Check output, as CLICK printed it.
+- `program_size.txt`: the step count in CLICK's status bar at each save.
 
-- `depth_3`: three nested loops in Main.
-- `depth_3_through_call`: two nested loops in Main around a Call to Sub1, which holds one
-  loop.
-- `oneshot_outer`: One Shot on the outer For of two.
-- `oneshot_through_call`: a loop in Main around a Call to Sub1, whose own For has One Shot
-  on. `check()` looks for an inner One Shot within one program only.
-- `return_after_loop`: a Return in Sub1 after its loop's Next.
-- `call_other_case`: three nested loops in Main around a Call to `sub1`, in a project whose
-  subroutine `Sub1` holds one loop. The Call names no subroutine, because the name differs in
-  case, so it adds no loops. If the Call named `Sub1`, the loops would nest 4 deep.
+`Scr1.tmp` is Main Program. `Scr2.tmp` is the first subroutine that was added, and so on. In q5a, Sub2 was
+added before Sub1.
 
-A bundle for CLICK only:
+The `.gitattributes` in `click/` keeps every file byte for byte, line ends included. Do not edit these
+files. They are CLICK's answers.
 
-- `call_unknown`: a Call to a name that no subroutine has. `check()` reports nothing for it,
-  whatever subroutine the Call names. The bundle is here for CLICK's answer.
+| Case | Program |
+|---|---|
+| q1a | A For with no Next in Main |
+| q1b | A Next with no For in Main |
+| q1c | A For in Main around a Call to Sub1, and a Next in Sub1 |
+| q1d | Two Fors and one Next in Main |
+| q2a | Four nested loops in Main |
+| q2b | Three nested loops in Main around a Call to Sub1, which holds one loop |
+| q2c | Two nested loops in Main around a Call to Sub1, which holds one loop |
+| q2d | Main calls Sub1 outside any loop. Sub1 holds four nested loops |
+| q3a | One Shot on the inner For of two |
+| q3b | One Shot on the outer For of two |
+| q3c | A loop in Main around a Call to Sub1, whose own For has One Shot on |
+| q4a | A Return inside a loop in Sub1 |
+| q4b | An End inside a loop in Main |
+| q4c | A For with no Next in Sub1, and two Returns after it |
+| q5a | Sub1 calls Sub2. CLICK drops the Call at the paste |
+| q5b | Sub1 calls Sub1. CLICK drops the Call at the paste |
+| q6a | A Call to a name that no subroutine has |
+| q6b | A Call to `sub1`, in a project whose subroutine is `Sub1` |
+| q7 | A Break and a Continue outside a loop |
+| q8 | A Call to Sub1, which holds a Math |
+| q8c | q8, with Syntax Check run before Local Program Information |
+
+`check()` does not report a Call to a missing subroutine (q6a), or a Break or a Continue outside a loop
+(q7). The test leaves those errors out.
+
+The runner also ran the 8,000-step cases. They are not here, because `check()` does not count steps.
+
+## own/: laddercodec's own reading
+
+Each folder is a bundle that `read_bundle()` reads. CLICK did not check these bundles. `OWN` in the test
+holds the findings that laddercodec's rules give for them.
+
+- `depth_3`: three nested loops in Main. No finding.
+- `return_after_loop`: a Return in Sub1 after its loop's Next. No finding.
+- `call_other_case`: three nested loops in Main around a Call to `sub1`, in a project whose subroutine `Sub1`
+  holds one loop. The Call names Sub1, because the names match without regard to case (q6b). Sub1's For gets
+  `for-nesting-depth` with C010D, as in q2b.

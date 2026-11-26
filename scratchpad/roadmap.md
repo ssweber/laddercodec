@@ -43,8 +43,12 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 **After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
 needs first, so that laddercodec does not hold up the export. That work is done. The steps below are what
 is left.
-1. The step estimate and the 8,000-step limit of the whole-program check, once CLICK answers the step
-   number questions (see For pyrung's export).
+1. The step estimate and the 8,000-step limit of the whole-program check. BOB ruled on 2026-11-25 that
+   `too-many-steps` is not built yet. CLICK shows the limit in a box, GUI-039, from Syntax Check and from Local
+   Program Information. It is not a Syntax Check error. The step estimate has a rule only for programs without
+   a Math (see For pyrung's export). `docs/internals/binary-format.md` does not document the u16 after an
+   instruction's type code yet. In CLICK's saves of cases q8 and q8c, it holds the step address. Syntax
+   Check or Local Program Information writes it, and a save before either holds 0.
 2. The other follow-ups in item 1 and in Later.
 
 **Alongside these steps, and not steps of their own:**
@@ -57,7 +61,10 @@ is left.
 **Program check names (Sam).** Sam approves or renames the six codes of the program rules
 (`for-without-next`, `next-without-for`, `for-nesting-depth`, `for-oneshot-inside-loop`,
 `return-inside-loop`, `nested-call`) and the field `Finding.program`. The PR that adds them stays open until
-he does.
+he does. `nested-call` has no CLICK id, because CLICK drops a Call in a subroutine when it is pasted. If Sam
+renames or drops the code, the check follows him. Sam also decides whether `check()` reports a Call to a
+missing subroutine (CLICK's C010C), and a Break or a Continue outside a loop (C010F and C0110). CLICK's
+answers for all three are in `tests/fixtures/program_check/click/` (cases q6a and q7).
 
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
 
@@ -420,37 +427,29 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   CLICK's comment editor, and type a Japanese comment with an IME. Copy each rung back, and compare what
   `decode()` reads with what the editor shows. Typing `中` with an IME is not tested either. CLICK wrote it
   under a SimSun font when it was set as UTF-16.
-- **The program rules of `check()`.** No finding of these rules has a CLICK id until CLICK's Syntax Check
-  answers its exact shape. Then the code gets the id in `CLICK_IDS`, and the finding has `captured` True.
-  Paste each case into a new CLICK v4.00 project and run Syntax Check. Record its output as printed, and the
-  `Scr*.tmp` files that CLICK saves after it. `tests/fixtures/program_check/` holds the bundles for the first
-  seven cases.
-  - Pairing: a For with no Next, a Next with no For, a For in Main with its Next in a subroutine, and two Fors
-    with one Next. Which For does CLICK name in the last case? What does CLICK mean when it says that a For
-    and its Next must come from the same branch?
-  - Depth: four nested loops in Main, and three loops in Main around a Call to a subroutine with one loop.
-    Which program and which rung does CLICK name? `check()` expects no error for two loops in Main around a
-    Call to a subroutine that holds one loop. For a subroutine with four loops that Main calls outside any
-    loop, `check()` reports the subroutine's 4th For and not the Call. Through a Call, `check()` counts only
-    the subroutine's own loops. A Call inside the subroutine adds none, and it gets `nested-call`.
-  - One Shot: on the inner For of two, and on the outer For only. Also on the For of a subroutine that Main
-    calls inside a loop. `check()` looks for an inner One Shot within one program only.
-  - A Return inside a loop in a subroutine, and an End inside a loop in Main.
-  - A Return inside a For that has no Next. Main: `X003 → call("Sub1")`, `→ end()`. Sub1:
-    `X001 → for(2)`, `X002 → return()`, `→ out(Y001)`, `→ return()`. `check()` reports only the For, as
-    `for-without-next`, and neither Return. Does CLICK also report either Return as inside a loop? The
-    pairing case of a For with no Next (For, Out, End in Main) asks the same of an End.
-    `tests/fixtures/program_check/return_in_unclosed_loop/` holds this case.
-  - A Call in a subroutine, and a subroutine that calls itself. Does the paste keep each Call?
-  - A Call to a name that no subroutine has, and a Call to `sub1` when the subroutine is `Sub1`. Does CLICK
-    match the name with case ignored? Until it answers, a Call names the subroutine whose name is the same
-    text, case and spaces included.
-  - A Break and a Continue outside a loop.
-  - Step numbers: is the u16 after an instruction's type code in a program file the instruction's step
-    address? Save a small project, and compare its files with the Program Size that CLICK shows.
-    `docs/internals/binary-format.md` leaves the field undocumented until CLICK answers.
-  - The 8,000-step limit: paste rungs of a long Math formula in batches, and record when CLICK first
-    refuses, and how.
+- **The program rules of `check()`.** CLICK v4.00's Syntax Check answers are in
+  `tests/fixtures/program_check/click/`. A finding gets CLICK's id, with `captured` True, only on a shape that
+  matches one of those answers. `check()` reads the shapes below by the simplest rule that fits the answers.
+  Their findings have no CLICK id. Paste each case into a new CLICK v4.00 project, run Syntax Check, and record
+  the output and the saves, as the cases in that folder do.
+  - A For with no Next and no Return or End after it. `check()` reports the For as `for-without-next`.
+  - Two loops still open at the last End. `check()` reports one `for-without-next` at the End, after its
+    `return-inside-loop`.
+  - A Next with no For in a subroutine that Main calls outside any loop. `check()` reports
+    `next-without-for`. CLICK reports nothing for a stray Next in a subroutine that Main calls inside a loop
+    (q1c). `check()` reads that Next as closing the loop around the Call.
+  - In a subroutine that Main calls inside a loop: a Return inside the subroutine's own loop, more Nexts than
+    there are loops around the Call, a 4th loop made of 1 loop around the Call and 3 of its own, and One Shot
+    on the subroutine's 2nd For. CLICK did not explain why q2b has no `next-without-for` in Sub1, and
+    `check()` does not claim a reason.
+  - A subroutine that Main calls from inside 1 loop and from inside 2 loops. `check()` counts the deeper
+    Call.
+  - A subroutine that Main does not call. `check()` reads it as called outside any loop.
+  - One Shot on the 3rd For of three nested loops in Main.
+  - A Call to `sub1` that runs on the PLC. CLICK's Syntax Check matches the name to `Sub1` without regard to
+    case (q6b). Whether the PLC runs Sub1 for that Call is not tested.
+  - A Call in a subroutine, typed in CLICK's editor. A paste drops it (q5a, q5b), and the runner has no
+    command to type one.
 
 ## For pyrung's export (another repo first)
 
@@ -459,14 +458,13 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - A check on a whole program, approved by Sam 2026-11-16, moving from pyrung. `check()` on a `Program` or
   a `Project` reports For/Next pairing and nesting depth, a One Shot or a Return inside a loop, and nested
   calls. The 8,000-step limit and an estimate of program steps (pyrung's `click/ladder/steps.py`) are still
-  to build. They wait for CLICK's answer on step numbers (Open CLICK questions). pyrung can use the check
+  to build. They wait for a rule for the steps of a Math (Next steps, item 1). pyrung can use the check
   once its export goes through laddercodec, because only then does pyrung hold a laddercodec program to pass
   in. See the Syntax Check rules item in Later.
-  - pyrung and laddercodec differ in two places. CLICK's answers to the depth and the Return or End cases
-    in Open CLICK questions decide which side changes.
-    - pyrung reports `for-nesting-depth` at the outermost For of the nest. laddercodec reports it at each
-      For past the 3rd.
-    - pyrung reports a Return inside a loop, and not an End. laddercodec reports both.
+  - CLICK answered the two places where pyrung and laddercodec differed, and laddercodec's reading matches
+    both. CLICK reports `for-nesting-depth` (C010D) at the 4th For, not at the outermost For of the nest. It
+    reports `return-inside-loop` (C0115) at a Return and at an End inside a loop. The pyrung session changes
+    its check to match.
 
 ## Waits on another repo
 
@@ -707,12 +705,12 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 - **Home, Velocity, Position and Email status bits:** read-only `outputs` with busy, complete, success,
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0002, C0003, C000A, C0202, C0205 and
-  C0212. On a `Program` or a `Project`, it also reports the For/Next and Call rules, with no CLICK id yet.
+  C0212. On a `Program` or a `Project`, it also reports C0101, C0102, C010D, C0111 and C0115.
   It does not report these:
   - Next alone on its rung (C0009);
   - a timer inside For/Next (C1004);
-  - Break/Continue without a contact or outside a loop;
-  - a Call to a name that no subroutine has;
+  - Break or Continue without a contact, or outside a loop (C010F, C0110);
+  - a Call to a name that no subroutine has (C010C);
   - a subroutine without an unconditional Return, and Main without an unconditional End;
   - the other timer, counter, shift and drum input-contact rules;
   - duplicate Timer or Counter addresses, and Out or Drum on a used timer address;

@@ -510,48 +510,76 @@ from laddercodec import check, read_bundle
 
 for finding in check(read_bundle("my_program")):
     print(f"{finding.program}, rung {finding.rung}: {finding.message}")
-# Sub1, rung 0: row 0 from 0, column AF: this Call is in subroutine Sub1, and only the
-# main program can call a subroutine (CLICK's response to this shape is not captured).
-# Call Sub2 from Main Program.
+# Sub1, rung 0: row 0 from 0, column AF: this For would start a 4th loop, counting the
+# loops around the Call: Main Program calls Sub1 on rung 3 from 0 inside 3 loops
+# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move this
+# loop, or the Call, out of a loop.
 ```
 
 Each finding's `program` is the `Program.name` of the program that holds the rung.
 It is `None` when you pass rungs. On rungs alone, `check()` reports none of these
 rules, because a list of rungs can be part of a program.
 
-| `code` | rule |
-|---|---|
-| `for-without-next` | each For has a Next after it in the same program |
-| `next-without-for` | each Next has an open For before it in the same program |
-| `for-nesting-depth` | loops nest at most 3 deep |
-| `for-oneshot-inside-loop` | only the outermost For of a nest can use One Shot |
-| `return-inside-loop` | no Return and no End between a For and its Next |
-| `nested-call` | only the main program can call a subroutine |
+| `code` | shape | `click_id` |
+|---|---|---|
+| `for-without-next` | a loop that is still open at the last End or Return of its program | `C0102` |
+| `next-without-for` | a Next with no open For before it | `C0101` |
+| `for-nesting-depth` | a For that would nest loops more than 3 deep | `C010D` |
+| `for-oneshot-inside-loop` | a For with One Shot on, inside another loop | `C0111` |
+| `return-inside-loop` | a Return or End inside a loop of its own program | `C0115` |
+| `nested-call` | a Call in a subroutine, which a paste into CLICK drops | none |
 
-Every finding of these rules is at the instruction's AF cell, with `click_id` `None`
-and `captured` `False`. Its message ends with what to change.
+Every finding of these rules is at the instruction's AF cell. Its message ends with
+what to change.
 
-- **Pairs.** A Next closes the nearest open For.
+- **Pairs.** A Next closes the nearest open For. A For past the depth limit opens no
+  loop. The Next that would close it gets `next-without-for`.
+- **Open loops.** A loop with no Next gets its finding at the last End or Return of
+  its program, not at the For. That rung gets two findings: `return-inside-loop`,
+  then `for-without-next`. Every End or Return after the For gets
+  `return-inside-loop`. When no End or Return comes after the For, the For gets
+  `for-without-next`.
+- **Calls.** In a `Project`, the loops around a Call in the main program count in the
+  subroutine that the Call names. A For in that subroutine gets `for-nesting-depth`
+  when those loops and its own nest more than 3 deep. It gets
+  `for-oneshot-inside-loop` when it has One Shot on and a loop is around the Call. In
+  that subroutine, a Next with no open For of its own closes one of the loops around
+  the Call, and gets no finding. A Return or End there gets `return-inside-loop` only
+  inside a loop of the subroutine itself.
+- **Call names.** A Call names the first subroutine whose name matches
+  `Call.subroutine` without regard to case. A Call to a name that no subroutine has
+  gets no finding. When main calls a subroutine from loops of different depths,
+  `check()` counts the deepest.
+- **Main.** In a `Project`, the main program is `project.main`. For a `Program`
+  alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
+  alone as a subroutine that main calls outside any loop.
 - **Order.** A `Project` is checked main first, then each subroutine in
   `project.subroutines`. In each program, a rung's own findings come first, then its
   program findings.
-- **Depth.** A For past the 3rd of a nest gets a `for-nesting-depth` finding. In a
-  `Project`, a Call inside a loop adds the loops of the subroutine that it calls. The
-  Call gets the finding when those loops take the nest past 3. Only the subroutine's
-  own Fors count. A Call inside the subroutine adds no loops, and it gets a
-  `nested-call` finding. On a `Program` alone,
-  `check()` does not count the loops of a subroutine that it calls.
-- **Calls.** A Call names the subroutine whose `Program.name` equals
-  `Call.subroutine`, with the same case and spaces. A Call to a name that no
-  subroutine has counts no loops and gets no finding.
-- **Main.** In a `Project`, the main program is `project.main`. For a `Program`
-  alone, it is the program with `prog_idx` 1.
-- **Unclosed loops.** A Return or End gets no finding when the innermost loop around
-  it has no Next. That For gets `for-without-next`.
 - **Undecoded markers.** `check()` reads no For, Next, Return, End or Call after a
   program's first undecoded marker, because the rung that the marker stands for may
   hold a For or a Next. A For that is open at the marker gets no `for-without-next`
   finding.
+
+`check()` does not report a Call to a name that no subroutine has, or a Break or
+Continue outside a loop. CLICK's syntax check reports both.
+
+`captured` is `True` where CLICK's answer for the shape is recorded. These findings
+have `captured=False` and `click_id=None`:
+
+- every finding in a subroutine that you check alone as a `Program`, that main does
+  not call, or that main calls from loops of different depths
+- every finding in a subroutine whose main program holds an undecoded marker, because
+  `check()` reads no Call after the marker
+- `for-without-next` at a For, or where more than one loop is open
+- `next-without-for` in a subroutine, unless a For of the subroutine was past the depth
+  limit and main calls it outside any loop
+- `for-oneshot-inside-loop` on a For inside more than 1 loop of its own program
+- in a subroutine that main calls from inside loops: `return-inside-loop` and
+  `next-without-for`, `for-nesting-depth` unless 3 loops are around the Call and the
+  subroutine has none of its own open, and `for-oneshot-inside-loop` unless 1 loop is
+  around the Call and the subroutine has none of its own open
+- `nested-call`
 
 ## Round-trip identity
 

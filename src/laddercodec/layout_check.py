@@ -81,6 +81,10 @@ class Finding:
         - ``"no-rail"`` or ``"feeds-no-box"`` on a loop of contacts, and ``"no-coil"`` when
           all of its paths end in such a loop.
 
+        A program finding, such as ``"for-without-next"``, has its CLICK id only where it is
+        captured.  In the decoding guide, "Check a program or a project" lists the program
+        findings that are not captured.
+
         These findings are provisional.  Their codes may be renamed or dropped once CLICK's
         response to those shapes is captured.  An ``"undecoded-rung"`` finding is not
         provisional.  It reports an undecoded marker, which CLICK never sees.
@@ -103,8 +107,8 @@ class Finding:
         otherwise.  An ``"undecoded-rung"`` finding ends with the marker's error.  A
         ``"layout-too-tall"`` finding ends by saying how to split the rung.  A
         ``"comment-too-long"`` finding ends by saying how many bytes to cut from the comment.
-        A program finding, such as ``"for-without-next"``, says that CLICK's response is not
-        captured, then ends with what to change.
+        A program finding, such as ``"for-without-next"``, gives its CLICK id, or says that
+        CLICK's response is not captured.  It then ends with what to change.
     program:
         The ``Program.name`` of the program that holds the rung, such as ``"Main Program"``.
         It is ``None`` when ``check()`` was given rungs.
@@ -127,28 +131,34 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     *rungs* can also be a :class:`~laddercodec.Program` or a :class:`~laddercodec.Project`.
     ``check()`` then also reports the rules of a program that need more than one rung:
 
-    - ``"for-without-next"`` and ``"next-without-for"``: each For has a Next after it in
-      the same program, and each Next has an open For before it.  A Next closes the nearest
-      open For.
-    - ``"for-nesting-depth"``: loops nest at most 3 deep.  The finding is at each For past
-      the 3rd.  In a ``Project``, a Call inside a loop adds the loops of the subroutine that
-      it calls, and the finding is at the Call.  Those are the subroutine's own loops.  A
-      Call inside the subroutine adds none.
+    - ``"next-without-for"``: a Next closes the nearest open For.  A Next with no open For
+      before it gets a finding.
+    - ``"for-nesting-depth"``: loops nest at most 3 deep.  A For past that depth gets a
+      finding, and it opens no loop.
     - ``"for-oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
-    - ``"return-inside-loop"``: no Return and no End between a For and its Next.  A Return
-      or End gets no finding when the innermost loop around it has no Next.  That For gets
-      ``"for-without-next"``.
-    - ``"nested-call"``: only the main program can call a subroutine.  In a ``Project``,
-      that is ``project.main``.  For a ``Program`` alone, it is the program with
-      ``prog_idx`` 1.
+    - ``"return-inside-loop"``: a Return or End inside a loop of its own program gets a
+      finding.  So does every Return or End after a For with no Next.
+    - ``"for-without-next"``: a loop that is still open at the last Return or End of its
+      program gets a finding there, after that rung's ``"return-inside-loop"``.  When no
+      Return or End comes after the For, the For gets the finding.
+    - ``"nested-call"``: a Call in a subroutine gets a finding, because a paste into CLICK
+      drops it.  In a ``Project``, the main program is ``project.main``.  For a
+      ``Program`` alone, it is the program with ``prog_idx`` 1.
 
-    A Call names the subroutine whose ``Program.name`` equals ``Call.subroutine``, with the
-    same case and spaces.  A Call to a name that no subroutine of the project has counts no
-    loops.  A program finding is at the instruction's AF cell, with ``click_id`` ``None`` and
-    ``captured`` ``False``.  Its message ends with what to change.  ``check()`` reads no For,
-    Next, Return, End or Call after a program's first undecoded marker, because the rung that
-    the marker stands for may hold a For or a Next.  A For that is open at the marker gets no
-    ``"for-without-next"`` finding.
+    In a ``Project``, the loops around a Call in the main program count in the subroutine
+    that the Call names.  They count for its depth and for One Shot.  In that subroutine, a
+    Next with no open For of its own closes one of those loops, and gets no finding.  A Call
+    names the first subroutine whose name matches ``Call.subroutine`` without regard to case.
+    When main calls a subroutine from loops of different depths, the loops around the
+    deepest Call count.
+    ``check()`` reads any ``Program`` alone other than main as a subroutine that main calls
+    outside any loop.
+
+    A program finding is at the instruction's AF cell.  It is captured, with its CLICK id,
+    where CLICK's answer for the shape is recorded.  Its message ends with what to change.
+    ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
+    marker, because the rung that the marker stands for may hold a For or a Next.  A For that
+    is open at the marker gets no ``"for-without-next"`` finding.
 
     A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
     Within a program, the findings come in rung order.  A rung's own findings come first, then
