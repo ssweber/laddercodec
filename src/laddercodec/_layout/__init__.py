@@ -4,7 +4,8 @@ The work runs in three steps.  ``network`` reads the cell grid into nets and con
 ``tree`` reduces the nets to one series-parallel tree for each CLICK rung, by structure
 alone.  ``render`` draws each tree in the packed layout.  ``docs/internals/layout.md`` gives
 the rules.  ``read_csv`` and ``write_csv`` use :func:`canonical`.  ``laddercodec.check()``
-uses ``network`` and ``tree.circuits``.  ``build`` makes the network from a public
+uses ``network`` and ``tree.circuits``.  Its program rules read each rung through
+:func:`as_checked`.  ``build`` makes the network from a public
 ``Circuit`` for ``laddercodec.lay_out()``.
 """
 
@@ -19,13 +20,14 @@ from ..encode import MAX_ROWS
 from ..model import Instruction, PinnedInstruction
 from ..operands.unchecked import stored_cell_rows
 from .network import GridCell, Network, cell_of, network, without_rail_nops
-from .render import render
+from .render import render, render_rows
 from .tree import LayoutError, Leaf, Node, Out, OutputBranch, RungTree, SeriesNode, trees
 
 __all__ = [
     "LayoutError",
     "Network",
     "RungTree",
+    "as_checked",
     "canonical",
     "circuit",
     "drawn",
@@ -125,20 +127,40 @@ def layout(rung: Any, af_down: Sequence[bool] | None = None) -> list[Any]:
 
 
 def _render(rung: Any, net: Network, found: list[RungTree]) -> list[Any]:
+    return [part for part, _ in _render_rows(rung, net, found)]
+
+
+def _render_rows(
+    rung: Any, net: Network, found: list[RungTree]
+) -> list[tuple[Any, list[int | None]]]:
     from ..decode import Rung
 
     out = []
     for i, tree in enumerate(found):
-        conditions, instructions = render(net, tree)
-        out.append(
-            Rung(
-                conditions=cast(Any, conditions),
-                instructions=cast(Any, instructions),
-                comment=rung.comment if i == 0 else None,
-                comment_rtf=rung.comment_rtf if i == 0 else None,
-            )
+        conditions, instructions, rows = render_rows(net, tree)
+        part = Rung(
+            conditions=cast(Any, conditions),
+            instructions=cast(Any, instructions),
+            comment=rung.comment if i == 0 else None,
+            comment_rtf=rung.comment_rtf if i == 0 else None,
         )
+        out.append((part, rows))
     return out
+
+
+def as_checked(rung: Any) -> list[tuple[Any, list[int | None]]]:
+    """Return the rungs that CLICK's syntax check reads for *rung*, each with the row of
+    *rung* that each of its AF tokens comes from.
+
+    The rungs are those that :func:`canonical` returns.  When *rung* has no layout, they are
+    *rung* itself, as drawn.  Each list of rows has one entry for each row of its rung.  The
+    entry is ``None`` for a row whose AF cell holds no token of *rung*, such as the ``NOP``
+    that the layout puts on the main input's row of a pinned box.
+    """
+    parts = _canonical_rows(rung)
+    if parts is None:
+        return [(rung, list(range(len(rung.instructions))))]
+    return parts
 
 
 def canonical(rung: Any) -> list[Any] | None:
@@ -161,6 +183,12 @@ def canonical(rung: Any) -> list[Any] | None:
     when the rung is pasted.  What CLICK's check reports for the rung as written is not
     captured.
     """
+    parts = _canonical_rows(rung)
+    return None if parts is None else [part for part, _ in parts]
+
+
+def _canonical_rows(rung: Any) -> list[tuple[Any, list[int | None]]] | None:
+    """Return the rungs of :func:`canonical` with the rows of :func:`as_checked`, or ``None``."""
     from ..layout_check import check
 
     allowed = (Code.LAYOUT_TOO_TALL, Code.UNWIRED_INPUT, Code.CONTACT_FEEDS_ONLY_NOP)
@@ -169,7 +197,7 @@ def canonical(rung: Any) -> list[Any] | None:
     try:
         net = network_of_rung(rung)
         found = trees(net)
-        return _render(rung, net, found) if found else None
+        return _render_rows(rung, net, found) if found else None
     except LayoutError:
         return None
 

@@ -489,8 +489,50 @@ def test_only_an_end_counts_in_main_and_only_a_return_in_a_subroutine() -> None:
 def test_an_end_on_a_row_of_wires_with_a_t_always_runs() -> None:
     rung = Rung([["-", "T"] + ["-"] * 29, ["", "-"] + ["-"] * 29], [End(), Coil("Y001")], None)
     assert [f for f in check(_project([rung])) if f.code in PROGRAM_CODES] == []
-    found = [f for f in check(_project([END_ON_A_BRANCH])) if f.code in PROGRAM_CODES]
-    assert _found(found) == [(MAIN, 1, Code.MISSING_END, None)]
+
+
+def test_an_end_that_wires_join_to_the_rail_through_a_t_always_runs() -> None:
+    # CLICK splits the rung at the T, and its check reads the End on a rung of its own (f2).
+    # The rung as one grid gets the findings of the two rungs that read_bundle makes of it.
+    split = read_bundle(CLICK / "f2" / "program").main.rungs
+    assert len(split) == 2
+    assert check(_project([END_ON_A_BRANCH])) == check(_project(split)) == []
+    # Behind a contact on row 1, the End does not always run.
+    rows = [["-", "T"] + ["-"] * 29, ["", Contact("X002")] + ["-"] * 29]
+    behind = Rung(rows, [Coil("Y001"), End()], None)
+    assert _found(check(_project([behind]))) == [(MAIN, 1, Code.MISSING_END, None)]
+
+
+def test_a_rung_that_click_splits_keeps_its_own_rung_and_row_in_findings() -> None:
+    # The Next on row 1 is on the second rung that CLICK makes of rung 1.
+    rows = [["-", "T"] + ["-"] * 29, ["", Contact("X002")] + ["-"] * 29]
+    split = Rung(rows, [Coil("Y001"), Next()], None)
+    found = check(_project([OUT, split, END]))
+    assert [(f.rung, f.row, f.code) for f in found] == [(1, 1, Code.NEXT_WITHOUT_FOR)]
+    # A For on row 1 of the split rung opens a loop that the Next on rung 2 closes.
+    split = Rung(rows, [Coil("Y001"), ForLoop(count="2")], None)
+    assert check(_project([split, NEXT, END])) == []
+    # With no Next, the loop that the For on row 1 opens gets for-without-next at the End.
+    found = check(_project([split, END]))
+    assert [(f.rung, f.row, f.code) for f in found] == [
+        (1, 0, Code.RETURN_INSIDE_LOOP),
+        (1, 0, Code.FOR_WITHOUT_NEXT),
+    ]
+    assert "the loop that starts on rung 0 from 0" in found[1].message
+
+
+def test_a_rung_with_no_layout_is_read_as_drawn() -> None:
+    # A wire joins the two sides of X002, so check() reports the rung, and it has no
+    # layout.  Its row 1 holds a contact, so the End does not always run.
+    rows = [
+        ["-", "T"] + ["-"] * 29,
+        ["", Tee(Contact("X002")), "T"] + ["-"] * 28,
+        ["", "-"] + [""] * 29,
+    ]
+    rung = Rung(rows, [Coil("Y001"), End(), ""], None)
+    codes = [f.code for f in check(_project([rung]))]
+    assert Code.MISSING_END in codes
+    assert Code.SHORTED_CONTACT in codes
 
 
 def test_an_end_that_always_runs_counts_wherever_it_is() -> None:
@@ -703,16 +745,10 @@ UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
         [_for("X001"), _rung("for"), _for(), _for(), OUT, *[NEXT] * 4, END],
         {},
     ),
-    # e1 with a third rung.
-    "e1_third_rung": ([X1_OUT, X2_END, OUT], {}),
-    # e3 with the End on a branch that wires reach from a T.
-    "e3_end_on_a_branch": ([END_ON_A_BRANCH], {}),
     # e3 with a Return in place of the End.
     "e3_return_in_main": ([X1_OUT, RET], {}),
     # e4 with an End in place of Sub1's Return.
     "e4_end_in_sub1": ([_call("Sub1", "X001"), END], {"Sub1": [X2_OUT, END]}),
-    # e4 with no rungs in Sub1.
-    "e4_empty_sub1": ([_call("Sub1", "X001"), END], {"Sub1": []}),
 }
 
 

@@ -80,6 +80,8 @@ class _Painter:
         self.contacts: list[_Contact] = []
         self.sinks: list[_Sink] = []
         self.af: dict[int, object] = {}
+        #: The row of the network's grid that each box in ``af`` comes from.
+        self.source: dict[int, int] = {}
         self.af_free = 0  # first AF row no box covers
         self.cond_bottom = -1  # lowest row that a contact or the wire into a box input uses
 
@@ -119,6 +121,7 @@ class _Painter:
         self.cond_bottom = max(self.cond_bottom, row)
         if not isinstance(token, PinnedInstruction):
             self.af[row] = token
+            self.source[row] = box.row
             self.af_free = row + box_height(token)
             return row + 1
         # The first slots are the unused lead slots on the rows above the main input, then the
@@ -144,6 +147,7 @@ class _Painter:
             nxt += max(1, self.place_pin(circuit, nxt))
         pin_rows = tuple(s - token_row for s in slots[1:])
         self.af[token_row] = token.with_pin_rows(pin_rows)
+        self.source[token_row] = box.row
         if lead:
             self.af[row] = "NOP"
         self.af_free = slots[-1] + 1
@@ -286,6 +290,21 @@ def _with_down(contact: Any, down: bool) -> object:
 
 def render(network: Network, tree: RungTree) -> tuple[list[list[object]], list[object]]:
     """Return the condition rows and the AF tokens of one CLICK rung."""
+    conditions, instructions, _ = render_rows(network, tree)
+    return conditions, instructions
+
+
+def render_rows(
+    network: Network, tree: RungTree
+) -> tuple[list[list[object]], list[object], list[int | None]]:
+    """Return the condition rows and the AF tokens of one CLICK rung, and the row that each
+    box comes from.
+
+    The third list has one entry for each row of the drawing.  The entry is the row of the
+    box in the network's grid, or ``None`` when no box starts on the row.  The ``NOP`` on the
+    main input's row of a pinned box is not a box of the grid, so its entry is ``None``.
+    """
     painter = _Painter(network, tree)
     painter.place_branch(tree.branch, RAIL, painter.first_lead(tree.branch))
-    return painter.paint()
+    conditions, instructions = painter.paint()
+    return conditions, instructions, [painter.source.get(row) for row in range(len(instructions))]

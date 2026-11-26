@@ -16,8 +16,17 @@ names:
 - A Break or a Continue that is not inside a loop gets a finding.
 - In a ``Project``, the main program needs an End that always runs, and each subroutine needs a
   Return that always runs.  An End or a Return always runs when every condition cell of its
-  row is a wire that runs right, ``-`` or ``T``.  A program without one gets a finding at the
-  rung after its last rung, with no row.  A ``Program`` checked alone gets neither finding.
+  row, in CLICK's layout of the rung, is a wire that runs right, ``-`` or ``T``.  A program
+  without one gets a finding at the rung after its last rung, with no row.  A ``Program``
+  checked alone gets neither finding.
+
+The rules read each rung as CLICK's syntax check lays it out (``_layout.as_checked``).  A rung
+that CLICK splits is read as the rungs that CLICK makes of it, in CLICK's order.  A rung that
+has no layout, such as one whose circuit is not series-parallel, is read as drawn.  A finding
+names the rung and the row of the program's own rung, not those of the layout.  For example,
+take a rung whose row 0 holds ``-`` in column A and ``T`` in column B, and whose row 1 holds
+wires from column B to AE and an End.  Wires alone join row 1 to the rail, so CLICK lays the
+End out on a rung of its own, behind no contact.  That End always runs.
 
 In a subroutine that main calls from inside a loop, a Next with no open For of its own closes
 one of the loops around the Call, and gets no finding.  A Break or a Continue there is inside
@@ -46,6 +55,7 @@ from functools import cache
 from importlib import resources
 from typing import TYPE_CHECKING
 
+from ._layout import as_checked
 from .codes import Code
 from .errors import LaddercodecError
 from .instructions import Condition, Instruction, Tee
@@ -88,7 +98,10 @@ _MAIN_PROG_IDX = 1
 _ORDINALS = {1: "1st", 2: "2nd", 3: "3rd"}
 #: The binary class names of a ``RawInstruction`` that may be a For, Next, Return, End or Call.
 _FLOW_CLASSES = frozenset({"For", "Next", "Return", "End", "Call"})
-#: The wires that run right.  An End or a Return on a row of these always runs.
+#: The instructions that the rules read.  The walk ignores every other AF token.
+_READ = (ForLoop, Next, Return, End, Call, Break, Continue)
+#: The wires that run right.  An End or a Return on a row of these, in CLICK's layout of its
+#: rung, always runs.
 _RUNS_RIGHT = frozenset({"-", "T"})
 
 #: A finding as CLICK reports it: program, rung, row and code.  The row is ``None`` for a
@@ -172,13 +185,17 @@ class _Walk:
     program: Program
     place: _Place
     found: list[ProgramFinding] = field(default_factory=list)
-    #: The open Fors of this program, outermost first, as (rung, row).
-    loops: list[tuple[int, int]] = field(default_factory=list)
+    #: The open Fors of this program, outermost first, as (rung, row, step).
+    loops: list[tuple[int, int, int]] = field(default_factory=list)
     #: The loops around the Call that are still open.  A Next with no open For of this
     #: program closes one of them.
     carried: int = 0
-    #: The last Return or End, as (rung, row, name), when a loop of this program was open at it.
-    last_stop: tuple[int, int, str] | None = None
+    #: The last Return or End, as (rung, row, name, step), when a loop of this program was
+    #: open at it.
+    last_stop: tuple[int, int, str, int] | None = None
+    #: The number of AF tokens read so far.  A token's step orders it in CLICK's reading,
+    #: which can differ from the order of its rows within a rung that CLICK splits.
+    step: int = 0
     #: The Calls of the main program, each with the loops open around it.
     calls: list[tuple[Call, int, _CallSite]] = field(default_factory=list)
     #: Whether the walk stopped at a marker, or at a raw For, Next, Return, End or Call.
@@ -190,16 +207,34 @@ class _Walk:
     def __post_init__(self) -> None:
         self.carried = self.place.carried
 
-    def tokens(self) -> Iterator[tuple[int, int, object]]:
-        """Yield (rung, row, token) for each AF token, up to the first token that stops the
-        walk.
+    def tokens(self) -> Iterator[tuple[int, int, object, bool]]:
+        """Yield (rung, row, token, always) for each AF token, up to the first token that
+        stops the walk.
+
+        Each rung is read as CLICK's syntax check lays it out, so the parts of a rung that
+        CLICK splits are read in CLICK's order.  ``rung`` and ``row`` are those of the token
+        in the program's own rung.  ``always`` is whether every condition cell of the token's
+        row in the layout is a wire that runs right.
+
+        A rung that holds no instruction that the rules read is not laid out, because the
+        layout would change nothing that the walk reads.
         """
         for index, rung in enumerate(self.program.rungs):
-            for row, token in enumerate(rung.instructions):
-                if _stops_walk(token):
-                    self.stopped = True
-                    return
-                yield index, row, token
+            parts: list[tuple[Rung, list[int | None]]]
+            if any(isinstance(token, _READ) for token in rung.instructions):
+                parts = as_checked(rung)
+            else:
+                parts = [(rung, list(range(len(rung.instructions))))]
+            for part, rows in parts:
+                for at, token in enumerate(part.instructions):
+                    row = rows[at]
+                    if row is None:
+                        continue
+                    if _stops_walk(token):
+                        self.stopped = True
+                        return
+                    self.step += 1
+                    yield index, row, token, _always_runs(part, at)
 
     def add(self, rung: int, row: int, code: Code, what: str, then: str) -> None:
         self.found.append(ProgramFinding(rung, row, code, what, then))
@@ -238,7 +273,7 @@ class _Walk:
                 f"for({token.count}).",
             )
         if own + self.carried < MAX_NESTING:
-            self.loops.append((rung, row))
+            self.loops.append((rung, row, self.step))
             return
         if self.carried:
             what = f"counting the loops around the Call: {self.around()}"
@@ -274,15 +309,15 @@ class _Walk:
                 "Delete the Next, or add a For rung before it, such as for(2).",
             )
 
-    def stop(self, rung: int, row: int, token: Return | End) -> None:
+    def stop(self, rung: int, row: int, token: Return | End, always: bool) -> None:
         wanted = End if self.place.is_main else Return
-        if isinstance(token, wanted) and _always_runs(self.program.rungs[rung], row):
+        if isinstance(token, wanted) and always:
             self.always = True
         if not self.loops:
             self.last_stop = None
             return
         name = "Return" if isinstance(token, Return) else "End"
-        self.last_stop = (rung, row, name)
+        self.last_stop = (rung, row, name, self.step)
         self.add(
             rung,
             row,
@@ -326,8 +361,8 @@ class _Walk:
             return
         start = self.loops[-1]
         then = "Add a next() rung after the last rung of the loop."
-        if self.last_stop is not None and self.last_stop[:2] > start:
-            rung, row, name = self.last_stop
+        if self.last_stop is not None and self.last_stop[3] > start[2]:
+            rung, row, name, _ = self.last_stop
             self.add(
                 rung,
                 row,
@@ -336,7 +371,7 @@ class _Walk:
                 then,
             )
         else:
-            rung, row = start
+            rung, row, _ = start
             self.add(
                 rung,
                 row,
@@ -348,13 +383,13 @@ class _Walk:
 
 def _run(program: Program, place: _Place) -> _Walk:
     walk = _Walk(program, place)
-    for rung, row, token in walk.tokens():
+    for rung, row, token, always in walk.tokens():
         if isinstance(token, ForLoop):
             walk.for_(rung, row, token)
         elif isinstance(token, Next):
             walk.next_(rung, row)
         elif isinstance(token, (Return, End)):
-            walk.stop(rung, row, token)
+            walk.stop(rung, row, token, always)
         elif isinstance(token, Call):
             walk.call(rung, row, token)
         elif isinstance(token, (Break, Continue)):

@@ -157,11 +157,12 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       not inside a loop gets a finding.
     - ``"missing-end"`` and ``"missing-return"``: in a ``Project``, the main program needs an
       End that always runs, and each subroutine needs a Return that always runs.  An End or
-      a Return always runs when every condition cell of its row is a ``-`` or ``T`` wire.  It
-      can be on any rung.  A program without one gets a finding at the rung after its last
-      rung.  A ``Program`` alone gets neither finding.  A ``Program`` is often a few rungs
-      cut from a larger program.  A ``"missing-end"`` finding on every such ``Program`` would
-      hide its other findings.
+      a Return always runs when every condition cell of its row is a ``-`` or ``T`` wire, in
+      the layout that CLICK's syntax check draws for the rung.  It can be on any rung.  A
+      program without one gets a finding at the rung after its last rung.  A ``Program``
+      alone gets neither finding.  A ``Program`` is often a few rungs cut from a larger
+      program.  A ``"missing-end"`` finding on every such ``Program`` would hide its other
+      findings.
 
     In a ``Project``, the loops around a Call in the main program count in the subroutine
     that the Call names.  They count for its depth and for One Shot.  In that subroutine, a
@@ -171,14 +172,21 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     loops of different depths, the loops around the deepest Call count.  ``check()`` reads
     any ``Program`` alone other than main as a subroutine that main calls outside any loop.
 
+    The rules of a program read each rung as CLICK's syntax check lays it out, the same way
+    as ``read_csv()``.  A rung that CLICK splits is read as the rungs that CLICK makes of it,
+    in CLICK's order.  So an End on row 1 that wires alone join to the rail, through a ``T``
+    on row 0, always runs.  A rung that has no layout, such as one whose circuit is not
+    series-parallel, is read as drawn.  A program finding still names the rung and the row of
+    your rung, not those of the layout.
+
     A program finding is at the instruction's AF cell.  A ``"missing-end"`` or
     ``"missing-return"`` finding has no cell, and it comes after the other findings of its
     program.  The message of a program finding ends with what to change.  The finding is
     captured, with its CLICK id, only in a project of the exact shape of one that CLICK
     checked, and only when CLICK reported that finding there.  The shape is the project's
     exact CSV: each program's name, a ``#`` row for each line of each rung's comment, and
-    each row of the rung as it is, with each cell's CSV text.  ``check()`` does not lay the
-    rung out first.  The subroutines may come in any order.  A main program alone has the
+    each row of the rung as it is, with each cell's CSV text.  The shape is not laid out
+    first.  The subroutines may come in any order.  A main program alone has the
     shape of a project with no subroutines.  A subroutine alone, and a rung with a cell that
     the CSV can't hold, are never captured.
 
