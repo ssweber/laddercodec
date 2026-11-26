@@ -4,7 +4,9 @@
      changed for the user and what they must do, in two or three short sentences.
      Breaking changes may be longer. State each entry against the last release. -->
 
-## Unreleased
+## 0.6.0 (2026-11-26)
+
+This release adds `check()` for a whole `Program` or `Project`, with the For/Next, Call, Break, Continue, End and Return rules of CLICK's syntax check. Each instruction constructor now accepts `allow=` to keep the refusals that you list, and `FieldError.span` says where in a Math formula a refusal is. `Fill()` and `Copy()` now refuse two more values that CLICK saves as something else, and `check()` now raises for a rung of the wrong shape. Read Breaking changes before you upgrade.
 
 ### Breaking changes
 
@@ -13,7 +15,7 @@
 
 ### Added
 
-- `check()` now accepts a `Program` or a `Project`, such as `check(read_bundle("my_program"))`, and then also reports the For/Next loops, Breaks, Continues and Calls that CLICK's syntax check refuses or a paste drops, and, on a `Project` only, a missing End or Return. These findings use eleven new codes, and have CLICK's id only on a project whose exact CSV CLICK checked ([Check a program or a project](https://pyrung.com/laddercodec/guides/decoding/#check-a-program-or-a-project)). The new field `Finding.program` names the program that holds the rung, and is `None` when you pass rungs.
+- `check()` now accepts a `Program` or a `Project`, such as `check(read_bundle("my_program"))`. It then also reports the For/Next loops, Breaks, Continues and Calls that CLICK's syntax check refuses or a paste drops, and, on a `Project` only, a missing End or Return. These findings use eleven new codes. They have CLICK's id only on a project whose exact CSV CLICK checked ([Check a program or a project](https://pyrung.com/laddercodec/guides/decoding/#check-a-program-or-a-project)). The new field `Finding.program` names the program that holds the rung, and is `None` when you pass rungs.
 - The constructor of each instruction class, Modbus target and `ModbusAddress` now accepts `allow=`, a list of refusal codes, with the same limits as `read_csv(path, allow=...)`. It builds an instruction whose refusals all have a listed code instead of raising, and `encode()` writes it: `Coil("X001", allow=["bank-not-allowed"])`.
 - `FieldError.span` says where in a Math formula a refusal is, as a `(start, end)` pair of offsets into the formula that you passed. Use `formula[start:end]` to show the part at fault, or to tell apart refusals with the same message, such as the two in `DS0 + DS0`. `span` is `None` where no one part of the formula is at fault, and for any other field.
 - `check()` now reports a rung comment that `encode()` refuses as too long, with the new code `comment-too-long`. The message says how many bytes to cut. In 0.5.1, `check()` returned no finding for such a comment, and you learned of it only when `encode()` raised `EncodeError`.
@@ -25,7 +27,7 @@
 - A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
 - A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
 - `encode()` now writes back the stored bytes of a decoded decimal `Math` that you leave unchanged, when its formula holds a real as typed, such as `3.0E+38` or `1.50`, whether CLICK or an older laddercodec wrote it. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
-- `encode()` now writes `W70000` for a decoded `Math` that holds `H70000` and an address as typed, such as `DS001`. `decode()` warns for such a Math with `LegacyEncodingWarning`. 0.5.1 wrote `H70000` back, and CLICK runs it as 4464.
+- `encode()` now writes `W70000` for a decoded `Math` that holds `H70000` and an address as typed, such as `DS001`. 0.5.1 wrote `H70000` back, and CLICK runs it as 4464. `decode()` already warned for such a Math with `LegacyEncodingWarning`, and the warning told you to encode it again.
 - `check()` now raises `EncodeError`, and `write_csv()`, `csv_rows()` and `write_bundle()` raise `CsvWriteError`, for a rung that has no rows, that has a row without 31 condition cells, or that does not have one AF token for each row. `encode()` already refused these rungs. 0.5.1 raised `IndexError` for some of them, and returned wrong findings or rows for most of the others.
 
 ## 0.5.1 (2026-11-25)
