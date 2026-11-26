@@ -16,7 +16,8 @@ them:
 - formulas typed straight into CLICK: ``math_typed.bin``, ``math_hex_upper_h.bin``,
   ``math_hex_signed.bin``, ``math_nickname_display.bin``, ``math_unary_plus_pi.bin``,
   ``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``, ``math_ranges_xy_slots.bin``,
-  ``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``
+  ``math_ranges_xy_slots2.bin``, ``math_ranges_x25_x101.bin``, ``math_real_exponent.bin``,
+  ``math_real_point_zero.bin`` and ``math_real_trailing_zero.bin``
 - text constants typed in CLICK v4: ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``,
   ``text_abc.bin``, ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
   ``text_compare.bin``
@@ -79,7 +80,7 @@ from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
 from laddercodec.model import XY_SLOTS
-from laddercodec.operands.unchecked import refusals
+from laddercodec.operands.unchecked import refusals, stored_blob
 from laddercodec.undecoded import UndecodedRungWarning
 from tests.undecoded_captures import without_marker
 from tests.v4_added_tags import V4_ADDED_TAGS
@@ -410,6 +411,78 @@ def test_math_hex_signed_capture() -> None:
     header, slots = _blob_fields(typed.build_blob())
     assert header == native_header
     assert slots == native_slots
+
+
+#: The four formula tags of a Math blob: the display template, the display formula, the
+#: internal template and the internal formula.
+_FORMULA_TAGS = (0x61FF, 0x6228, 0x6229, 0x61FD)
+
+#: Decimal Maths with a real constant, typed in CLICK v4 after a Contact X001, each with
+#: result DF1: (file, typed formula, the Math's CSV, and each real whose stored text differs
+#: from laddercodec's, as (CLICK's text, laddercodec's text)).
+_REAL_TEXT_CAPTURES = [
+    (
+        "math_real_point_zero.bin",
+        "3.0E+38 / DF2",
+        "math(3E+38 / DF2,DF1,mode=decimal)",
+        [("3.0E+38", "3E+38")],
+    ),
+    (
+        "math_real_trailing_zero.bin",
+        "DF2 * ( -2.5 ) + 1.50",
+        "math(DF2 * ( -2.5 ) + 1.5,DF1,mode=decimal)",
+        [("1.50", "1.5")],
+    ),
+    # CLICK stores 1.2345E-04 as 0.00012345, which is the text that laddercodec writes.
+    ("math_real_exponent.bin", "DF2 + 1.2345E-04", "math(DF2 + 1.2345E-04,DF1,mode=decimal)", []),
+]
+
+
+@pytest.mark.parametrize(
+    ("file", "typed", "csv_text", "differs"),
+    _REAL_TEXT_CAPTURES,
+    ids=[c[0] for c in _REAL_TEXT_CAPTURES],
+)
+def test_math_real_text_capture_writes_click_blob(
+    file: str, typed: str, csv_text: str, differs: list[tuple[str, str]]
+) -> None:
+    """A decoded Math writes back each real constant in the text that CLICK stored.
+
+    The Math holds laddercodec's form of each real, and it equals the Math built from the
+    typed formula. While the Math is unchanged, ``encode()`` writes CLICK's Math blob,
+    reserved slots included. When CLICK stores each real in the text that laddercodec
+    writes, the Math keeps no blob, and its fields match CLICK's. A changed Math is built
+    afresh.
+    """
+    path = CAPTURE_DIR / file
+    data = path.read_bytes()
+    rungs = _decode_file(data)
+    (math,) = [t for t in rungs[0].instructions if isinstance(t, Math)]
+    built = Math(typed, "DF1")
+    assert math.to_csv() == csv_text
+    assert math == built
+    blob = math.build_blob()
+    assert _blob_fields(blob) == _blob_fields(_native_math_blobs(path)[0])
+    if differs:
+        assert stored_blob(math) is not None
+        assert _native_blob(encode(rungs), "Math", len(blob)) == _native_blob(
+            data, "Math", len(blob)
+        )
+        # The kept blob is CLICK's, with CLICK v4's 5000 reserved slots.
+        assert len(_decompose_blob(blob)[4]) == 9 + 500 + 5000 + 1
+        kept = dict(_blob_fields(blob)[0])
+        ours = dict(_blob_fields(built.build_blob())[0])
+        for click_text, our_text in differs:
+            for tag in _FORMULA_TAGS:
+                assert click_text in kept[tag]
+                assert click_text not in ours[tag] and our_text in ours[tag]
+    else:
+        assert stored_blob(math) is None
+    [back] = decode(encode(rungs))
+    assert back.instructions == rungs[0].instructions
+    changed = laddercodec.replace(math, dest="DF3")
+    assert stored_blob(changed) is None
+    assert changed.build_blob() == Math(typed, "DF3").build_blob()
 
 
 @pytest.mark.parametrize(("typed", "display"), [("0fH", "Fh"), ("EH", "Eh"), ("fh", "Fh")])
