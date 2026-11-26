@@ -9,7 +9,7 @@ sandbox runner or Sam. **PLC** means a real PLC. **Sam** means his judgment. **a
 in a sibling repo. Work that needs nothing is never queued behind work that needs Sam.
 
 
-Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it. Updated 2026-11-25.
+Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it. Updated 2026-11-26.
 
 ## How work runs here
 
@@ -36,9 +36,9 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Next steps
 
-**Before the tag.** Nothing waits on Sam except the tag itself.
-1. The laddercodec session merges the CHANGELOG and this roadmap, and hands Sam the release notes.
-2. Sam tags 0.5.1. ClickNick 0.26.1 pins it, together with pyclickplc 0.11.3 and pyrung's next release.
+**Before the tag.** 0.6.0 is prepared: the CHANGELOG section is dated 2026-11-26, and AGENTS.md and the BOB
+profile state entries against v0.6.0. Sam tags it. The return in Main and the end in a subroutine stay open for
+him (see the item at the End and Return rules). They are not part of 0.6.0.
 
 **After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
 needs first, so that laddercodec does not hold up the export. That work is done. The steps below are what

@@ -30,7 +30,7 @@ make docs-build     # build docs site (strict mode)
 Prose in this repo follows the `writing` skill in the bob plugin (`/bob:writing`, or `skills/writing/SKILL.md` in https://github.com/ssweber/bob). Read it before you write a commit message, a changelog entry, docs, a docstring, a comment or a message. The rules below are only the ones specific to this repo.
 
 - Everything you write says what a CLICK rule is. It never says where the rule came from.
-- A CHANGELOG entry is stated against the last release, v0.5.1. It never describes a state that no release had.
+- A CHANGELOG entry is stated against the last release, v0.6.0. It never describes a state that no release had.
 - When a change revises behaviour that an Unreleased entry already describes, rewrite that entry. Do not add one that contradicts it.
 - An entry says when the exception class that a caller catches changes.
 - Docs follow `docs/AGENTS.md`.
