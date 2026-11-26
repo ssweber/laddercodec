@@ -169,7 +169,7 @@ def test_a_call_names_its_subroutine_exactly() -> None:
     ]
 
 
-def test_a_call_counts_only_its_subroutine_own_loops() -> None:
+def test_a_call_counts_only_its_subroutines_own_loops() -> None:
     # Sub1's Call to Sub2 adds no loops, so the Call in Main nests 1 + 1 deep.
     main = [_for("X001"), _call("Sub1"), NEXT, END]
     sub1 = [_for(), _call("Sub2"), NEXT, RET]
@@ -182,7 +182,7 @@ def test_a_call_counts_only_its_subroutine_own_loops() -> None:
     ]
 
 
-def test_calls_that_loop_back_end_the_walk() -> None:
+def test_calls_that_loop_back_get_only_nested_call() -> None:
     main = [_for("X001"), _for(), _call("Sub1"), NEXT, NEXT, END]
     sub1 = [_for(), _call("Sub2"), NEXT, RET]
     sub2 = [_call("Sub1"), RET]

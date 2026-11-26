@@ -6,7 +6,8 @@ it names:
 - Each For has a Next after it, and each Next has an open For before it.  A Next closes the
   nearest open For.
 - Loops nest at most 3 deep.  A Call inside a loop adds the loops of the subroutine that it
-  calls.  A Call inside that subroutine adds none, because only the main program can call.
+  calls.  A Call inside that subroutine adds none, because only the main program can call a
+  subroutine.
 - Only the outermost For of a nest can use One Shot.
 - No Return and no End between a For and its Next.  A Return or End gets no finding when
   the innermost loop around it has no Next.  That For gets its own finding.
