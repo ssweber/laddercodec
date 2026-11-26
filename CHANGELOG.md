@@ -12,7 +12,6 @@ This release adds `check()` for a whole `Program` or `Project`, with the For/Nex
 
 - `Fill()` and `read_csv()` now raise `FieldError` (a `ValueError`) with the code `invalid-constant` for a real with more than 7 significant digits, the same as a single `Copy`. CLICK saves `fill(1234567.8,TXT1..TXT2)` as `1234568.0`. 0.5.1 encoded such a real as typed. Write the real that the message names.
 - `Copy()` and `read_csv()` now raise `FieldError` with the code `copy-converter-bank` for `convert=to_binary` from a DF address, a DF pointer or a real constant into TXT, such as `copy(DF1,TXT1,convert=to_binary)`. 0.5.1 accepted them. `decode()` now warns with `RefusedFieldWarning` for such a Copy. Write `convert=to_text` instead.
-
 - `check()` now raises `EncodeError`, and `write_csv()`, `csv_rows()` and `write_bundle()` raise `CsvWriteError`, for a rung that has no rows, that has a row without 31 condition cells, or that does not have one AF token for each row. `encode()` already refused these rungs. 0.5.1 raised `IndexError` for a row without 31 cells in `check()`, `write_csv()` and `csv_rows()`, and returned wrong findings or rows for a wrong AF count. `check()` returned no finding for a rung with no rows. Build each rung with 1 to 32 rows of 31 cells and one AF token for each row.
 
 ### Added
@@ -25,7 +24,7 @@ This release adds `check()` for a whole `Program` or `Project`, with the For/Nex
 ### Fixed
 
 - A refusal now suggests an example that the same instruction accepts. 0.5.1 suggested `Y001` as the end for `Coil("Y001", range_end="$41")`, which the Coil refuses. It now suggests `Y002`.
-- A Math refusal of a key that only the other mode has now lists each change that the other mode needs, such as the result register. 0.5.1 named only the registers. If no change makes the other mode accept the formula, the refusal says to take the key out.
+- A Math refusal of a key that only the other mode has now lists each change that the other mode needs, such as the result register. 0.5.1 told you to set the mode and, for a hex-only key, to write the registers as DH, XD or YD. If no change makes the other mode accept the formula, the refusal says to take the key out.
 - A Send count refusal now names a source range that the Send accepts, such as `TXT1..TXT4`. 0.5.1 suggested `quantity=4`.
 - The refusal of a character outside printable ASCII in a Fill into TXT or in Compare's Data A now names the `$hh` code to write, such as `$E9` for `é`. 0.5.1 said only to write a `$hh` code.
 - `encode()` now writes back the stored bytes of a decoded decimal `Math` that you leave unchanged, when its formula holds a real as typed, such as `3.0E+38` or `1.50`, whether CLICK or an older laddercodec wrote it. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
