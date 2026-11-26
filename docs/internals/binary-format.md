@@ -28,7 +28,15 @@ The clipboard buffer has these regions:
 
 ## Global header (0x0000–0x0253)
 
-Fixed template data loaded from the scaffold binary. Contains GUI state and format markers. The encoder does not modify this region.
+The encoder copies this region from the scaffold binary and does not change it. The decoder checks the magic and reads nothing else in this region.
+
+| Offset | Size | Field |
+|---|---|---|
+| 0x00 | 8B | Magic: `CLICK` and three spaces |
+| 0x0A | 2B | A u16 LE that CLICK writes when you copy. CLICK v4.00 writes 0x0400, and CLICK v3.92 writes 0x035A. A paste ignores it. CLICK v3.92 pastes a buffer that holds 0x0400 without an error. The encoder writes 0x0346. |
+| 0x0C | var | A project path, as UTF-16LE text that ends in a NUL. CLICK writes a path here when you copy, and a paste ignores it. The encoder writes the path that the scaffold holds. |
+
+In CLICK's copies, the bytes after the path change from copy to copy.
 
 ## Program header (0x0254–0x025F)
 
@@ -107,7 +115,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x05 | 4B | Row byte (uint32 LE, `global_row + 1`) |
 | +0x09 | 1B | Row span (0x01 for single-row, 0x02+ for multi-row AF) |
 | +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell the editor creates, 0x01 under a row span of 3 in an Email/Home/Position/Velocity cell pasted at 1 row and then saved by its dialog) |
-| +0x0B–0x0C | 2B | CLICK's values vary from cell to cell. The decoder reads neither byte. The encoder writes 0x00 at +0x0B, except in rung 0's preamble, where it writes the template's 0x40 (at 0x026B). At +0x0C it writes 0x01 in a preamble cell and in each cell of a rung that has no instruction (a NOP does not count), and 0x00 in every other cell. |
+| +0x0B–0x0C | 2B | A u16 LE. In CLICK's copies, rung 0's preamble holds a value at 0x026B that is not 0, and the value changes from copy to copy. In the other cells, long runs of neighbouring cells share one value, often 0x0000. The decoder reads neither byte. The encoder writes 0x00 at +0x0B, except in rung 0's preamble, where it writes the template's 0x40 (at 0x026B). At +0x0C it writes 0x01 in a preamble cell and in each cell of a rung that has no instruction (a NOP does not count), and 0x00 in every other cell. |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |
 | +0x15 | 4B | Row-start flag: stored row bit 0 at column A, zero elsewhere (uint32 LE) |
@@ -121,8 +129,31 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 |---|---|
 | +0x08 | Marker (0x01 for condition cells and non-last-row AF data cells) |
 | +0x09 | Rung index, little-endian, carrying into +0x0A past 255 |
-| +0x0C | Instruction count. In the AF data cell on the last row of the last rung, the encoder writes the number of that rung's instructions. It does not count a NOP. CLICK often writes another value. |
+| +0x0C | A count in the last AF cell. See [The last AF cell](#the-last-af-cell). The encoder writes 0x00 in every other cell. |
 | +0x0D | Row hint (condition: `local_row + 1`; AF last rung: `local_row + 2`) |
+
+#### The last AF cell
+
+The last AF cell is the cell in column AF on the last row of the last rung. Whatever the cell holds, CLICK writes these values in its tail when you copy:
+
+| Offset | CLICK writes |
+|---|---|
+| +0x08 | 0x00 |
+| +0x0C | The number of distinct addresses in the copied rungs |
+| +0x0D | 0x00 |
+
+In CLICK's copies, the count was observed to equal the length of the list that `laddercodec.addresses()` returns for the copied rungs, with two exceptions. That list holds only the two ends of a range. Each of the two exceptions holds a range of X addresses with an end in the option slot (X021–X036). How CLICK counts such a range is not known.
+
+A paste ignores all three bytes. A buffer that holds 0, 4 or 0x63 at +0x0C pastes, checks and saves the same, and CLICK's copy of the pasted rung holds CLICK's own count.
+
+The encoder writes other values in this tail:
+
+| The last AF cell | +0x08 | +0x0C | +0x0D |
+|---|---|---|---|
+| One rung, an instruction in the cell | 0x01 | 0x00 | `local_row + 2` |
+| One rung, no instruction in the cell | 0x00 | The number of the rung's instructions, without a NOP | 0x00 |
+| Several rungs, an instruction in the cell | 0x00 | 0x01 | 0x00 |
+| Several rungs, no instruction in the cell | 0x00 | The number of the last rung's instructions, without a NOP | 0x00 |
 
 ### Cell structure (instruction cells)
 
