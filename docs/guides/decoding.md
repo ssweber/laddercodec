@@ -571,6 +571,10 @@ have `captured=False` and `click_id=None`:
   not call, or that main calls from loops of different depths
 - every finding in a subroutine whose main program holds an undecoded marker, because
   `check()` reads no Call after the marker
+- every finding in a subroutine that a Call names with other case, such as `call("SUB1")`
+  for `Sub1`
+- `for-nesting-depth` on a For after another For of its program was past the depth
+  limit, and `next-without-for` in a program with two such Fors
 - `for-without-next` at a For, or where more than one loop is open
 - `next-without-for` in a subroutine, unless a For of the subroutine was past the depth
   limit and main calls it outside any loop

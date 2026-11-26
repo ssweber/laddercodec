@@ -75,7 +75,8 @@ class _Place:
     """Where a program sits in what ``check()`` was given.
 
     ``answered`` is set for the programs that CLICK's recorded answers cover: the main
-    program, and a subroutine whose Calls in main all sit inside the same number of loops.
+    program, and a subroutine whose Calls in main all sit inside the same number of loops and
+    name it with the same case.
     ``carried`` is the number of loops around those Calls, and ``site`` is the deepest of them.
     """
 
@@ -118,8 +119,8 @@ class _Walk:
     #: The loops around the Call that are still open.  A Next with no open For of this
     #: program closes one of them.
     carried: int = 0
-    #: Whether a For of this program was past the depth limit.
-    refused: bool = False
+    #: How many Fors of this program were past the depth limit.
+    refused: int = 0
     #: The last Return or End, as (rung, row, name), when a loop of this program was open at it.
     last_stop: tuple[int, int, str] | None = None
     #: The Calls of the main program, each with the number of loops open around it.
@@ -169,7 +170,9 @@ class _Walk:
         if own + self.carried < MAX_NESTING:
             self.loops.append((rung, row))
             return
-        self.refused = True
+        # CLICK's answer is recorded only for the first For past the limit in a program.
+        first = not self.refused
+        self.refused += 1
         if self.carried:
             what = f"counting the loops around the Call: {self.around()}"
             then = (
@@ -188,7 +191,8 @@ class _Walk:
             Code.FOR_NESTING_DEPTH,
             f"this For would start a {_ordinal(own + self.carried + 1)} loop, {what}",
             then,
-            captured=(self.top and own == MAX_NESTING) or self.carried_only(MAX_NESTING),
+            captured=first
+            and ((self.top and own == MAX_NESTING) or self.carried_only(MAX_NESTING)),
         )
 
     def next_(self, rung: int, row: int) -> None:
@@ -203,7 +207,9 @@ class _Walk:
                 Code.NEXT_WITHOUT_FOR,
                 "this Next has no open For before it",
                 "Delete the Next, or add a For rung before it, such as for(2).",
-                captured=self.top and (self.place.is_main or self.refused),
+                captured=self.top
+                and self.refused <= 1
+                and (self.place.is_main or self.refused == 1),
             )
 
     def stop(self, rung: int, row: int, token: Return | End) -> None:
@@ -306,10 +312,15 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
     for index, sub in enumerate(project.subroutines):
         by_name.setdefault(sub.name.casefold(), index)
     sites: dict[int, list[_CallSite]] = {}
+    #: The subroutines that a Call names with other case.
+    other_case: set[int] = set()
     for call, site in main.calls:
         name = call.subroutine
         if isinstance(name, str) and name.casefold() in by_name:
-            sites.setdefault(by_name[name.casefold()], []).append(site)
+            index = by_name[name.casefold()]
+            sites.setdefault(index, []).append(site)
+            if name != project.subroutines[index].name:
+                other_case.add(index)
     out = [(project.main, _sorted(main.found))]
     for index, sub in enumerate(project.subroutines):
         calls = sites.get(index, [])
@@ -317,7 +328,9 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
         place = _Place(
             is_main=False,
             # main's Calls after its first marker are not read, so they may sit in other loops.
-            answered=len({site.loops for site in calls}) == 1 and not project.main.undecoded,
+            answered=len({site.loops for site in calls}) == 1
+            and index not in other_case
+            and not project.main.undecoded,
             carried=deepest.loops if deepest else 0,
             site=deepest,
             main_name=project.main.name,

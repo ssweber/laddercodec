@@ -446,6 +446,13 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     Call.
   - A subroutine that Main does not call. `check()` reads it as called outside any loop.
   - One Shot on the 3rd For of three nested loops in Main.
+  - Five nested loops in Main with five Nexts. `check()` reports C010D at the 4th For, as in q2a. The 5th For
+    gets `for-nesting-depth`, and the 4th and 5th Nexts get `next-without-for`. None of these three findings
+    has a CLICK id.
+  - Three nested loops in Main around a Call to `sub1`, in a project whose subroutine `Sub1` holds one loop
+    (`tests/fixtures/program_check/own/call_other_case/`). `check()` reports Sub1's For as
+    `for-nesting-depth`, as in q2b, with no CLICK id. q6b answers the case rule only for a Call outside any
+    loop.
   - A Call to `sub1` that runs on the PLC. CLICK's Syntax Check matches the name to `Sub1` without regard to
     case (q6b). Whether the PLC runs Sub1 for that Call is not tested.
   - A Call in a subroutine, typed in CLICK's editor. A paste drops it (q5a, q5b), and the runner has no
@@ -610,6 +617,10 @@ This comes from the ecosystem plan's item 2. It waits until pyrung's export goes
 
 ## Later (nothing unless marked)
 
+- **A `decode_project()` for a set of `Scr*.tmp` files (Sam).** laddercodec has no function that builds a
+  `Project` from CLICK's program files. `tests/test_program_check.py` builds one in `_scr_project()`:
+  `Scr1.tmp` is main, and each later file is a subroutine. BOB ruled on 2026-11-25 not to add a public
+  function yet. Sam decides whether laddercodec adds one, and what it is called.
 - **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
   none or another. Add the ids, with no new codes:
   - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);

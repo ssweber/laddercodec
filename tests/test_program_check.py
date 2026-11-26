@@ -63,7 +63,7 @@ MAIN = "Main Program"
 OWN: dict[str, list[tuple[str, int, Code, str | None]]] = {
     "depth_3": [],
     "return_after_loop": [],
-    "call_other_case": [("Sub1", 0, Code.FOR_NESTING_DEPTH, "C010D")],
+    "call_other_case": [("Sub1", 0, Code.FOR_NESTING_DEPTH, None)],
 }
 
 _ERROR = re.compile(
@@ -283,7 +283,12 @@ def test_project_main_is_main_whatever_its_prog_idx() -> None:
 
 
 def test_a_call_names_its_subroutine_without_regard_to_case() -> None:
+    # The finding is not captured, because the Call names Sub1 with other case.
     main = [_for("X001"), _for(), _for(), _call("SUB1"), NEXT, NEXT, NEXT, END]
+    assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == [
+        ("Sub1", 0, Code.FOR_NESTING_DEPTH, None)
+    ]
+    main[3] = _call("Sub1")
     assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == [
         ("Sub1", 0, Code.FOR_NESTING_DEPTH, "C010D")
     ]
@@ -353,12 +358,14 @@ def test_inside_a_called_loop_only_the_answered_shapes_are_captured() -> None:
 
 
 def test_each_for_past_the_third_gets_a_finding() -> None:
+    # Only the first For past the limit, as in q2a, is captured.  With two Fors past it,
+    # neither stray Next is captured.
     main = [_for("X001"), _for(), _for(), _for(), _for(), OUT, *[NEXT] * 5, END]
     assert _found(check(_project(main))) == [
         (MAIN, 3, Code.FOR_NESTING_DEPTH, "C010D"),
-        (MAIN, 4, Code.FOR_NESTING_DEPTH, "C010D"),
-        (MAIN, 9, Code.NEXT_WITHOUT_FOR, "C0101"),
-        (MAIN, 10, Code.NEXT_WITHOUT_FOR, "C0101"),
+        (MAIN, 4, Code.FOR_NESTING_DEPTH, None),
+        (MAIN, 9, Code.NEXT_WITHOUT_FOR, None),
+        (MAIN, 10, Code.NEXT_WITHOUT_FOR, None),
     ]
 
 

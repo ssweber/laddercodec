@@ -58,4 +58,4 @@ holds the findings that laddercodec's rules give for them.
 - `return_after_loop`: a Return in Sub1 after its loop's Next. No finding.
 - `call_other_case`: three nested loops in Main around a Call to `sub1`, in a project whose subroutine `Sub1`
   holds one loop. The Call names Sub1, because the names match without regard to case (q6b). Sub1's For gets
-  `for-nesting-depth` with C010D, as in q2b.
+  `for-nesting-depth`, as in q2b. The finding has no CLICK id, because CLICK did not check this shape.
