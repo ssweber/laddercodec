@@ -47,9 +47,6 @@ That table gives a program finding its CLICK id. Run it after you add a case.
 | q8 | A Call to Sub1, which holds a Math |
 | q8c | q8, with Syntax Check run before Local Program Information |
 
-`check()` does not report a Call to a missing subroutine (q6a), or a Break or a Continue outside a loop
-(q7). The test leaves those errors out.
-
 The runner also ran the 8,000-step cases. They are not here, because `check()` does not count steps.
 
 ## own/: laddercodec's own reading

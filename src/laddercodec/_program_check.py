@@ -11,13 +11,17 @@ names:
 - A loop that is still open at the last Return or End of its program gets a finding there.
   The For gets the finding when no Return or End comes after it.
 - A Call in a subroutine gets a finding, because a paste into CLICK drops it.
+- A Call in the main program that names no subroutine of the project gets a finding.  The
+  names match without regard to case.
+- A Break or a Continue that is not inside a loop gets a finding.
 
 In a subroutine that main calls from inside a loop, a Next with no open For of its own closes
-one of the loops around the Call, and gets no finding.
+one of the loops around the Call, and gets no finding.  A Break or a Continue there is inside
+those loops, and gets no finding.
 
-The rules read no For, Next, Return, End or Call after a program's first undecoded marker,
-because the rung that the marker stands for may hold a For or a Next.  A ``RawInstruction``
-of one of those classes stops the walk in the same way.  A For that is open where the walk
+The rules read no For, Next, Return, End, Call, Break or Continue after a program's first
+undecoded marker, because the rung that the marker stands for may hold a For or a Next.  A
+``RawInstruction`` of class For, Next, Return, End or Call stops the walk in the same way.  A For that is open where the walk
 stops gets no finding.
 
 Whether a finding is captured does not depend on the walk.  ``answers()`` looks up the
@@ -38,7 +42,7 @@ from .errors import LaddercodecError
 from .instructions import Condition, Instruction, Tee
 from .instructions.call import Call
 from .instructions.end import End
-from .instructions.forloop import ForLoop, Next
+from .instructions.forloop import Break, Continue, ForLoop, Next
 from .instructions.raw import RawInstruction
 from .instructions.return_ import Return
 from .instructions.undecoded import Undecoded
@@ -59,6 +63,9 @@ PROGRAM_CODES = frozenset(
         Code.ONESHOT_INSIDE_LOOP,
         Code.RETURN_INSIDE_LOOP,
         Code.NESTED_CALL,
+        Code.CALL_WITHOUT_SUBROUTINE,
+        Code.BREAK_OUTSIDE_LOOP,
+        Code.CONTINUE_OUTSIDE_LOOP,
     }
 )
 
@@ -146,7 +153,7 @@ class _Walk:
     #: The last Return or End, as (rung, row, name), when a loop of this program was open at it.
     last_stop: tuple[int, int, str] | None = None
     #: The Calls of the main program, each with the loops open around it.
-    calls: list[tuple[Call, _CallSite]] = field(default_factory=list)
+    calls: list[tuple[Call, int, _CallSite]] = field(default_factory=list)
     #: Whether the walk stopped at a marker, or at a raw For, Next, Return, End or Call.
     stopped: bool = False
 
@@ -254,7 +261,7 @@ class _Walk:
     def call(self, rung: int, row: int, token: Call) -> None:
         if self.place.is_main:
             inner = self.loops[-1][0] if self.loops else None
-            self.calls.append((token, _CallSite(rung, len(self.loops), inner)))
+            self.calls.append((token, row, _CallSite(rung, len(self.loops), inner)))
             return
         self.add(
             rung,
@@ -262,6 +269,22 @@ class _Walk:
             Code.NESTED_CALL,
             f"this Call is in subroutine {self.program.name}, and a paste into CLICK drops it",
             f"Call {token.subroutine} from {self.place.main_name}.",
+        )
+
+    def leave(self, rung: int, row: int, token: Break | Continue) -> None:
+        if self.loops or self.carried:
+            return
+        if isinstance(token, Break):
+            name, code = "Break", Code.BREAK_OUTSIDE_LOOP
+        else:
+            name, code = "Continue", Code.CONTINUE_OUTSIDE_LOOP
+        self.add(
+            rung,
+            row,
+            code,
+            f"this {name} is not inside a loop",
+            f"Move the {name.lower()}() rung between a for() rung and its next() rung, or "
+            "delete it.",
         )
 
     def end(self) -> None:
@@ -301,6 +324,8 @@ def _run(program: Program, place: _Place) -> _Walk:
             walk.stop(rung, row, token)
         elif isinstance(token, Call):
             walk.call(rung, row, token)
+        elif isinstance(token, (Break, Continue)):
+            walk.leave(rung, row, token)
     walk.end()
     return walk
 
@@ -319,25 +344,44 @@ def check_program(program: Program) -> list[ProgramFinding]:
     return _sorted(_run(program, place).found)
 
 
+def _missing(name: str, project: Project) -> tuple[str, str]:
+    """Return what is wrong with a Call to *name*, which no subroutine of *project* has, and
+    what to change.
+    """
+    what = f'this Call names "{name}", and the project has no subroutine of that name'
+    if project.subroutines:
+        other = project.subroutines[0].name
+        return (
+            what,
+            f'Call a subroutine that the project has, such as call("{other}"), or add a '
+            f'subroutine named "{name}".',
+        )
+    return what, f'Add a subroutine named "{name}", or delete the Call.'
+
+
 def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]]:
     """Return the program rules that each program of *project* breaks: main first, then the
     subroutines in their order.
 
-    A Call names the first subroutine whose name matches without regard to case.  A
-    subroutine that main calls inside loops is walked with the most loops that any of its
-    Calls sits inside.
+    A Call names the first subroutine whose name matches without regard to case.  A Call
+    in main whose name matches no subroutine gets a finding.  A subroutine that main calls
+    inside loops is walked with the most loops that any of its Calls sits inside.
     """
     main = _run(project.main, _MAIN)
     by_name: dict[str, int] = {}
     for index, sub in enumerate(project.subroutines):
         by_name.setdefault(sub.name.casefold(), index)
     deepest: dict[int, _CallSite] = {}
-    for call, site in main.calls:
+    for call, row, site in main.calls:
         name = call.subroutine
-        if isinstance(name, str) and name.casefold() in by_name:
-            index = by_name[name.casefold()]
-            if index not in deepest or site.loops > deepest[index].loops:
-                deepest[index] = site
+        if not isinstance(name, str):
+            continue
+        if name.casefold() not in by_name:
+            main.add(site.rung, row, Code.CALL_WITHOUT_SUBROUTINE, *_missing(name, project))
+            continue
+        index = by_name[name.casefold()]
+        if index not in deepest or site.loops > deepest[index].loops:
+            deepest[index] = site
     out = [(project.main, _sorted(main.found))]
     for index, sub in enumerate(project.subroutines):
         site = deepest.get(index)

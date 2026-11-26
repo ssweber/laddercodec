@@ -171,6 +171,9 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `oneshot-inside-loop` | A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot. | C0111 |
 | `return-inside-loop` | A Return or an End inside a loop of its own program. | C0115 |
 | `nested-call` | A Call in a subroutine. A paste into CLICK drops it. |  |
+| `call-without-subroutine` | A Call in the main program that names no subroutine of the project. The names match without regard to case. | C010C |
+| `break-outside-loop` | A Break that is not inside a For/Next loop. | C010F |
+| `continue-outside-loop` | A Continue that is not inside a For/Next loop. | C0110 |
 
 ## Layout
 
