@@ -34,7 +34,18 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Finding, Rung, check, decode, decode_program, encode, read_csv
+from laddercodec import (
+    EncodeError,
+    Finding,
+    Program,
+    Project,
+    Rung,
+    check,
+    decode,
+    decode_program,
+    encode,
+    read_csv,
+)
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
@@ -786,3 +797,45 @@ def test_only_an_unpowered_nop_goes_unreported(box: object) -> None:
     rung = _rung([[_contact("C1")] + ["-"] * 30, stub], [_out("Y1"), box])
     want = [] if box == "NOP" else [(0, "unpowered-box", None, 1, 31)]
     assert _cells(check(rung)) == want
+
+
+def _wide_rung(width: int, *, row: int = 0) -> Rung:
+    """Return a two-row rung whose row *row* has *width* condition cells."""
+    rows = [["-"] * 31, ["-"] * 31]
+    rows[row] = ["-"] * width
+    return Rung(rows, [_out("Y1"), _out("Y2")], None)
+
+
+_SUBROUTINE = Program(name="Sub", prog_idx=2, rungs=[_rung([["-"]], [_out("Y1")])])
+
+
+@pytest.mark.parametrize(
+    ("given", "label"),
+    [
+        (lambda bad: bad, ""),
+        (lambda bad: [_wide_rung(31), bad], "Rung 1: "),
+        (
+            lambda bad: Program(name="Main Program", prog_idx=1, rungs=[bad]),
+            "Main Program, rung 0: ",
+        ),
+        (
+            lambda bad: Project(
+                Program(name="Main Program", prog_idx=1, rungs=[]),
+                [_SUBROUTINE, Program(name="Bad", prog_idx=3, rungs=[bad])],
+            ),
+            "Bad, rung 0: ",
+        ),
+    ],
+    ids=["rung", "list", "program", "project"],
+)
+@pytest.mark.parametrize(("width", "row"), [(3, 0), (40, 0), (30, 1)])
+def test_a_row_of_the_wrong_width_raises_encode_error(
+    given, label: str, width: int, row: int
+) -> None:
+    """check() refuses the rung as encode() does, before the layout code reads a cell."""
+    bad = _wide_rung(width, row=row)
+    want = f"Row {row}: expected 31 columns, got {width}. "
+    with pytest.raises(EncodeError, match=f"^{re.escape(want)}"):
+        encode(bad)
+    with pytest.raises(EncodeError, match=f"^{re.escape(label + want)}"):
+        check(given(bad))

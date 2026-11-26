@@ -21,7 +21,7 @@ from .encode import (
     _compute_seg_boundaries,
     _normalize_af,
 )
-from .errors import EncodeError
+from .errors import EncodeError, LaddercodecError
 from .instructions import (
     Condition,
     ConditionToken,
@@ -91,6 +91,25 @@ def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: 
         )
 
 
+def _check_columns(
+    condition_rows: Sequence[Sequence[object]],
+    label: str = "",
+    error: type[LaddercodecError] = EncodeError,
+) -> None:
+    """Raise *error* for the first row of *condition_rows* that does not have 31 cells.
+
+    ``encode()`` and ``check()`` raise ``EncodeError``, and ``write_csv`` raises
+    ``CsvWriteError``.  *label* works as it does for :func:`_validate_rung`.
+    """
+    prefix = f"{label}: " if label else ""
+    for row_idx, row in enumerate(condition_rows):
+        if len(row) != CONDITION_COLUMNS:
+            raise error(
+                f"{prefix}Row {row_idx}: expected {CONDITION_COLUMNS} columns, got {len(row)}. "
+                "Pass one token for each column from A to AE."
+            )
+
+
 def _validate_rung(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
@@ -129,11 +148,8 @@ def _validate_rung(
             "token per row, with '' for a row that has no instruction."
         )
 
+    _check_columns(condition_rows, label)
     for row_idx, row in enumerate(condition_rows):
-        if len(row) != CONDITION_COLUMNS:
-            raise EncodeError(
-                f"{prefix}Row {row_idx}: expected {CONDITION_COLUMNS} columns, got {len(row)}"
-            )
         for col_idx, token in enumerate(row):
             if isinstance(token, Tee):
                 _check_tee(token, row_idx, col_idx, logical_rows, prefix)
