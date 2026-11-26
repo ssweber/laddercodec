@@ -141,8 +141,8 @@ class EncodeError(LaddercodecError):
     long once it is written as RTF.  A value that CLICK's dialog refuses raises
     :class:`~laddercodec.FieldError` instead.
 
-    ``check()`` raises it for a rung with a row that does not have 31 condition cells, and
-    for a rung that does not have one AF token for each row.
+    ``check()`` raises it for a rung with no rows, for a rung with a row that does not have
+    31 condition cells, and for a rung that does not have one AF token for each row.
     """
 
 

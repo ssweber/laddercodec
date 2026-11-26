@@ -254,6 +254,7 @@ _WRONG_SHAPES = {
         Rung([_FULL_ROW], [Coil("Y1"), Coil("Y2")], None),
         "The rung has 1 row, and instructions has 2 tokens. ",
     ),
+    "no-rows": (Rung([], [], None), "A rung has 1 to 32 rows. This one has 0. "),
 }
 
 

@@ -238,9 +238,8 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     comment.  A comment that is not text gets no finding.
 
     ``check()`` raises :class:`~laddercodec.EncodeError` before it reports any finding if
-    a rung has a row that does not have 31 condition cells.  It also raises it if a rung
-    does not have one AF token for each row.  ``encode()`` refuses the same rung with the
-    same message.
+    a rung has no rows, if a rung has a row that does not have 31 condition cells, or if a
+    rung does not have one AF token for each row.  ``encode()`` refuses the same rung.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 

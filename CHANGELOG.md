@@ -26,7 +26,7 @@
 - A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
 - `encode()` now writes back the stored bytes of a decoded decimal `Math` that you leave unchanged, when its formula holds a real as typed, such as `3.0E+38` or `1.50`, whether CLICK or an older laddercodec wrote it. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
 - `encode()` now writes `W70000` for a decoded `Math` that holds `H70000` and an address as typed, such as `DS001`. `decode()` warns for such a Math with `LegacyEncodingWarning`. 0.5.1 wrote `H70000` back, and CLICK runs it as 4464.
-- `check()` now raises `EncodeError`, the same as `encode()`, for a rung with a row that does not have 31 condition cells or with a different number of AF tokens and rows. `write_csv()`, `csv_rows()` and `write_bundle()` raise `CsvWriteError` for such a rung. 0.5.1 raised `IndexError` for some of these rungs, and returned wrong findings or rows for the others.
+- `check()` now raises `EncodeError`, and `write_csv()`, `csv_rows()` and `write_bundle()` raise `CsvWriteError`, for a rung that has no rows, that has a row without 31 condition cells, or that does not have one AF token for each row. `encode()` already refused these rungs. 0.5.1 raised `IndexError` for some of them, and returned wrong findings or rows for most of the others.
 
 ## 0.5.1 (2026-11-25)
 

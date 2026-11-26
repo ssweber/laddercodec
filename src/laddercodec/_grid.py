@@ -91,19 +91,33 @@ def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: 
         )
 
 
+def _row_count_message(rows: int) -> str:
+    """Return the refusal of a rung with *rows* rows, which is outside 1 to 32."""
+    fix = (
+        "Split it into rungs of 32 rows or fewer."
+        if rows > MAX_ROWS
+        else "Pass conditions as one list of 31 tokens per row, such as [['-'] * 31]."
+    )
+    return f"A rung has {MIN_ROWS} to {MAX_ROWS} rows. This one has {rows}. {fix}"
+
+
 def _check_shape(
     condition_rows: Sequence[Sequence[object]],
     af_tokens: Sequence[object],
     label: str = "",
     error: type[LaddercodecError] = EncodeError,
 ) -> None:
-    """Raise *error* if *af_tokens* does not have one token for each row of *condition_rows*,
-    or if a row does not have 31 cells.
+    """Raise *error* if *condition_rows* has no rows, if *af_tokens* does not have one token
+    for each row, or if a row does not have 31 cells.
+
+    A rung of more than 32 rows passes.  ``check()`` reports it as ``layout-too-tall``.
 
     ``encode()`` and ``check()`` raise ``EncodeError``, and the CSV writers raise
     ``CsvWriteError``.  *label* works as it does for :func:`_validate_rung`.
     """
     prefix = f"{label}: " if label else ""
+    if not condition_rows:
+        raise error(prefix + _row_count_message(0))
     if len(af_tokens) != len(condition_rows):
         rows = f"{len(condition_rows)} row{'' if len(condition_rows) == 1 else 's'}"
         tokens = f"{len(af_tokens)} token{'' if len(af_tokens) == 1 else 's'}"
@@ -136,14 +150,7 @@ def _validate_rung(
     prefix = f"{label}: " if label else ""
 
     if not (MIN_ROWS <= logical_rows <= MAX_ROWS):
-        fix = (
-            "Split it into rungs of 32 rows or fewer."
-            if logical_rows > MAX_ROWS
-            else "Pass conditions as one list of 31 tokens per row, such as [['-'] * 31]."
-        )
-        raise EncodeError(
-            f"{prefix}A rung has {MIN_ROWS} to {MAX_ROWS} rows. This one has {logical_rows}. {fix}"
-        )
+        raise EncodeError(prefix + _row_count_message(logical_rows))
     rows = f"{logical_rows} row{'' if logical_rows == 1 else 's'}"
     if len(condition_rows) != logical_rows:
         raise EncodeError(

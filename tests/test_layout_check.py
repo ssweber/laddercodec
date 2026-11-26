@@ -821,6 +821,8 @@ _WRONG_SHAPES = {
         Rung([["-"] * 31], [_out("Y1"), _out("Y2")], None),
         "The rung has 1 row, and instructions has 2 tokens. ",
     ),
+    # Without the check, check() returns no finding.
+    "no-rows": (Rung([], [], None), "A rung has 1 to 32 rows. This one has 0. "),
 }
 
 _SUBROUTINE = Program(name="Sub", prog_idx=2, rungs=[_rung([["-"]], [_out("Y1")])])
