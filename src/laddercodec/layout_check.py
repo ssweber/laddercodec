@@ -159,11 +159,11 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     A program finding is at the instruction's AF cell.  Its message ends with what to change.
     It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
     checked, and only when CLICK reported that finding there.  The shape is the project's
-    exact CSV: each program's name, and every row of every rung as the CSV writes it, comment
-    rows included.  The rows are the rung's own rows, not laid out again.  The subroutines
-    may come in any order.  A main program alone has the shape of a project with no
-    subroutines.  A subroutine alone, and a rung with a cell that the CSV can't hold, are
-    never captured.
+    exact CSV: each program's name, a ``#`` row for each line of each rung's comment, and
+    each row of the rung as it is, with each cell's CSV text.  ``check()`` does not lay the
+    rung out first.  The subroutines may come in any order.  A main program alone has the
+    shape of a project with no subroutines.  A subroutine alone, and a rung with a cell that
+    the CSV can't hold, are never captured.
 
     ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
     marker, because the rung that the marker stands for may hold a For or a Next.  A
@@ -218,19 +218,32 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     from .decode import Rung  # decode imports csv, which imports decode
 
     if isinstance(rungs, Project):
-        answered = answers(rungs)
+        programs = check_project(rungs)
+        answered = _answers(rungs, [f for _, found in programs for f in found])
         return [
             finding
-            for program, found in check_project(rungs)
+            for program, found in programs
             for finding in _check_program(program, found, answered)
         ]
     if isinstance(rungs, Program):
+        found = check_program(rungs)
         # A main program alone is a project with no subroutines.
-        answered = answers(Project(rungs)) if rungs.prog_idx == 1 else None
-        return _check_program(rungs, check_program(rungs), answered)
+        answered = _answers(Project(rungs), found) if rungs.prog_idx == 1 else None
+        return _check_program(rungs, found, answered)
     if isinstance(rungs, Rung):
         rungs = [rungs]
     return [finding for index, rung in enumerate(rungs) for finding in _check_rung(index, rung)]
+
+
+def _answers(project: Project, found: list[ProgramFinding]) -> frozenset[Answer] | None:
+    """Return CLICK's answers for *project*, or ``None``.
+
+    The table is read only when a finding in *found* has a code with a CLICK id, because
+    no other finding can be captured.
+    """
+    if not any(f.code in CLICK_IDS for f in found):
+        return None
+    return answers(project)
 
 
 def _check_program(

@@ -22,6 +22,7 @@ from laddercodec import (
     Call,
     Code,
     Coil,
+    Condition,
     Contact,
     End,
     Finding,
@@ -32,14 +33,16 @@ from laddercodec import (
     RawInstruction,
     Return,
     Rung,
+    Tee,
     Timer,
     Undecoded,
+    UnknownCondition,
     check,
     decode_program,
     marker_rung,
     read_bundle,
 )
-from laddercodec._program_check import answers
+from laddercodec._program_check import answers, rung_rows
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -558,3 +561,55 @@ def test_a_rung_finding_comes_before_the_rung_program_finding() -> None:
 def test_finding_built_by_position_has_no_program() -> None:
     finding = Finding(0, Code.NO_COIL, None, False, None, None, "m")
     assert finding.program is None
+
+
+class _NoCsv(Condition):
+    """A caller's own condition, with no ``to_csv()``."""
+
+
+#: Rungs that have no CSV form, each in place of q1a's Out.
+NO_CSV: dict[str, Rung] = {
+    # A Tee around an unknown contact, as both decoders make one, driving out(Y002).
+    "tee_around_unknown": Rung(
+        [[Tee(UnknownCondition(b"Foo"))] + ["-"] * 30], [Coil("Y002")], None
+    ),
+    # A comment that is not text.
+    "comment_not_text": Rung(
+        [[Contact("X002")] + ["-"] * 30],
+        [Coil("Y002")],
+        5,  # type: ignore[arg-type]
+    ),
+    # More condition rows than AF tokens.
+    "more_rows_than_af": Rung([[Contact("X002")] + ["-"] * 30, ["-"] * 31], [Coil("Y002")], None),
+    # A caller's own condition with no to_csv().
+    "condition_with_no_to_csv": Rung([[_NoCsv()] + ["-"] * 30], [Coil("Y002")], None),
+}
+
+
+@pytest.mark.parametrize("case", sorted(NO_CSV))
+def test_a_rung_with_no_csv_form_is_not_captured(case: str) -> None:
+    rung = NO_CSV[case]
+    assert rung_rows(rung) is None
+    # The open For gives findings whose codes have CLICK ids, so check() reads the table.
+    main = Program(MAIN, 1, [_for("X001"), rung, END])
+    for given in (main, Project(main)):
+        assert answers(Project(main)) is None
+        found = [(f.rung, f.code, f.click_id) for f in check(given) if f.code in PROGRAM_CODES]
+        assert found == [
+            (2, Code.RETURN_INSIDE_LOOP, None),
+            (2, Code.FOR_WITHOUT_NEXT, None),
+        ]
+
+
+def test_the_table_is_not_read_without_a_finding_that_has_a_click_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import laddercodec.layout_check as layout_check
+
+    def fail(project: Project) -> None:
+        raise AssertionError("read the table")
+
+    monkeypatch.setattr(layout_check, "answers", fail)
+    main = Program(MAIN, 1, [_for("X001"), NO_CSV["tee_around_unknown"], NEXT, END])
+    assert [f for f in check(main) if f.code in PROGRAM_CODES] == []
+    assert [f.code for f in check(read_bundle(CLICK / "q5b" / "program"))] == [Code.NESTED_CALL]

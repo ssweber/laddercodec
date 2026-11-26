@@ -34,6 +34,7 @@ from importlib import resources
 from typing import TYPE_CHECKING
 
 from .codes import Code
+from .errors import LaddercodecError
 from .instructions import Condition, Instruction, Tee
 from .instructions.call import Call
 from .instructions.end import End
@@ -359,9 +360,15 @@ def _cell(token: object, strings: frozenset[str]) -> str | None:
     """Return the CSV text of *token*, or ``None`` when it has none."""
     if isinstance(token, str):
         return token if token in strings else None
-    if isinstance(token, (Tee, Condition, Instruction)):
-        return token.to_csv()
-    return None
+    if not isinstance(token, (Tee, Condition, Instruction)):
+        return None
+    try:
+        text = token.to_csv()
+    except (LaddercodecError, NotImplementedError):
+        # A Tee around an unknown condition, a field that the CSV can't hold, or a
+        # caller's subclass with no to_csv().
+        return None
+    return text if isinstance(text, str) else None
 
 
 def rung_rows(rung: Rung) -> list[list[str]] | None:
@@ -369,9 +376,15 @@ def rung_rows(rung: Rung) -> list[list[str]] | None:
     one row for each of its rows, with the marker, the 31 condition cells and the AF cell.
 
     Every row of the rung is kept, and no row is laid out again.  Return ``None`` when a
-    cell has no CSV text, such as an unknown condition.
+    cell has no CSV text, such as an unknown condition, when the comment is not text, or
+    when the rung has a different number of condition rows and AF tokens.
     """
-    rows = [["#", line] for line in rung.comment.split("\n")] if rung.comment is not None else []
+    comment = rung.comment
+    if comment is not None and not isinstance(comment, str):
+        return None
+    if len(rung.conditions) != len(rung.instructions):
+        return None
+    rows = [["#", line] for line in comment.split("\n")] if comment is not None else []
     for index, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=True)):
         cells = [_cell(c, _WIRES) for c in conditions] + [_cell(af, _NO_INSTRUCTION)]
         if None in cells:

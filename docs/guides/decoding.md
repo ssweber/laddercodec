@@ -570,13 +570,13 @@ that CLICK answered. The whole project must have the shape of a project that CLI
 checked, and CLICK must have reported that finding there. A larger project that
 contains an answered shape is not captured.
 
-The shape is the project's exact CSV: each program's name, and every row of every
-rung as the CSV writes it, comment rows included. Every cell counts: each wire, each
-contact with its address, each instruction with its fields. The rows are the rung's
-own rows, not laid out again. The subroutines may come in any order. A main program
-alone has the shape of a project with no subroutines. A subroutine alone, and a rung
-with a cell that the CSV can't hold, are never captured. `nested-call` has no CLICK
-id.
+The shape is the project's exact CSV: each program's name, a `#` row for each line of
+each rung's comment, and each row of the rung as it is, with each cell's CSV text.
+`check()` does not lay the rung out first. Every cell counts: each wire, each contact
+with its address, each instruction with its fields. The subroutines may come in any
+order. A main program alone has the shape of a project with no subroutines. A
+subroutine alone, and a rung with a cell that the CSV can't hold, are never captured.
+`nested-call` has no CLICK id.
 
 ## Round-trip identity
 
