@@ -37,8 +37,7 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 ## Next steps
 
 **Before the tag.** 0.6.0 is prepared: the CHANGELOG section is dated 2026-11-26, and AGENTS.md and the BOB
-profile state entries against v0.6.0. Sam tags it. The return in Main and the end in a subroutine stay open for
-him (see the item at the End and Return rules). They are not part of 0.6.0.
+profile state entries against v0.6.0. Sam tags it.
 
 **After 0.5.1, in this order.** Sam decided on 2026-11-25 that laddercodec builds what pyrung's export
 needs first, so that laddercodec does not hold up the export. That work is done. The steps below are what
@@ -479,13 +478,12 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     the `T` in column B. **CLICK:** a runner case with the `T` in a later column, such as F, would answer
     it. CLICK did not count an End behind SC1 (f6), and SC1 is the only contact that is always on that was
     tried.
-  - **Sam:** an End in a subroutine, or a Return in Main. `check()` counts neither, so it reports
-    `missing-return` or `missing-end`. CLICK v4.00 was observed to paste an empty rung, with no message, in
-    place of a rung that holds an unconditional Return in Main or an unconditional End in a subroutine. Its
-    Syntax Check then reported C0201 or C0105 for a program that no longer held the rung. Sam decides
-    whether `check()` reports these rungs, or whether laddercodec refuses `return()` in Main and `end()` in
-    a subroutine. These two cases are not in the fixtures. `e3_return_in_main` and `e4_end_in_sub1` stay in
-    `UNANSWERED` until Sam decides.
+  - Done: an End in a subroutine and a Return in Main. Sam ruled on 2026-11-26 that neither is allowed there.
+    pyrung's builder refuses them, and laddercodec adds no finding and no refusal. `check()` counts neither,
+    so a program that holds one gets `missing-return` or `missing-end`. CLICK v4.00 pastes an empty rung in
+    place of such a rung. Its Syntax Check then reports C0201 or C0105 for the saved program, which no longer
+    holds the rung. f3 and f4 are among the answered cases. Their saves are answered shapes, and their
+    `program/` is a shape CLICK never checked, so it gets no CLICK id (`CHANGED_ON_PASTE`).
   - A Main with no rungs. `check()` reports `missing-end` at rung 0. CLICK reported C0105 at rung 1,
     counted from 1, for a subroutine with no rungs (f5).
   - A program whose reading stops at an undecoded marker, or at a raw For, Next, Return, End or Call,

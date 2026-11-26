@@ -576,7 +576,8 @@ and `missing-return`. Each message ends with what to change.
   check draws for the rung. It can be on any rung. A program without one gets
   `missing-end` or `missing-return` at the rung after its last rung. That finding's
   `rung` is `len(program.rungs)`, and its `row` and `column` are `None`. An End does
-  not count in a subroutine, and a Return does not count in main. A `Program` checked
+  not count in a subroutine, and a Return does not count in main. CLICK does not allow
+  either rung there, and `check()` reports nothing about it beyond the missing End or Return. A `Program` checked
   alone gets neither finding. A `Program` is often a few rungs cut from a larger
   program. A `missing-end` finding on every such `Program` would hide its other
   findings.

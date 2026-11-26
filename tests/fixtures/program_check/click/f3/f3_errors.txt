@@ -1,0 +1,7 @@
+--------------------Configuration: f3 - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Main Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.
+
+f3 - 1 error(s), 0 warning(s)

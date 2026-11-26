@@ -56,6 +56,20 @@ CLICK = FIX / "click"
 CASES = sorted(p.name for p in CLICK.iterdir() if p.is_dir())
 SAVES = ("pasted", "info", "checked")
 
+
+def _load_generator() -> ModuleType:
+    path = ROOT / "devtools" / "gen_program_answers.py"
+    spec = importlib.util.spec_from_file_location("gen_program_answers", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+#: The cases whose pasted program CLICK changed: its saves lack the Return in Main or the End in
+#: a subroutine.  The table gives CLICK's errors for the saves only.
+CHANGED_ON_PASTE: set[str] = _load_generator().CHANGED_ON_PASTE
+
 #: The cases whose Call in a subroutine CLICK dropped at the paste.
 DROPPED_CALL = {"q5a", "q5b"}
 
@@ -147,21 +161,12 @@ def test_check_on_clicks_save_gives_clicks_errors(case: str, save: str) -> None:
     assert all(f.captured for f in findings)
 
 
-@pytest.mark.parametrize("case", sorted(set(CASES) - DROPPED_CALL))
+@pytest.mark.parametrize("case", sorted(set(CASES) - DROPPED_CALL - CHANGED_ON_PASTE))
 def test_check_on_the_pasted_program_gives_clicks_errors(case: str) -> None:
     programs, expected = _expected(case)
     findings = check(read_bundle(CLICK / case / "program"))
     assert _errors(findings, programs) == expected
     assert all(f.captured for f in findings)
-
-
-def _load_generator() -> ModuleType:
-    path = ROOT / "devtools" / "gen_program_answers.py"
-    spec = importlib.util.spec_from_file_location("gen_program_answers", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_the_table_of_answers_is_current() -> None:
@@ -175,7 +180,7 @@ def test_every_case_is_answered_from_its_program_and_its_saves(case: str) -> Non
     _, errors = _click_errors(case)
     ids = {CLICK_IDS[code][0] for code in PROGRAM_CODES if code in CLICK_IDS}
     expected = {(e[0], e[1], e[3]) for e in errors if e[2] in ids}
-    projects = [read_bundle(CLICK / case / "program")]
+    projects = [] if case in CHANGED_ON_PASTE else [read_bundle(CLICK / case / "program")]
     projects += [_scr_project(CLICK / case / s) for s in SAVES if (CLICK / case / s).is_dir()]
     for project in projects:
         found = answers(project)
@@ -672,8 +677,6 @@ EMPTY_NEXT = Rung([[""] * 31], [Next()], None)
 EMPTY_OUT = Rung([[""] * 31], [Coil("Y001")], None)
 TIMER = Rung([["-"] * 31, [""] * 31], [Timer("on_delay", "T1", "TD1", "5", "Ts"), ""], None)
 X2_RET = _rung(Return(), "X002")
-X1_OUT = _rung(Coil("Y001"), "X001")
-X2_OUT = _rung(Coil("Y002"), "X002")
 #: An End on row 1, which wires reach from the T on row 0, column B.  Row 1, column A is empty.
 END_ON_A_BRANCH = Rung(
     [["-", "T"] + ["-"] * 29, ["", "-"] + ["-"] * 29], [Coil("Y001"), End()], None
@@ -744,10 +747,6 @@ UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
         [_for("X001"), _rung("for"), _for(), _for(), OUT, *[NEXT] * 4, END],
         {},
     ),
-    # e3 with a Return in place of the End.
-    "e3_return_in_main": ([X1_OUT, RET], {}),
-    # e4 with an End in place of Sub1's Return.
-    "e4_end_in_sub1": ([_call("Sub1", "X001"), END], {"Sub1": [X2_OUT, END]}),
 }
 
 
@@ -760,6 +759,17 @@ def test_a_shape_that_click_did_not_answer_has_no_click_id(case: str) -> None:
     assert answers(project) is None
     assert [(f.click_id, f.captured) for f in findings] == [(None, False)] * len(findings)
     assert all("(CLICK's response to this shape is not captured)" in f.message for f in findings)
+
+
+@pytest.mark.parametrize("case", sorted(CHANGED_ON_PASTE))
+def test_a_program_that_click_changed_on_paste_has_no_click_id(case: str) -> None:
+    # The Return in Main (f3) and the End in Sub1 (f4) are not allowed there.  CLICK
+    # replaced each rung with an empty one, so it never checked the program as pasted.
+    project = read_bundle(CLICK / case / "program")
+    findings = [f for f in check(project) if f.code in PROGRAM_CODES]
+    assert findings
+    assert answers(project) is None
+    assert [(f.click_id, f.captured) for f in findings] == [(None, False)] * len(findings)
 
 
 def test_the_table_reads_only_findings_that_click_reported() -> None:
