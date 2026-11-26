@@ -20,6 +20,9 @@ added before Sub1.
 The `.gitattributes` in `click/` keeps every file byte for byte, line ends included. Do not edit these
 files. They are CLICK's answers.
 
+`make program-answers` reads these cases and writes `src/laddercodec/resources/program_answers.json`.
+That table gives a program finding its CLICK id. Run it after you add a case.
+
 | Case | Program |
 |---|---|
 | q1a | A For with no Next in Main |

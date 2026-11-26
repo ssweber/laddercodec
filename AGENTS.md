@@ -64,7 +64,8 @@ src/laddercodec/
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── paste.py              # addresses(): the addresses that a CLICK project must hold before a paste
 ├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
-├── _program_check.py     # The For/Next and Call rules that check() reports on a Program or a Project
+├── _program_check.py     # The For/Next and Call rules that check() reports on a Program or a Project;
+│                         #   answers(): the findings CLICK reported for a project of the same shape
 ├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
 │                         #   tree.py (series-parallel tree), render.py (packed layout), build.py (network
@@ -116,7 +117,8 @@ src/laddercodec/
 │                         #   bundle.py (read_bundle, write_bundle: main.csv + subroutines/*.csv),
 │                         #   location.py (CsvLocation: the file, line, rung, row and column a read error names)
 └── resources/
-    └── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis
+    ├── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis
+    └── program_answers.json  # The program shapes CLICK answered (make program-answers writes it)
 ```
 
 ## Key Modules
@@ -162,7 +164,7 @@ Fixtures are in `tests/fixtures/`:
 - `tumbler/`: 34 real programs, each a `.scr` paired with a clipboard capture of the same program.
 - `v4_captures/`: CLICK v4 copy-backs of pyrung capture stubs, and pasted/checked pairs the layout tests use.
 - `layout_check/`, `pinned_or/`: inputs for `check()` and pinned-box tests.
-- `program_check/`: `click/` holds CLICK v4.00's Syntax Check answers for the program rules of `check()`, with CLICK's saves, byte for byte. `own/` holds bundles that CLICK did not check, with laddercodec's expected findings in `tests/test_program_check.py`.
+- `program_check/`: `click/` holds CLICK v4.00's Syntax Check answers for the program rules of `check()`, with CLICK's saves, byte for byte. `make program-answers` (`devtools/gen_program_answers.py`) writes `src/laddercodec/resources/program_answers.json` from them: the table of answered project shapes that gives a program finding its CLICK id. `tests/test_program_check.py` fails when the table is out of date. `own/` holds bundles that CLICK did not check, with laddercodec's expected findings in that test file.
 
 ## Golden Fixtures
 

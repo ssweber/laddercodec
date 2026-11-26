@@ -211,7 +211,7 @@ class _Walk:
             what = f"inside the loop that starts on rung {self.loops[-1][0]} from 0"
             then = (
                 f"Loops nest at most {MAX_NESTING} deep. Move this loop out of the loop that "
-                f"starts on rung {self.loops[0][0]} from 0."
+                f"starts on rung {self.loops[-1][0]} from 0."
             )
         self.add(
             rung,

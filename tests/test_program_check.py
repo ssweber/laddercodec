@@ -29,12 +29,12 @@ from laddercodec import (
     Next,
     Program,
     Project,
+    RawInstruction,
     Return,
     Rung,
     Undecoded,
     check,
     decode_program,
-    RawInstruction,
     marker_rung,
     read_bundle,
 )
@@ -158,7 +158,7 @@ def _load_generator() -> ModuleType:
 
 def test_the_table_of_answers_is_current() -> None:
     gen = _load_generator()
-    text = gen.TABLE.read_bytes().decode("utf-8")
+    text = gen.TABLE.read_text(encoding="utf-8")
     assert text == gen.render(), "run make program-answers"
 
 
@@ -260,10 +260,17 @@ def test_messages() -> None:
     )
     depth, _ = findings("q2a")
     assert "this For would start a 4th loop, inside the loop that starts on rung 2" in depth.message
+    assert _then(depth) == (
+        "Loops nest at most 3 deep. Move this loop out of the loop that starts on rung 2 from 0."
+    )
     (carried,) = findings("q2b")
     assert (
         "this For would start a 4th loop, counting the loops around the Call: Main Program "
         "calls Sub1 on rung 3 from 0 inside 3 loops (CLICK: C010D)" in carried.message
+    )
+    assert _then(carried) == (
+        "Loops nest at most 3 deep, counting the loops around a Call. Move the Call on rung 3 "
+        "from 0 of Main Program out of the loop that starts on rung 2 from 0."
     )
     (oneshot,) = findings("q3a")
     assert (

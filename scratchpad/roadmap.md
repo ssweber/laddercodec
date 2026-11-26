@@ -428,10 +428,12 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   `decode()` reads with what the editor shows. Typing `中` with an IME is not tested either. CLICK wrote it
   under a SimSun font when it was set as UTF-16.
 - **The program rules of `check()`.** CLICK v4.00's Syntax Check answers are in
-  `tests/fixtures/program_check/click/`. A finding gets CLICK's id, with `captured` True, only on a shape that
-  matches one of those answers. `check()` reads the shapes below by the simplest rule that fits the answers.
-  Their findings have no CLICK id. Paste each case into a new CLICK v4.00 project, run Syntax Check, and record
-  the output and the saves, as the cases in that folder do.
+  `tests/fixtures/program_check/click/`. `devtools/gen_program_answers.py` builds a table of the project
+  shapes from them. A finding gets CLICK's id, with `captured` True, only when the whole project has one of
+  those shapes and CLICK reported that finding there. `check()` reads the shapes below by the simplest rule
+  that fits the answers. Their findings have no CLICK id. Paste each case into a new CLICK v4.00 project, run
+  Syntax Check, and record the output and the saves, as the cases in that folder do. Then run `make
+  program-answers`.
   - A For with no Next and no Return or End after it. `check()` reports the For as `for-without-next`.
   - Two loops still open at the last End. `check()` reports one `for-without-next` at the End, after its
     `return-inside-loop`.
@@ -440,15 +442,15 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     (q1c). `check()` reads that Next as closing the loop around the Call.
   - In a subroutine that Main calls inside a loop: a Return inside the subroutine's own loop, more Nexts than
     there are loops around the Call, a 4th loop made of 1 loop around the Call and 3 of its own, and One Shot
-    on the subroutine's 2nd For. CLICK did not explain why q2b has no `next-without-for` in Sub1, and
-    `check()` does not claim a reason.
+    on the subroutine's 2nd For. No one knows why CLICK reports no `next-without-for` in q2b's Sub1.
+    `check()` claims no reason.
   - A subroutine that Main calls from inside 1 loop and from inside 2 loops. `check()` counts the deeper
     Call.
   - A subroutine that Main does not call. `check()` reads it as called outside any loop.
   - One Shot on the 3rd For of three nested loops in Main.
-  - Five nested loops in Main with five Nexts. `check()` reports C010D at the 4th For, as in q2a. The 5th For
-    gets `for-nesting-depth`, and the 4th and 5th Nexts get `next-without-for`. None of these three findings
-    has a CLICK id.
+  - Five nested loops in Main with five Nexts. `check()` reports `for-nesting-depth` at the 4th and 5th Fors,
+    and `next-without-for` at the 4th and 5th Nexts. None of these findings has a CLICK id, though q2a answers
+    the 4th For of four nested loops.
   - Three nested loops in Main around a Call to `sub1`, in a project whose subroutine `Sub1` holds one loop
     (`tests/fixtures/program_check/own/call_other_case/`). `check()` reports Sub1's For as
     `for-nesting-depth`, as in q2b, with no CLICK id. q6b answers the case rule only for a Call outside any
@@ -457,6 +459,25 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     case (q6b). Whether the PLC runs Sub1 for that Call is not tested.
   - A Call in a subroutine, typed in CLICK's editor. A paste drops it (q5a, q5b), and the runner has no
     command to type one.
+  - Shapes near an answered case. Each is a project whose main is `Main Program`. `check()` gives each the
+    findings that its rules give, with no CLICK id. `tests/test_program_check.py` holds them in `UNANSWERED`.
+    - An End inside 2 open loops: `For, For, X2 -> End, Next, Next, End`. `check()` reports
+      `return-inside-loop` at both Ends.
+    - A Return inside a loop in Main: `For, X2 -> Return, Next, End`.
+    - A loop open at a Return in Main: `For, Out, Return`. `check()` reports `return-inside-loop` and
+      `for-without-next` at the Return, as it does at an End.
+    - An End inside a loop in a subroutine that Main calls outside any loop: `For, X2 -> End, Next, Return`.
+    - A loop open at an End in a subroutine that Main calls outside any loop: `For, Out, End`.
+    - 2 loops open at an End, with a Next after it: `For, For, End, Next`. `check()` reports
+      `for-without-next` at the End, for the loop on rung 0.
+    - One Shot on the 2nd For of a subroutine that Main calls outside any loop:
+      `For, For(oneshot), Out, Next, Next, Return`.
+    - A refused 4th For in Main before a Call: Main `For x4, Call Sub1, Next x4, End`, Sub1
+      `For, Out, Next, Return`. `check()` counts 3 loops around the Call, and reports Sub1's For as
+      `for-nesting-depth`.
+    - Two Calls to Sub1 inside 3 loops: Main `For, For, For, Call Sub1, X5 -> Call Sub1, Next x3, End`, Sub1
+      `For, Out, Next, Return`.
+    - A rung after an End that is inside a loop: `For, End, Out`.
 
 ## For pyrung's export (another repo first)
 

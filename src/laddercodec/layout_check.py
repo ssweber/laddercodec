@@ -81,9 +81,10 @@ class Finding:
         - ``"no-rail"`` or ``"feeds-no-box"`` on a loop of contacts, and ``"no-coil"`` when
           all of its paths end in such a loop.
 
-        A program finding, such as ``"for-without-next"``, has its CLICK id only where it is
-        captured.  In the decoding guide, "Check a program or a project" lists the program
-        findings that are not captured.
+        A program finding, such as ``"for-without-next"``, is captured only in a project
+        of the exact shape of one that CLICK checked, and only when CLICK reported that
+        finding there.  A program that contains such a shape is not captured.  A
+        ``"nested-call"`` finding has no CLICK id.
 
         These findings are provisional.  Their codes may be renamed or dropped once CLICK's
         response to those shapes is captured.  An ``"undecoded-rung"`` finding is not
@@ -108,7 +109,8 @@ class Finding:
         ``"layout-too-tall"`` finding ends by saying how to split the rung.  A
         ``"comment-too-long"`` finding ends by saying how many bytes to cut from the comment.
         A program finding, such as ``"for-without-next"``, gives its CLICK id, or says that
-        CLICK's response is not captured.  It then ends with what to change.
+        CLICK's response is not captured.  A ``"nested-call"`` finding says that it has no
+        CLICK id.  It then ends with what to change.
     program:
         The ``Program.name`` of the program that holds the rung, such as ``"Main Program"``.
         It is ``None`` when ``check()`` was given rungs.
@@ -154,11 +156,19 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     ``check()`` reads any ``Program`` alone other than main as a subroutine that main calls
     outside any loop.
 
-    A program finding is at the instruction's AF cell.  It is captured, with its CLICK id,
-    where CLICK's answer for the shape is recorded.  Its message ends with what to change.
+    A program finding is at the instruction's AF cell.  Its message ends with what to change.
+    It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
+    checked, and only when CLICK reported that finding there.  The shape is, for each
+    program, its name, and for each rung its AF tokens and whether it has a condition other
+    than wires.  A For with or without One Shot, a Next, a Return, an End, a Break, a
+    Continue and a Call with its subroutine name are each their own kind of token.  Every
+    other instruction is one kind.  A main program alone has the shape of a project with no
+    subroutines.  A subroutine alone is never captured.
+
     ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
-    marker, because the rung that the marker stands for may hold a For or a Next.  A For that
-    is open at the marker gets no ``"for-without-next"`` finding.
+    marker, because the rung that the marker stands for may hold a For or a Next.  A
+    ``RawInstruction`` of one of those classes stops the reading in the same way.  A For that
+    is open where the reading stops gets no ``"for-without-next"`` finding.
 
     A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
     Within a program, the findings come in rung order.  A rung's own findings come first, then

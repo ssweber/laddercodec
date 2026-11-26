@@ -512,8 +512,8 @@ for finding in check(read_bundle("my_program")):
     print(f"{finding.program}, rung {finding.rung}: {finding.message}")
 # Sub1, rung 0: row 0 from 0, column AF: this For would start a 4th loop, counting the
 # loops around the Call: Main Program calls Sub1 on rung 3 from 0 inside 3 loops
-# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move this
-# loop, or the Call, out of a loop.
+# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move the
+# Call on rung 3 from 0 of Main Program out of the loop that starts on rung 2 from 0.
 ```
 
 Each finding's `program` is the `Program.name` of the program that holds the rung.
@@ -558,32 +558,24 @@ what to change.
   program findings.
 - **Undecoded markers.** `check()` reads no For, Next, Return, End or Call after a
   program's first undecoded marker, because the rung that the marker stands for may
-  hold a For or a Next. A For that is open at the marker gets no `for-without-next`
+  hold a For or a Next. A `RawInstruction` of one of those classes stops the reading in
+  the same way. A For that is open where the reading stops gets no `for-without-next`
   finding.
 
 `check()` does not report a Call to a name that no subroutine has, or a Break or
 Continue outside a loop. CLICK's syntax check reports both.
 
-`captured` is `True` where CLICK's answer for the shape is recorded. These findings
-have `captured=False` and `click_id=None`:
+A program finding has `captured=True` and its `click_id` only on the exact shapes
+that CLICK answered. The whole project must have the shape of a project that CLICK
+checked, and CLICK must have reported that finding there. A larger project that
+contains an answered shape is not captured.
 
-- every finding in a subroutine that you check alone as a `Program`, that main does
-  not call, or that main calls from loops of different depths
-- every finding in a subroutine whose main program holds an undecoded marker, because
-  `check()` reads no Call after the marker
-- every finding in a subroutine that a Call names with other case, such as `call("SUB1")`
-  for `Sub1`
-- `for-nesting-depth` on a For after another For of its program was past the depth
-  limit, and `next-without-for` in a program with two such Fors
-- `for-without-next` at a For, or where more than one loop is open
-- `next-without-for` in a subroutine, unless a For of the subroutine was past the depth
-  limit and main calls it outside any loop
-- `for-oneshot-inside-loop` on a For inside more than 1 loop of its own program
-- in a subroutine that main calls from inside loops: `return-inside-loop` and
-  `next-without-for`, `for-nesting-depth` unless 3 loops are around the Call and the
-  subroutine has none of its own open, and `for-oneshot-inside-loop` unless 1 loop is
-  around the Call and the subroutine has none of its own open
-- `nested-call`
+The shape is each program's name, and for each rung its AF tokens and whether it has a
+condition other than wires. Each For, with or without One Shot, each Next, Return, End,
+Break and Continue, and each Call with its subroutine name, is its own kind of token.
+Every other instruction is one kind. A main program alone has the shape of a project
+with no subroutines. A subroutine alone is never captured. `nested-call` has no CLICK
+id.
 
 ## Round-trip identity
 

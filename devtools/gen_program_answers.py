@@ -83,7 +83,9 @@ def render() -> str:
         for shape in shapes(case):
             key = shape_key(shape)
             if by_shape.get(key, errors) != errors:
-                raise SystemExit(f"{case.name}: CLICK's errors differ from another case's")
+                raise SystemExit(
+                    f"{case.name}: CLICK's errors differ from those of another case of the same shape"
+                )
             by_shape[key] = errors
             entry = {"case": case.name, "shape": shape, "errors": errors}
             lines.append("  " + json.dumps(entry, separators=(",", ":")))
@@ -91,7 +93,9 @@ def render() -> str:
         "Written by devtools/gen_program_answers.py from tests/fixtures/program_check/click/. "
         "Do not edit."
     )
-    return '{\n "about": ' + json.dumps(about) + ',\n "cases": [\n' + ",\n".join(lines) + "\n ]\n}\n"
+    return (
+        '{\n "about": ' + json.dumps(about) + ',\n "cases": [\n' + ",\n".join(lines) + "\n ]\n}\n"
+    )
 
 
 def main() -> int:
