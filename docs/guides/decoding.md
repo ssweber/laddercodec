@@ -178,6 +178,12 @@ form. When you encode such an instruction:
 An address typed with fewer digits than its display form (`Y1`) is left raw. So is
 a typed address in any other field.
 
+CLICK saves some reals in a decimal Math formula as you typed them, such as
+`3.0E+38` or `1.50`. Such a Math decodes with laddercodec's form of the real
+(`3E+38`, `1.5`), and the CSV holds that form. CLICK reads both forms as the same
+value. If you encode the Math unchanged, you get back the bytes CLICK saved. If you
+change it, or read it back from the CSV, it encodes in laddercodec's form.
+
 ### Wire tokens
 
 Wire cells are decoded into string tokens: `"-"`, `"|"`, `"T"`, or `""` (blank). The segment flag is ignored during decoding — only the right and down flags determine the token.

@@ -504,7 +504,8 @@ def read_in_another_form(inst: object) -> None:
     Two kinds of save need this. In the first, the decoder reads stored text in another
     form. It drops a space at the start or end of an address, it reads in display form
     an address that CLICK saved as typed, or it reads a TCP address without the leading
-    zeros that CLICK saved. In the second, a single Copy keeps the conversion
+    zeros that CLICK saved. A decoded Math also holds laddercodec's form of a real that
+    CLICK saved in another text, such as ``3E+38`` for ``3.0E+38``. In the second, a single Copy keeps the conversion
     type and destination end that CLICK saved. This applies to a type 7 conversion other
     than DD to or from DF, to a number's end in TXT, and to a pair that the encoder would
     write differently for those fields."""

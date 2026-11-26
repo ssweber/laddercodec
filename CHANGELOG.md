@@ -24,6 +24,7 @@
 - A Math refusal that tells you to set the other mode names each other change that mode needs, or says only to take the key out.
 - A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
 - A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
+- `encode()` now writes back the bytes that CLICK saved for a decoded decimal `Math` that you leave unchanged, when CLICK stored a real in its formula as typed, such as `3.0E+38` or `1.50`. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
 
 ## 0.5.1 (2026-11-25)
 
