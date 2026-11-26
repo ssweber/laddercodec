@@ -65,8 +65,8 @@ There are two cases:
   `decode_program()` does not warn for it.
 
 To store the rung as CLICK does, encode it again with this laddercodec and paste it.
-A Math with a 16-bit constant such as `H70000` encodes in laddercodec's form, even if
-you leave it unchanged and it holds an address or a real that was saved as typed.
+A Math that holds such a constant encodes in laddercodec's form, even if you leave it
+unchanged and it holds an address or a real that was saved as typed.
 
 The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or
 `None`) and `program` (for `decode_program()`). For a flag field that was stored

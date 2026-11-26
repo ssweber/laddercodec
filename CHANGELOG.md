@@ -24,8 +24,8 @@
 - A Math refusal that tells you to set the other mode names each other change that mode needs, or says only to take the key out.
 - A Send count refusal names a source range that the Send accepts, such as `TXT1..TXT4`, in place of `quantity=4`.
 - A refusal of a character outside ASCII in a Fill into TXT or in Compare's Data A names its bare code, such as `$E9`.
-- `encode()` now writes back the stored bytes of a decoded decimal `Math` that you leave unchanged, when its formula holds a real as typed, such as `3.0E+38` or `1.50`. That includes a Math that an older laddercodec wrote with a real as typed. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
-- `encode()` now writes `W70000` for a decoded `Math` that warns with `LegacyEncodingWarning` for `H70000`, when the Math also holds an address as typed, such as `DS001`. 0.5.1 wrote the stored `H70000` back, and CLICK runs it as 4464.
+- `encode()` now writes back the stored bytes of a decoded decimal `Math` that you leave unchanged, when its formula holds a real as typed, such as `3.0E+38` or `1.50`, whether CLICK or an older laddercodec wrote it. 0.5.1 wrote laddercodec's form of the real, such as `3E+38` or `1.5`. CLICK reads both forms as the same value.
+- `encode()` now writes `W70000` for a decoded `Math` that holds `H70000` and an address as typed, such as `DS001`. `decode()` warns for such a Math with `LegacyEncodingWarning`. 0.5.1 wrote `H70000` back, and CLICK runs it as 4464.
 
 ## 0.5.1 (2026-11-25)
 
