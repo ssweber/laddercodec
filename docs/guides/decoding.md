@@ -580,12 +580,13 @@ and `missing-return`. Each message ends with what to change.
   alone gets neither finding. A `Program` is often a few rungs cut from a larger
   program. A `missing-end` finding on every such `Program` would hide its other
   findings.
-- **Layout.** `check()` reads each rung as CLICK's check lays it out, the same way as
-  `read_csv`. It reads a rung that CLICK splits as the rungs that CLICK makes of it.
-  Take a rung whose row 0 has a `T` in column B, and whose row 1 has wires from column
-  B to an End. Wires alone join that End to the rail, so it always runs. A rung that
-  has no layout, such as one whose circuit is not series-parallel, is read as drawn.
-  A finding still gives the `rung` and `row` of your rung.
+- **Layout.** The program rules read each rung as CLICK's check lays it out, the same
+  way as `read_csv`. They read a rung that CLICK splits as the rungs that CLICK makes
+  of it. Take a rung whose row 0 has a `-` in column A and a `T` in column B, and whose
+  row 1 has wires from column B to an End. Wires alone join that End to the rail, so it
+  always runs. A rung that the layout can't draw, such as one whose circuit is not
+  series-parallel, is read as you wrote it. A finding still gives the `rung` and `row`
+  of your rung.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
   alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
   alone as a subroutine that main calls outside any loop.

@@ -149,13 +149,14 @@ def _render_rows(
 
 
 def as_checked(rung: Any) -> list[tuple[Any, list[int | None]]]:
-    """Return the rungs that CLICK's syntax check reads for *rung*, each with the row of
-    *rung* that each of its AF tokens comes from.
+    """Return the rungs that CLICK's syntax check reads in place of *rung*, each paired with
+    a list of rows.
 
-    The rungs are those that :func:`canonical` returns.  When *rung* has no layout, they are
-    *rung* itself, as drawn.  Each list of rows has one entry for each row of its rung.  The
-    entry is ``None`` for a row whose AF cell holds no token of *rung*, such as the ``NOP``
-    that the layout puts on the main input's row of a pinned box.
+    The rungs are those that :func:`canonical` returns.  When :func:`canonical` returns
+    ``None``, the only rung is *rung* as you wrote it.  A rung's list has one entry for each
+    of its rows.  The entry is the row of *rung* that the row's AF token comes from.  It is
+    ``None`` when the AF token is not one of *rung*, such as the ``NOP`` that the layout puts
+    on the main input's row of a pinned box.
     """
     parts = _canonical_rows(rung)
     if parts is None:

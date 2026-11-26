@@ -70,7 +70,8 @@ src/laddercodec/
 ├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
 │                         #   tree.py (series-parallel tree), render.py (packed layout), build.py (network
-│                         #   from a Circuit, for lay_out). Used by csv/, layout_check.py and circuit.py
+│                         #   from a Circuit, for lay_out). Used by csv/, layout_check.py, _program_check.py
+│                         #   and circuit.py
 ├── cell.py               # ClickCell, preamble, terminal and row builders
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis

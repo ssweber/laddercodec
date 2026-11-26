@@ -22,7 +22,8 @@ names:
 
 The rules read each rung as CLICK's syntax check lays it out (``_layout.as_checked``).  A rung
 that CLICK splits is read as the rungs that CLICK makes of it, in CLICK's order.  A rung that
-has no layout, such as one whose circuit is not series-parallel, is read as drawn.  A finding
+the layout can't draw, such as one whose circuit is not series-parallel, is read as it is
+written.  A finding
 names the rung and the row of the program's own rung, not those of the layout.  For example,
 take a rung whose row 0 holds ``-`` in column A and ``T`` in column B, and whose row 1 holds
 wires from column B to AE and an End.  Wires alone join row 1 to the rail, so CLICK lays the
@@ -185,17 +186,13 @@ class _Walk:
     program: Program
     place: _Place
     found: list[ProgramFinding] = field(default_factory=list)
-    #: The open Fors of this program, outermost first, as (rung, row, step).
-    loops: list[tuple[int, int, int]] = field(default_factory=list)
+    #: The open Fors of this program, outermost first, as (rung, row).
+    loops: list[tuple[int, int]] = field(default_factory=list)
     #: The loops around the Call that are still open.  A Next with no open For of this
     #: program closes one of them.
     carried: int = 0
-    #: The last Return or End, as (rung, row, name, step), when a loop of this program was
-    #: open at it.
-    last_stop: tuple[int, int, str, int] | None = None
-    #: The number of AF tokens read so far.  A token's step orders it in CLICK's reading,
-    #: which can differ from the order of its rows within a rung that CLICK splits.
-    step: int = 0
+    #: The last Return or End, as (rung, row, name), when a loop of this program was open at it.
+    last_stop: tuple[int, int, str] | None = None
     #: The Calls of the main program, each with the loops open around it.
     calls: list[tuple[Call, int, _CallSite]] = field(default_factory=list)
     #: Whether the walk stopped at a marker, or at a raw For, Next, Return, End or Call.
@@ -233,7 +230,6 @@ class _Walk:
                     if _stops_walk(token):
                         self.stopped = True
                         return
-                    self.step += 1
                     yield index, row, token, _always_runs(part, at)
 
     def add(self, rung: int, row: int, code: Code, what: str, then: str) -> None:
@@ -273,7 +269,7 @@ class _Walk:
                 f"for({token.count}).",
             )
         if own + self.carried < MAX_NESTING:
-            self.loops.append((rung, row, self.step))
+            self.loops.append((rung, row))
             return
         if self.carried:
             what = f"counting the loops around the Call: {self.around()}"
@@ -317,7 +313,7 @@ class _Walk:
             self.last_stop = None
             return
         name = "Return" if isinstance(token, Return) else "End"
-        self.last_stop = (rung, row, name, self.step)
+        self.last_stop = (rung, row, name)
         self.add(
             rung,
             row,
@@ -361,8 +357,8 @@ class _Walk:
             return
         start = self.loops[-1]
         then = "Add a next() rung after the last rung of the loop."
-        if self.last_stop is not None and self.last_stop[3] > start[2]:
-            rung, row, name, _ = self.last_stop
+        if self.last_stop is not None and self.last_stop[:2] > start:
+            rung, row, name = self.last_stop
             self.add(
                 rung,
                 row,
@@ -371,7 +367,7 @@ class _Walk:
                 then,
             )
         else:
-            rung, row, _ = start
+            rung, row = start
             self.add(
                 rung,
                 row,

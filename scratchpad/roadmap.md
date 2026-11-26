@@ -474,8 +474,11 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   - What "always runs" means for an End or a Return, past the answered shapes. `check()` reads each rung as
     CLICK's Syntax Check lays it out, and counts an End or a Return when every condition cell of its row in
     that layout is a `-` or `T` wire. CLICK counted an End on row 1 that wires join to the rail through a `T`
-    in column B of row 0 (f2). Only a `T` in column B was tried. CLICK did not count an End behind SC1 (f6),
-    and SC1 is the only contact that is always on that was tried.
+    in column B of row 0 (f2). `check()` reads a `T` in any later column the same way, when only wires
+    join it to the rail: with the `T` in column F, it reports no `missing-end`. CLICK was tried only with
+    the `T` in column B. **CLICK:** a runner case with the `T` in a later column, such as F, would answer
+    it. CLICK did not count an End behind SC1 (f6), and SC1 is the only contact that is always on that was
+    tried.
   - **Sam:** an End in a subroutine, or a Return in Main. `check()` counts neither, so it reports
     `missing-return` or `missing-end`. CLICK v4.00 was observed to paste an empty rung, with no message, in
     place of a rung that holds an unconditional Return in Main or an unconditional End in a subroutine. Its

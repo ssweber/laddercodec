@@ -523,16 +523,15 @@ def test_a_rung_that_click_splits_keeps_its_own_rung_and_row_in_findings() -> No
 
 def test_a_rung_with_no_layout_is_read_as_drawn() -> None:
     # A wire joins the two sides of X002, so check() reports the rung, and it has no
-    # layout.  Its row 1 holds a contact, so the End does not always run.
+    # layout.  The End on row 0, as drawn, holds only wires, so it always runs.
     rows = [
         ["-", "T"] + ["-"] * 29,
         ["", Tee(Contact("X002")), "T"] + ["-"] * 28,
         ["", "-"] + [""] * 29,
     ]
-    rung = Rung(rows, [Coil("Y001"), End(), ""], None)
-    codes = [f.code for f in check(_project([rung]))]
-    assert Code.MISSING_END in codes
-    assert Code.SHORTED_CONTACT in codes
+    rung = Rung(rows, [End(), Coil("Y001"), ""], None)
+    found = check(_project([rung]))
+    assert [(f.rung, f.row, f.code) for f in found] == [(0, 1, Code.SHORTED_CONTACT)]
 
 
 def test_an_end_that_always_runs_counts_wherever_it_is() -> None:

@@ -174,10 +174,11 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
 
     The rules of a program read each rung as CLICK's syntax check lays it out, the same way
     as ``read_csv()``.  A rung that CLICK splits is read as the rungs that CLICK makes of it,
-    in CLICK's order.  So an End on row 1 that wires alone join to the rail, through a ``T``
-    on row 0, always runs.  A rung that has no layout, such as one whose circuit is not
-    series-parallel, is read as drawn.  A program finding still names the rung and the row of
-    your rung, not those of the layout.
+    in CLICK's order.  For example, take a rung whose row 0 holds ``-`` in column A and
+    ``T`` in column B, and whose row 1 holds wires from column B to an End.  Wires alone
+    join the End to the rail, so it always runs.  A rung that the layout can't draw, such
+    as one whose circuit is not series-parallel, is read as you wrote it.  A program finding
+    still names the rung and the row of your rung, not those of the layout.
 
     A program finding is at the instruction's AF cell.  A ``"missing-end"`` or
     ``"missing-return"`` finding has no cell, and it comes after the other findings of its
