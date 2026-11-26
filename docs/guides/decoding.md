@@ -408,8 +408,9 @@ for finding in check(read_csv("main.csv")):
 # rung 0: the circuit is not series-parallel (CLICK: C0001)
 ```
 
-Each `Finding` has `rung`, `code`, `click_id`, `captured`, `row`, `column` and
-`message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
+Each `Finding` has `rung`, `code`, `click_id`, `captured`, `row`, `column`,
+`message` and `program` ([Check a program or a project](#check-a-program-or-a-project)).
+The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
 is AF). `row` and `column` are `None` for a finding about the whole rung.
 
 A captured C0202 message names the cell as CLICK prints it, with rows counted from
@@ -498,6 +499,84 @@ report it, and `read_csv` drops it from a rung with a circuit. CLICK's check als
 drops a `NOP` that the rail feeds through wires alone, when the rung has another
 output. `check()` does not report that `NOP` either, and `read_csv` drops it. A
 `NOP` that is the rung's only output stays, and so does a `NOP` on a coil's net.
+
+### Check a program or a project
+
+Pass `check()` a `Program` or a `Project`, and it also reports the rules that span
+rungs: For/Next loops and Calls.
+
+```python
+from laddercodec import check, read_bundle
+
+for finding in check(read_bundle("my_program")):
+    print(f"{finding.program}, rung {finding.rung}: {finding.message}")
+# Sub1, rung 0: row 0 from 0, column AF: this For would start a 4th loop, counting the
+# loops around the Call: Main Program calls Sub1 on rung 3 from 0 inside 3 loops
+# (CLICK: C010D). Loops nest at most 3 deep, counting the loops around a Call. Move Main
+# Program's Call on rung 3 from 0 out of the loop that starts on rung 2 from 0.
+```
+
+Each finding's `program` is the `Program.name` of the program that holds the rung.
+It is `None` when you pass rungs. On rungs alone, `check()` reports none of these
+rules, because a list of rungs can be part of a program.
+
+| `code` | shape | `click_id` |
+|---|---|---|
+| `for-without-next` | a loop that is still open at the last End or Return of its program | `C0102` |
+| `next-without-for` | a Next with no open For before it | `C0101` |
+| `for-nesting-depth` | a For that would nest loops more than 3 deep | `C010D` |
+| `oneshot-inside-loop` | a For with One Shot on, inside another loop | `C0111` |
+| `return-inside-loop` | a Return or End inside a loop of its own program | `C0115` |
+| `nested-call` | a Call in a subroutine, which a paste into CLICK drops | none |
+
+Every finding of these rules is at the instruction's AF cell. Its message ends with
+what to change.
+
+- **Pairs.** A Next closes the nearest open For. A For past the depth limit opens no
+  loop. The Next that would close it gets `next-without-for`.
+- **Open loops.** A loop with no Next gets its finding at the last End or Return of
+  its program, not at the For. That rung gets two findings: `return-inside-loop`,
+  then `for-without-next`. Every End or Return after the For gets
+  `return-inside-loop`. When no End or Return comes after the For, the For gets
+  `for-without-next`.
+- **Calls.** In a `Project`, the loops around a Call in the main program count in the
+  subroutine that the Call names. A For in that subroutine gets `for-nesting-depth`
+  when those loops and its own nest more than 3 deep. It gets
+  `oneshot-inside-loop` when it has One Shot on and a loop is around the Call. In
+  that subroutine, a Next with no open For of its own closes one of the loops around
+  the Call, and gets no finding. A Return or End there gets `return-inside-loop` only
+  inside a loop of the subroutine itself.
+- **Call names.** A Call names the first subroutine whose name matches
+  `Call.subroutine` without regard to case. A Call to a name that no subroutine has
+  gets no finding. When main calls a subroutine from loops of different depths,
+  `check()` counts the deepest.
+- **Main.** In a `Project`, the main program is `project.main`. For a `Program`
+  alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
+  alone as a subroutine that main calls outside any loop.
+- **Order.** A `Project` is checked main first, then each subroutine in
+  `project.subroutines`. In each program, a rung's own findings come first, then its
+  program findings.
+- **Undecoded markers.** `check()` reads no For, Next, Return, End or Call after a
+  program's first undecoded marker, because the rung that the marker stands for may
+  hold a For or a Next. A `RawInstruction` of one of those classes stops the reading in
+  the same way. A For that is open where the reading stops gets no `for-without-next`
+  finding.
+
+`check()` does not report a Call to a name that no subroutine has, or a Break or
+Continue outside a loop. CLICK's syntax check reports both.
+
+A program finding has `captured=True` and its `click_id` only on the exact shapes
+that CLICK answered. The whole project must have the shape of a project that CLICK
+checked, and CLICK must have reported that finding there. A larger project that
+contains an answered shape is not captured.
+
+The shape is the project's exact CSV: each program's name, a `#` row for each line of
+each rung's comment, and each row of the rung as it is, with each cell's CSV text.
+`check()` does not lay the rung out first. Every cell counts: each wire, each contact
+with its address, each instruction with its fields. The subroutines may come in any
+order. A main program alone has the shape of a project with no subroutines. A
+subroutine alone, and a rung with a cell that the CSV can't hold, are never captured.
+`nested-call` has no CLICK id.
 
 ## Round-trip identity
 

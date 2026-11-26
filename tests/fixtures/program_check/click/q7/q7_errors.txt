@@ -1,0 +1,8 @@
+--------------------Configuration: q7_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Main Program : Rung 1 : error C010F: Row 1, Column AF : Break is only allowed in a For/Next loop.
+Main Program : Rung 2 : error C0110: Row 1, Column AF : Continue is only allowed in a For/Next loop.
+
+q7_info - 2 error(s), 0 warning(s)

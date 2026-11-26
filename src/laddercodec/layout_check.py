@@ -5,13 +5,14 @@ reaches, or whose box inputs do not each have a branch of their own.  It reports
 only when its syntax check runs.  laddercodec encodes and writes these rungs as drawn, and
 ``check()`` reports them.  ``check()`` also reports a rung that needs more than 32 rows.
 CLICK can't hold such a rung.  ``check()`` also reports a rung comment that ``encode()``
-refuses as too long.
+refuses as too long.  On a ``Program`` or a ``Project``, it also reports the rules of For/Next
+loops and of Calls (``_program_check.py``).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ._layout import rows_needed, too_tall_message
@@ -26,14 +27,15 @@ from ._layout.tree import (
     reachable,
     reduce,
 )
-from .codes import Code
+from ._program_check import Answer, ProgramFinding, answers, check_program, check_project
+from .codes import CLICK_IDS, Code
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .encode import COMMENT_MAX_BYTES, MAX_ROWS, _comment_bytes
 from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.timer import Timer
 from .instructions.undecoded import Undecoded, to_the_end_note
-from .model import PinnedInstruction
+from .model import PinnedInstruction, Program, Project
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -49,7 +51,7 @@ class Finding:
     Attributes
     ----------
     rung:
-        Index of the rung in the checked list, from 0.
+        Index of the rung in the checked list, or in its program's ``rungs``, from 0.
     code:
         The :class:`~laddercodec.Code` that names the shape.  In the decoding guide, the
         table under "Check for rungs CLICK's syntax check rejects or redraws" gives each
@@ -79,6 +81,11 @@ class Finding:
         - ``"no-rail"`` or ``"feeds-no-box"`` on a loop of contacts, and ``"no-coil"`` when
           all of its paths end in such a loop.
 
+        A program finding, such as ``"for-without-next"``, is captured only in a project
+        of the exact shape of one that CLICK checked, and only when CLICK reported that
+        finding there.  A larger project that contains such a shape is not captured.  A
+        ``"nested-call"`` finding has no CLICK id.
+
         These findings are provisional.  Their codes may be renamed or dropped once CLICK's
         response to those shapes is captured.  An ``"undecoded-rung"`` finding is not
         provisional.  It reports an undecoded marker, which CLICK never sees.
@@ -97,10 +104,16 @@ class Finding:
         every rung, and CLICK may count otherwise.  Every other finding with a cell gives
         it counted from 0, as ``row 2 from 0, column D``.  The message ends with
         ``(CLICK: <click_id>)`` when ``captured`` is ``True``.  Otherwise it ends by saying
-        that CLICK's response to the shape is not captured.  Three kinds of finding end
+        that CLICK's response to the shape is not captured.  Four kinds of finding end
         otherwise.  An ``"undecoded-rung"`` finding ends with the marker's error.  A
         ``"layout-too-tall"`` finding ends by saying how to split the rung.  A
         ``"comment-too-long"`` finding ends by saying how many bytes to cut from the comment.
+        A program finding, such as ``"for-without-next"``, gives its CLICK id, or says that
+        CLICK's response is not captured.  A ``"nested-call"`` finding says that it has no
+        CLICK id.  It then ends with what to change.
+    program:
+        The ``Program.name`` of the program that holds the rung, such as ``"Main Program"``.
+        It is ``None`` when ``check()`` was given rungs.
     """
 
     rung: int
@@ -110,11 +123,56 @@ class Finding:
     row: int | None
     column: int | None
     message: str
+    program: str | None = None
 
 
-def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
+def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     """Return a finding for every shape in *rungs* that CLICK's syntax check refuses for how
     its lines connect, in rung order.
+
+    *rungs* can also be a :class:`~laddercodec.Program` or a :class:`~laddercodec.Project`.
+    ``check()`` then also reports the rules of a program that need more than one rung:
+
+    - ``"next-without-for"``: a Next closes the nearest open For.  A Next with no open For
+      before it gets a finding.
+    - ``"for-nesting-depth"``: loops nest at most 3 deep.  A For past that depth gets a
+      finding, and it opens no loop.
+    - ``"oneshot-inside-loop"``: only the outermost For of a nest can use One Shot.
+    - ``"return-inside-loop"``: a Return or End inside a loop of its own program gets a
+      finding.  So does every Return or End after a For with no Next.
+    - ``"for-without-next"``: a loop that is still open at the last Return or End of its
+      program gets a finding there, after that rung's ``"return-inside-loop"``.  When no
+      Return or End comes after the For, the For gets the finding.
+    - ``"nested-call"``: a Call in a subroutine gets a finding, because a paste into CLICK
+      drops it.  In a ``Project``, the main program is ``project.main``.  For a
+      ``Program`` alone, it is the program with ``prog_idx`` 1.
+
+    In a ``Project``, the loops around a Call in the main program count in the subroutine
+    that the Call names.  They count for its depth and for One Shot.  In that subroutine, a
+    Next with no open For of its own closes one of those loops, and gets no finding.  A Call
+    names the first subroutine whose name matches ``Call.subroutine`` without regard to case.
+    When main calls a subroutine from loops of different depths, the loops around the
+    deepest Call count.
+    ``check()`` reads any ``Program`` alone other than main as a subroutine that main calls
+    outside any loop.
+
+    A program finding is at the instruction's AF cell.  Its message ends with what to change.
+    It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
+    checked, and only when CLICK reported that finding there.  The shape is the project's
+    exact CSV: each program's name, a ``#`` row for each line of each rung's comment, and
+    each row of the rung as it is, with each cell's CSV text.  ``check()`` does not lay the
+    rung out first.  The subroutines may come in any order.  A main program alone has the
+    shape of a project with no subroutines.  A subroutine alone, and a rung with a cell that
+    the CSV can't hold, are never captured.
+
+    ``check()`` reads no For, Next, Return, End or Call after a program's first undecoded
+    marker, because the rung that the marker stands for may hold a For or a Next.  A
+    ``RawInstruction`` of one of those classes stops the reading in the same way.  A For that
+    is open where the reading stops gets no ``"for-without-next"`` finding.
+
+    A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
+    Within a program, the findings come in rung order.  A rung's own findings come first, then
+    its program findings in row order.  Each finding's ``program`` names its program.
 
     ``check()`` also reports two problems that are not rules of CLICK's syntax check.  A
     rung that needs more than the 32 rows of a CLICK rung gets a ``"layout-too-tall"``
@@ -159,9 +217,68 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
+    if isinstance(rungs, Project):
+        programs = check_project(rungs)
+        answered = _answers(rungs, [f for _, found in programs for f in found])
+        return [
+            finding
+            for program, found in programs
+            for finding in _check_program(program, found, answered)
+        ]
+    if isinstance(rungs, Program):
+        found = check_program(rungs)
+        # A main program alone is a project with no subroutines.
+        answered = _answers(Project(rungs), found) if rungs.prog_idx == 1 else None
+        return _check_program(rungs, found, answered)
     if isinstance(rungs, Rung):
         rungs = [rungs]
     return [finding for index, rung in enumerate(rungs) for finding in _check_rung(index, rung)]
+
+
+def _answers(project: Project, found: list[ProgramFinding]) -> frozenset[Answer] | None:
+    """Return CLICK's answers for *project*, or ``None``.
+
+    The table is read only when a finding in *found* has a code with a CLICK id, because
+    no other finding can be captured.
+    """
+    if not any(f.code in CLICK_IDS for f in found):
+        return None
+    return answers(project)
+
+
+def _check_program(
+    program: Program, found: list[ProgramFinding], answered: frozenset[Answer] | None
+) -> list[Finding]:
+    """Return the findings of each rung of *program*, each followed by the rung's program
+    findings in *found*.
+
+    *answered* holds the program findings that CLICK reported for a project of the same
+    shape, or is ``None`` when CLICK checked no project of that shape.
+    """
+    by_rung: dict[int, list[ProgramFinding]] = {}
+    for f in found:
+        by_rung.setdefault(f.rung, []).append(f)
+    name = program.name
+    out: list[Finding] = []
+    for index, rung in enumerate(program.rungs):
+        out += [replace(f, program=name) for f in _check_rung(index, rung)]
+        out += [_program_finding(index, f, name, answered) for f in by_rung.get(index, ())]
+    return out
+
+
+def _program_finding(
+    rung: int, f: ProgramFinding, program: str, answered: frozenset[Answer] | None
+) -> Finding:
+    ids = CLICK_IDS.get(f.code, ())
+    captured = bool(ids) and answered is not None and (program, rung, f.row, f.code) in answered
+    click_id = ids[0] if captured else None
+    if click_id:
+        why = f"CLICK: {click_id}"
+    else:
+        why = _UNKNOWN if ids else "no CLICK id"
+    where = f"row {f.row} from 0, column {OUTPUT_COLUMN}"
+    message = f"{where}: {f.what} ({why}). {f.then}"
+    return Finding(rung, f.code, click_id, click_id is not None, f.row, AF_X, message, program)
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,8 @@
+--------------------Configuration: q3c_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Sub1
+Sub1 : Rung 1 : error C0111: Row 1, Column AF : The For Instruction One Shot setting is only allowed in the outer loop.
+
+q3c_info - 1 error(s), 0 warning(s)

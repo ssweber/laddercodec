@@ -1,0 +1,7 @@
+--------------------Configuration: q1b_info - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Main Program : Rung 2 : error C0101: Row 1, Column AF : There is no matching For instruction, or it does not originate from the same branch.
+
+q1b_info - 1 error(s), 0 warning(s)

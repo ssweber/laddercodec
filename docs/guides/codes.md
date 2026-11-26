@@ -159,6 +159,19 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `undecoded-rung` | A rung that holds an `Undecoded` marker. The marker stands in for a rung that a decoder could not decode or that `write_csv` could not write. |  |
 | `comment-too-long` | A rung comment whose RTF body is longer than the 1400 bytes that `encode()` accepts. |  |
 
+## Program findings
+
+`check()` reports these on a `Program` or a `Project`, at the instruction's AF cell.
+
+| Code | Meaning | CLICK id |
+|---|---|---|
+| `for-without-next` | A loop that is still open at the last Return or End of its program, or a For with no Next and no Return or End after it. | C0102 |
+| `next-without-for` | A Next with no open For before it. | C0101 |
+| `for-nesting-depth` | A For that would nest loops more than 3 deep. The loops around a Call count in the subroutine that it calls. | C010D |
+| `oneshot-inside-loop` | A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot. | C0111 |
+| `return-inside-loop` | A Return or an End inside a loop of its own program. | C0115 |
+| `nested-call` | A Call in a subroutine. A paste into CLICK drops it. |  |
+
 ## Layout
 
 These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `CsvWriteError` can be a `LayoutError` with one of these codes. For a rung that needs more than 32 rows, `read_csv` raises a `CsvReadError` and `write_csv` raises a `CsvWriteError`, and the code of each is `layout-too-tall`.

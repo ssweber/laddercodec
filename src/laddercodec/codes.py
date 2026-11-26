@@ -218,6 +218,20 @@ class Code(StrEnum):
     COMMENT_TOO_LONG = "comment-too-long"
     """A rung comment whose RTF body is longer than the 1400 bytes that ``encode()`` accepts."""
 
+    # Program findings: ``check()`` reports these on a ``Program`` or a ``Project``, at the instruction's AF cell.
+    FOR_WITHOUT_NEXT = "for-without-next"
+    """A loop that is still open at the last Return or End of its program, or a For with no Next and no Return or End after it."""
+    NEXT_WITHOUT_FOR = "next-without-for"
+    """A Next with no open For before it."""
+    FOR_NESTING_DEPTH = "for-nesting-depth"
+    """A For that would nest loops more than 3 deep. The loops around a Call count in the subroutine that it calls."""
+    ONESHOT_INSIDE_LOOP = "oneshot-inside-loop"
+    """A For with One Shot on, inside another loop. Only the outermost For of a nest can use One Shot."""
+    RETURN_INSIDE_LOOP = "return-inside-loop"
+    """A Return or an End inside a loop of its own program."""
+    NESTED_CALL = "nested-call"
+    """A Call in a subroutine. A paste into CLICK drops it."""
+
     # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``CsvWriteError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvReadError`` and ``write_csv`` raises a ``CsvWriteError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"
     """A layout that needs more than 31 condition columns."""
@@ -292,6 +306,11 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.INPUT_WITHOUT_CONTACT: ("C0205", "C0212"),
     Code.UNPOWERED_BOX: ("C0202",),
     Code.SHORTED_CONTACT: ("C0002",),
+    Code.FOR_WITHOUT_NEXT: ("C0102",),
+    Code.NEXT_WITHOUT_FOR: ("C0101",),
+    Code.FOR_NESTING_DEPTH: ("C010D",),
+    Code.ONESHOT_INSIDE_LOOP: ("C0111",),
+    Code.RETURN_INSIDE_LOOP: ("C0115",),
 }
 """The CLICK ids that each code can come with.
 
