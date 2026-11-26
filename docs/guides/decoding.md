@@ -421,7 +421,8 @@ for finding in check(read_csv("main.csv")):
 Each `Finding` has `rung`, `code`, `click_id`, `captured`, `row`, `column`,
 `message` and `program` ([Check a program or a project](#check-a-program-or-a-project)).
 The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
-is AF). `row` and `column` are `None` for a finding about the whole rung.
+is AF). `row` and `column` are `None` for a finding about the whole rung or the
+whole program.
 
 A captured C0202 message names the cell as CLICK prints it, with rows counted from
 1. `row=2, column=3` reads "row 3, column D in CLICK's numbering". If the rung's
@@ -513,7 +514,7 @@ output. `check()` does not report that `NOP` either, and `read_csv` drops it. A
 ### Check a program or a project
 
 Pass `check()` a `Program` or a `Project`, and it also reports the rules that span
-rungs: For/Next loops, Break and Continue, and Calls.
+rungs: For/Next loops, Break and Continue, Calls, and End and Return.
 
 ```python
 from laddercodec import check, read_bundle
@@ -541,9 +542,11 @@ rules, because a list of rungs can be part of a program.
 | `call-without-subroutine` | a Call in the main program that names no subroutine of the project | `C010C` |
 | `break-outside-loop` | a Break that is not inside a loop | `C010F` |
 | `continue-outside-loop` | a Continue that is not inside a loop | `C0110` |
+| `missing-end` | a main program with no End that always runs, in a `Project` | `C0201` |
+| `missing-return` | a subroutine with no Return that always runs, in a `Project` | `C0105` |
 
-Every finding of these rules is at the instruction's AF cell. Its message ends with
-what to change.
+Every finding of these rules is at the instruction's AF cell, except `missing-end`
+and `missing-return`. Each message ends with what to change.
 
 - **Pairs.** A Next closes the nearest open For. A For past the depth limit opens no
   loop. The Next that would close it gets `next-without-for`.
@@ -567,6 +570,15 @@ what to change.
   even in the shape of a project that CLICK checked. A Call in a subroutine gets only
   `nested-call`. When main calls a subroutine from loops of different depths,
   `check()` counts the deepest.
+- **End and Return.** In a `Project`, the main program needs an End that always runs,
+  and each subroutine needs a Return that always runs. An End or Return always runs
+  when every condition cell of its row is a `-` or `T` wire. It can be on any rung. A
+  program without one gets `missing-end` or `missing-return` at the rung after its
+  last rung. That finding's `rung` is `len(program.rungs)`, and its `row` and `column`
+  are `None`. An End does not count in a subroutine, and a Return does not count in
+  main. A `Program` checked alone gets neither finding. A `Program` is often a few
+  rungs cut from a larger program. A `missing-end` finding on every such `Program`
+  would hide its other findings.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
   alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
   alone as a subroutine that main calls outside any loop.
@@ -577,10 +589,11 @@ what to change.
   Continue after a program's first undecoded marker, because the rung that the marker
   stands for may hold a For or a Next. A `RawInstruction` of class For, Next, Return,
   End or Call stops the reading in the same way. A For that is open where the
-  reading stops gets no `for-without-next` finding. When the reading of the main
-  program stops, the loops around a later Call are not known. In that project, a
-  Next, a Break or a Continue in a subroutine gets no finding when the subroutine has
-  no open For of its own.
+  reading stops gets no `for-without-next` finding. A program whose reading stops
+  before an End or Return that always runs gets no `missing-end` or `missing-return`
+  finding. When the reading of the main program stops, the loops around a later Call
+  are not known. In that project, a Next, a Break or a Continue in a subroutine gets
+  no finding when the subroutine has no open For of its own.
 
 A program finding has `captured=True` and its `click_id` only on the exact shapes
 that CLICK answered. The whole project must have the shape of a project that CLICK

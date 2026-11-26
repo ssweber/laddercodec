@@ -218,7 +218,7 @@ class Code(StrEnum):
     COMMENT_TOO_LONG = "comment-too-long"
     """A rung comment whose RTF body is longer than the 1400 bytes that ``encode()`` accepts."""
 
-    # Program findings: ``check()`` reports these on a ``Program`` or a ``Project``, at the instruction's AF cell.
+    # Program findings: ``check()`` reports these on a ``Program`` or a ``Project``, at the instruction's AF cell. It reports ``missing-end`` and ``missing-return`` only on a ``Project``, at the rung after the program's last rung.
     FOR_WITHOUT_NEXT = "for-without-next"
     """A loop that is still open at the last Return or End of its program, or a For with no Next and no Return or End after it."""
     NEXT_WITHOUT_FOR = "next-without-for"
@@ -237,6 +237,10 @@ class Code(StrEnum):
     """A Break that is not inside a For/Next loop."""
     CONTINUE_OUTSIDE_LOOP = "continue-outside-loop"
     """A Continue that is not inside a For/Next loop."""
+    MISSING_END = "missing-end"
+    """A main program with no End that always runs. An End behind a contact does not count."""
+    MISSING_RETURN = "missing-return"
+    """A subroutine with no Return that always runs. A Return behind a contact does not count."""
 
     # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``CsvWriteError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvReadError`` and ``write_csv`` raises a ``CsvWriteError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"
@@ -320,6 +324,8 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.CALL_WITHOUT_SUBROUTINE: ("C010C",),
     Code.BREAK_OUTSIDE_LOOP: ("C010F",),
     Code.CONTINUE_OUTSIDE_LOOP: ("C0110",),
+    Code.MISSING_END: ("C0201",),
+    Code.MISSING_RETURN: ("C0105",),
 }
 """The CLICK ids that each code can come with.
 

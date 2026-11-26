@@ -14,6 +14,10 @@ names:
 - A Call in the main program that names no subroutine of the project gets a finding.  The
   names match without regard to case.
 - A Break or a Continue that is not inside a loop gets a finding.
+- In a ``Project``, the main program needs an End that always runs, and each subroutine needs a
+  Return that always runs.  An End or a Return always runs when every condition cell of its
+  row is a wire that runs right, ``-`` or ``T``.  A program without one gets a finding at the
+  rung after its last rung, with no row.  A ``Program`` checked alone gets neither finding.
 
 In a subroutine that main calls from inside a loop, a Next with no open For of its own closes
 one of the loops around the Call, and gets no finding.  A Break or a Continue there is inside
@@ -22,7 +26,8 @@ those loops, and gets no finding.
 The rules read no For, Next, Return, End, Call, Break or Continue after a program's first
 undecoded marker, because the rung that the marker stands for may hold a For or a Next.  A
 ``RawInstruction`` of class For, Next, Return, End or Call stops the walk in the same way.
-A For that is open where the walk stops gets no finding.
+A For that is open where the walk stops gets no finding.  A program whose walk stops before an
+End or a Return that always runs gets no finding for the lack of one.
 
 When the walk of the main program stops, the loops around a later Call are not known.  In
 that project, a Next, a Break or a Continue in a subroutine gets no finding when the
@@ -70,6 +75,8 @@ PROGRAM_CODES = frozenset(
         Code.CALL_WITHOUT_SUBROUTINE,
         Code.BREAK_OUTSIDE_LOOP,
         Code.CONTINUE_OUTSIDE_LOOP,
+        Code.MISSING_END,
+        Code.MISSING_RETURN,
     }
 )
 
@@ -81,20 +88,25 @@ _MAIN_PROG_IDX = 1
 _ORDINALS = {1: "1st", 2: "2nd", 3: "3rd"}
 #: The binary class names of a ``RawInstruction`` that may be a For, Next, Return, End or Call.
 _FLOW_CLASSES = frozenset({"For", "Next", "Return", "End", "Call"})
+#: The wires that run right.  An End or a Return on a row of these always runs.
+_RUNS_RIGHT = frozenset({"-", "T"})
 
-#: A finding as CLICK reports it: program, rung, row and code.
-Answer = tuple[str, int, int, str]
+#: A finding as CLICK reports it: program, rung, row and code.  The row is ``None`` for a
+#: finding about the whole program.
+Answer = tuple[str, int, int | None, str]
 
 
 @dataclass(frozen=True)
 class ProgramFinding:
     """One program rule that a program breaks, at the AF cell of row ``row`` of rung ``rung``.
 
-    ``what`` says what is wrong, and ``then`` says what to change.
+    ``row`` is ``None`` for a finding about the whole program.  Such a finding is at the rung
+    after the program's last rung.  ``what`` says what is wrong, and ``then`` says what to
+    change.
     """
 
     rung: int
-    row: int
+    row: int | None
     code: Code
     what: str
     then: str
@@ -116,8 +128,8 @@ class _Place:
     """Where a program sits in what ``check()`` was given.
 
     ``carried`` is the number of loops around main's Call to the program, and ``site`` is
-    the deepest such Call.  ``unknown`` is true when the walk of main stopped, so that a
-    Call after that point may sit inside more loops.
+    the deepest such Call.  ``unknown`` is true when the walk of main stopped.  A Call after
+    that point may sit inside more loops.
     """
 
     is_main: bool
@@ -144,6 +156,15 @@ def _stops_walk(token: object) -> bool:
     return isinstance(token, RawInstruction) and token.class_name in _FLOW_CLASSES
 
 
+def _always_runs(rung: Rung, row: int) -> bool:
+    """Return whether every condition cell of row *row* of *rung* is a wire that runs right.
+
+    No contact then stands between the rail and the instruction in the row's AF cell.
+    """
+    rows = rung.conditions
+    return row < len(rows) and all(isinstance(c, str) and c in _RUNS_RIGHT for c in rows[row])
+
+
 @dataclass
 class _Walk:
     """The state of one walk through a program."""
@@ -162,6 +183,9 @@ class _Walk:
     calls: list[tuple[Call, int, _CallSite]] = field(default_factory=list)
     #: Whether the walk stopped at a marker, or at a raw For, Next, Return, End or Call.
     stopped: bool = False
+    #: Whether the walk read an End that always runs, in main, or a Return that always runs,
+    #: in a subroutine.
+    always: bool = False
 
     def __post_init__(self) -> None:
         self.carried = self.place.carried
@@ -251,6 +275,9 @@ class _Walk:
             )
 
     def stop(self, rung: int, row: int, token: Return | End) -> None:
+        wanted = End if self.place.is_main else Return
+        if isinstance(token, wanted) and _always_runs(self.program.rungs[rung], row):
+            self.always = True
         if not self.loops:
             self.last_stop = None
             return
@@ -365,15 +392,41 @@ def _missing(name: str, project: Project) -> tuple[str, str]:
     return what, f'Add a subroutine named "{name}", or delete the Call.'
 
 
+def _without_stop(walk: _Walk) -> list[ProgramFinding]:
+    """Return the finding for a program with no End or Return that always runs, or no finding.
+
+    Main needs an End, and a subroutine needs a Return.  The finding is at the rung after the
+    program's last rung.  A program whose walk stopped gets no finding.
+    """
+    if walk.always or walk.stopped:
+        return []
+    program = walk.program
+    if walk.place.is_main:
+        code, what, token = Code.MISSING_END, f"{program.name} has no End", "end()"
+    else:
+        code, what, token = Code.MISSING_RETURN, f"{program.name} has no Return", "return()"
+    return [
+        ProgramFinding(
+            len(program.rungs),
+            None,
+            code,
+            f"{what} that always runs",
+            f"Add a rung after the last rung, with only - wires from A to AE and {token} in AF.",
+        )
+    ]
+
+
 def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]]:
     """Return the program rules that each program of *project* breaks: main first, then the
     subroutines in their order.
 
     A Call names the first subroutine whose name matches without regard to case.  A Call
-    in main whose name matches no subroutine gets a finding.  A subroutine that main calls
-    inside loops is walked with the most loops that any of its Calls sits inside.  When the
-    walk of main stops, a Next, a Break or a Continue in a subroutine with no open For of its
-    own gets no finding.
+    in main whose name matches no subroutine gets a finding.  Main with no End that always
+    runs, and a subroutine with no Return that always runs, each get a finding at the rung
+    after the last rung.  That finding comes last in its program's list.  A subroutine that
+    main calls inside loops is walked with the most loops that any of its Calls sits inside.
+    When the walk of main stops, a Next, a Break or a Continue in a subroutine with no open
+    For of its own gets no finding.
     """
     main = _run(project.main, _MAIN)
     by_name: dict[str, int] = {}
@@ -390,7 +443,7 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
         index = by_name[name.casefold()]
         if index not in deepest or site.loops > deepest[index].loops:
             deepest[index] = site
-    out = [(project.main, _sorted(main.found))]
+    out = [(project.main, _sorted(main.found) + _without_stop(main))]
     for index, sub in enumerate(project.subroutines):
         site = deepest.get(index)
         place = _Place(
@@ -400,7 +453,8 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
             main_name=project.main.name,
             unknown=main.stopped,
         )
-        out.append((sub, _sorted(_run(sub, place).found)))
+        walk = _run(sub, place)
+        out.append((sub, _sorted(walk.found) + _without_stop(walk)))
     return out
 
 

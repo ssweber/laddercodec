@@ -9,8 +9,9 @@ Syntax Check. Each case folder holds these files, as the runner recorded them:
 
 - `program/`: the bundle that was pasted, as `read_bundle()` reads it.
 - `pasted/`, `info/`, `checked/`: CLICK's `Scr*.tmp` files from three saves, and the CSVs that laddercodec
-  0.5.0 decoded from them. `pasted` is the save after the paste. `info` comes after Local Program
-  Information, and `checked` after Syntax Check. Case q8c runs Syntax Check before Local Program Information.
+  decoded from them. laddercodec 0.5.0 decoded the CSVs of the q cases. `pasted` is the save after the
+  paste. `info` comes after Local Program Information, and `checked` after Syntax Check. Case q8c runs
+  Syntax Check before Local Program Information. The e cases have no `info` save.
 - `<case>_errors.txt`: the Syntax Check output, as CLICK printed it.
 - `program_size.txt`: the step count in CLICK's status bar at each save.
 
@@ -46,6 +47,14 @@ That table gives a program finding its CLICK id. Run it after you add a case.
 | q7 | A Break and a Continue outside a loop |
 | q8 | A Call to Sub1, which holds a Math |
 | q8c | q8, with Syntax Check run before Local Program Information |
+| e1 | `X001 -> Out Y001`, then `X002 -> End`, in Main. The End is behind a contact |
+| e2 | `End`, then `X001 -> Out Y001`, in Main |
+| e3 | `X001 -> Out Y001`, then `End`, in Main |
+| e4 | Main calls Sub1. Sub1 holds `X002 -> Out Y002` and no Return |
+| e5 | Main calls Sub1. Sub1 holds `X002 -> Out Y002`, then `X003 -> Return` |
+| e6 | Main calls Sub1. Sub1 holds `Return`, then `X002 -> Out Y002` |
+| e7 | Main calls Sub1. Sub1 holds `X003 -> Return`, then `Return` |
+| e8 | `X002 -> End`, then `End`, in Main |
 
 The runner also ran the 8,000-step cases. They are not here, because `check()` does not count steps.
 

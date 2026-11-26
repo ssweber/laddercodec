@@ -6,7 +6,8 @@ only when its syntax check runs.  laddercodec encodes and writes these rungs as 
 ``check()`` reports them.  ``check()`` also reports a rung that needs more than 32 rows.
 CLICK can't hold such a rung.  ``check()`` also reports a rung comment that ``encode()``
 refuses as too long.  On a ``Program`` or a ``Project``, it also reports the rules of For/Next
-loops and of Calls (``_program_check.py``).
+loops and of Calls.  On a ``Project``, it also reports a missing End or Return
+(``_program_check.py``).
 """
 
 from __future__ import annotations
@@ -51,7 +52,9 @@ class Finding:
     Attributes
     ----------
     rung:
-        Index of the rung in the checked list, or in its program's ``rungs``, from 0.
+        Index of the rung in the checked list, or in its program's ``rungs``, from 0.  A
+        ``"missing-end"`` or ``"missing-return"`` finding is at ``len(program.rungs)``, the
+        empty rung after the program's last rung.
     code:
         The :class:`~laddercodec.Code` that names the shape.  In the decoding guide, the
         table under "Check for rungs CLICK's syntax check rejects or redraws" gives each
@@ -91,11 +94,11 @@ class Finding:
         provisional.  It reports an undecoded marker, which CLICK never sees.
     row, column:
         The cell, with both counted from 0.  ``row`` 0 is the rung's first row.  ``column``
-        0 is A and 31 is AF.  Both are ``None`` for a finding about the whole rung.  A
-        ``"no-rail"`` or ``"feeds-no-box"`` finding is at a contact.  When the finding is
-        captured, that is the contact CLICK names in its C0202 error.  A finding about a
-        box input is at the input's AF cell.  A finding about a whole box is at the AF cell
-        of the box's first row.
+        0 is A and 31 is AF.  Both are ``None`` for a finding about the whole rung or the
+        whole program.  A ``"no-rail"`` or ``"feeds-no-box"`` finding is at a contact.  When
+        the finding is captured, that is the contact CLICK names in its C0202 error.  A
+        finding about a box input is at the input's AF cell.  A finding about a whole box is
+        at the AF cell of the box's first row.
     message:
         The finding in words.  A captured C0202 finding gives the cell as CLICK prints it,
         with rows counted from 1.  ``row`` 2, ``column`` 3 reads ``row 3, column D in
@@ -151,6 +154,13 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       even in the shape of a project that CLICK checked.
     - ``"break-outside-loop"`` and ``"continue-outside-loop"``: a Break or a Continue that is
       not inside a loop gets a finding.
+    - ``"missing-end"`` and ``"missing-return"``: in a ``Project``, the main program needs an
+      End that always runs, and each subroutine needs a Return that always runs.  An End or
+      a Return always runs when every condition cell of its row is a ``-`` or ``T`` wire.  It
+      can be on any rung.  A program without one gets a finding at the rung after its last
+      rung.  A ``Program`` alone gets neither finding.  A ``Program`` is often a few rungs
+      cut from a larger program.  A ``"missing-end"`` finding on every such ``Program`` would
+      hide its other findings.
 
     In a ``Project``, the loops around a Call in the main program count in the subroutine
     that the Call names.  They count for its depth and for One Shot.  In that subroutine, a
@@ -160,8 +170,10 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     loops of different depths, the loops around the deepest Call count.  ``check()`` reads
     any ``Program`` alone other than main as a subroutine that main calls outside any loop.
 
-    A program finding is at the instruction's AF cell.  Its message ends with what to change.
-    It is captured, with its CLICK id, only in a project of the exact shape of one that CLICK
+    A program finding is at the instruction's AF cell.  A ``"missing-end"`` or
+    ``"missing-return"`` finding has no cell, and it comes after the other findings of its
+    program.  The message of a program finding ends with what to change.  The finding is
+    captured, with its CLICK id, only in a project of the exact shape of one that CLICK
     checked, and only when CLICK reported that finding there.  The shape is the project's
     exact CSV: each program's name, a ``#`` row for each line of each rung's comment, and
     each row of the rung as it is, with each cell's CSV text.  ``check()`` does not lay the
@@ -173,9 +185,11 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     first undecoded marker, because the rung that the marker stands for may hold a For or a
     Next.  A ``RawInstruction`` of class For, Next, Return, End or Call stops the reading in
     the same way.  A For that is open where the reading stops gets no ``"for-without-next"``
-    finding.  When the reading of the main program stops, the loops around a later Call are
-    not known.  In that project, a Next, a Break or a Continue in a subroutine gets no
-    finding when the subroutine has no open For of its own.
+    finding.  A program whose reading stops before an End or a Return that always runs gets no
+    ``"missing-end"`` or ``"missing-return"`` finding.  When the reading of the main program
+    stops, the loops around a later Call are not known.  In that project, a Next, a Break or
+    a Continue in a subroutine gets no finding when the subroutine has no open For of its
+    own.
 
     A ``Project`` is checked in the order ``project.main``, then ``project.subroutines``.
     Within a program, the findings come in rung order.  A rung's own findings come first, then
@@ -270,6 +284,9 @@ def _check_program(
     for index, rung in enumerate(program.rungs):
         out += [replace(f, program=name) for f in _check_rung(index, rung)]
         out += [_program_finding(index, f, name, answered) for f in by_rung.get(index, ())]
+    # A finding about the whole program is at the rung after the last rung.
+    after = len(program.rungs)
+    out += [_program_finding(after, f, name, answered) for f in by_rung.get(after, ())]
     return out
 
 
@@ -283,6 +300,9 @@ def _program_finding(
         why = f"CLICK: {click_id}"
     else:
         why = _UNKNOWN if ids else "no CLICK id"
+    if f.row is None:
+        message = f"{f.what} ({why}). {f.then}"
+        return Finding(rung, f.code, click_id, click_id is not None, None, None, message, program)
     where = f"row {f.row} from 0, column {OUTPUT_COLUMN}"
     message = f"{where}: {f.what} ({why}). {f.then}"
     return Finding(rung, f.code, click_id, click_id is not None, f.row, AF_X, message, program)

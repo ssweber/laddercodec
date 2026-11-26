@@ -68,6 +68,8 @@ PROGRAM_CODES = {
     Code.CALL_WITHOUT_SUBROUTINE,
     Code.BREAK_OUTSIDE_LOOP,
     Code.CONTINUE_OUTSIDE_LOOP,
+    Code.MISSING_END,
+    Code.MISSING_RETURN,
 }
 
 MAIN = "Main Program"
@@ -428,6 +430,99 @@ def test_a_program_alone_gets_no_call_without_subroutine() -> None:
     assert check(read_bundle(CLICK / "q6a" / "program").main) == []
 
 
+def test_missing_end_and_missing_return_are_at_the_rung_after_the_last() -> None:
+    (end,) = check(read_bundle(CLICK / "e1" / "program"))
+    assert (end.program, end.rung, end.code, end.row, end.column) == (
+        MAIN,
+        2,
+        Code.MISSING_END,
+        None,
+        None,
+    )
+    assert end.message == (
+        "Main Program has no End that always runs (CLICK: C0201). Add a rung after the last "
+        "rung, with only - wires from A to AE and end() in AF."
+    )
+    (ret,) = check(_scr_project(CLICK / "e5" / "checked"))
+    assert (ret.program, ret.rung, ret.code, ret.row, ret.column) == (
+        "Sub1",
+        2,
+        Code.MISSING_RETURN,
+        None,
+        None,
+    )
+    assert ret.message == (
+        "Sub1 has no Return that always runs (CLICK: C0105). Add a rung after the last rung, "
+        "with only - wires from A to AE and return() in AF."
+    )
+
+
+@pytest.mark.parametrize("case", ["e1", "e4", "e5"])
+def test_a_program_alone_gets_no_missing_end_or_return(case: str) -> None:
+    project = read_bundle(CLICK / case / "program")
+    for program in [project.main, *project.subroutines]:
+        assert check(program) == []
+
+
+def test_missing_end_and_missing_return_come_after_the_other_findings() -> None:
+    main = [_for("X001"), OUT]
+    assert _found(check(_project(main))) == [
+        (MAIN, 0, Code.FOR_WITHOUT_NEXT, None),
+        (MAIN, 2, Code.MISSING_END, None),
+    ]
+    main = [_call("Sub1", "X001"), END]
+    assert _found(check(_project(main, Sub1=[BREAK, OUT]))) == [
+        ("Sub1", 0, Code.BREAK_OUTSIDE_LOOP, None),
+        ("Sub1", 2, Code.MISSING_RETURN, None),
+    ]
+
+
+def test_only_an_end_counts_in_main_and_only_a_return_in_a_subroutine() -> None:
+    assert _found(check(_project([OUT, RET]))) == [(MAIN, 2, Code.MISSING_END, None)]
+    main = [_call("Sub1", "X001"), END]
+    assert _found(check(_project(main, Sub1=[OUT, END]))) == [
+        ("Sub1", 2, Code.MISSING_RETURN, None)
+    ]
+
+
+def test_an_end_on_a_row_of_wires_with_a_t_always_runs() -> None:
+    rung = Rung([["-", "T"] + ["-"] * 29, ["", "-"] + ["-"] * 29], [End(), Coil("Y001")], None)
+    assert [f for f in check(_project([rung])) if f.code in PROGRAM_CODES] == []
+    found = [f for f in check(_project([END_ON_A_BRANCH])) if f.code in PROGRAM_CODES]
+    assert _found(found) == [(MAIN, 1, Code.MISSING_END, None)]
+
+
+def test_an_end_that_always_runs_counts_wherever_it_is() -> None:
+    # The End inside the loop gets return-inside-loop, but it still always runs.
+    assert [f.code for f in check(_project([_for("X001"), END, OUT]))] == [
+        Code.RETURN_INSIDE_LOOP,
+        Code.FOR_WITHOUT_NEXT,
+    ]
+
+
+def test_an_empty_program_gets_missing_end_or_missing_return() -> None:
+    assert _found(check(_project([], Sub1=[]))) == [
+        (MAIN, 0, Code.MISSING_END, None),
+        ("Sub1", 0, Code.MISSING_RETURN, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    "stop",
+    [
+        marker_rung(Undecoded("why", 1)),
+        _rung(RawInstruction("End", b"\x00")),
+        _rung(RawInstruction("Return", b"\x00")),
+        _rung(RawInstruction("Call", b"\x00")),
+    ],
+    ids=["marker", "raw-end", "raw-return", "raw-call"],
+)
+def test_a_stopped_walk_gets_no_missing_end_or_return(stop: Rung) -> None:
+    main = [_call("Sub1", "X001"), stop]
+    found = check(_project(main, Sub1=[OUT, stop]))
+    assert [f for f in found if f.code in PROGRAM_CODES] == []
+
+
 def test_a_call_in_a_subroutine_to_a_missing_name_gets_only_nested_call() -> None:
     main = [_call("Sub1", "X001"), END]
     sub1 = [_call("Nothing", "X002"), RET]
@@ -535,6 +630,12 @@ EMPTY_NEXT = Rung([[""] * 31], [Next()], None)
 EMPTY_OUT = Rung([[""] * 31], [Coil("Y001")], None)
 TIMER = Rung([["-"] * 31, [""] * 31], [Timer("on_delay", "T1", "TD1", "5", "Ts"), ""], None)
 X2_RET = _rung(Return(), "X002")
+X1_OUT = _rung(Coil("Y001"), "X001")
+X2_OUT = _rung(Coil("Y002"), "X002")
+#: An End on row 1, which wires reach from the T on row 0, column B.  Row 1, column A is empty.
+END_ON_A_BRANCH = Rung(
+    [["-", "T"] + ["-"] * 29, ["", "-"] + ["-"] * 29], [Coil("Y001"), End()], None
+)
 
 #: Projects near an answered case that CLICK has not checked, as (main, subroutines).
 UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
@@ -601,6 +702,16 @@ UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
         [_for("X001"), _rung("for"), _for(), _for(), OUT, *[NEXT] * 4, END],
         {},
     ),
+    # e1 with a third rung.
+    "e1_third_rung": ([X1_OUT, X2_END, OUT], {}),
+    # e3 with the End on a branch that wires reach from a T.
+    "e3_end_on_a_branch": ([END_ON_A_BRANCH], {}),
+    # e3 with a Return in place of the End.
+    "e3_return_in_main": ([X1_OUT, RET], {}),
+    # e4 with an End in place of Sub1's Return.
+    "e4_end_in_sub1": ([_call("Sub1", "X001"), END], {"Sub1": [X2_OUT, END]}),
+    # e4 with no rungs in Sub1.
+    "e4_empty_sub1": ([_call("Sub1", "X001"), END], {"Sub1": []}),
 }
 
 
