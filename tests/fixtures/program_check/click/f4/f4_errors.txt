@@ -1,0 +1,8 @@
+--------------------Configuration: f4 - Syntax Check--------------------
+Compiler version 1, 0, 4, 0
+Syntax Check...
+Main Program
+Sub1
+Sub1 : Rung 2 : error C0105: There is no unconditional Return instruction.
+
+f4 - 1 error(s), 0 warning(s)

@@ -29,6 +29,11 @@ CASES = ROOT / "tests" / "fixtures" / "program_check" / "click"
 TABLE = ROOT / "src" / "laddercodec" / "resources" / "program_answers.json"
 SAVES = ("pasted", "info", "checked")
 
+#: The cases whose pasted program CLICK changed at the paste: it replaced a rung that holds a
+#: Return in Main, or an End in a subroutine, with an empty one.  Its errors answer the saves.
+#: They are not its answer for the pasted program, which has no shape in the table.
+CHANGED_ON_PASTE = {"f3", "f4"}
+
 _ERROR = re.compile(
     r"(?P<program>.+?) : Rung (?P<rung>\d+) : error (?P<id>C[0-9A-F]{4}):"
     r"(?: Row (?P<row>\d+), Column (?P<column>[A-Z]+) :)?"
@@ -52,15 +57,17 @@ def click_errors(case: Path) -> list[tuple[str, int, str, int | None]]:
 
 def shapes(case: Path) -> list[Any]:
     """Return the shape of the project pasted in *case*, then the shape of each save that
-    differs from it.
+    differs from it.  A case that CLICK changed on paste has the shapes of its saves only.
     """
     from laddercodec import Project, decode_program, read_bundle
     from laddercodec._program_check import project_shape
 
-    pasted = project_shape(read_bundle(case / "program"))
-    if pasted is None:
-        raise SystemExit(f"{case.name}: program/ has a cell with no CSV text")
-    found = [pasted]
+    found: list[Any] = []
+    if case.name not in CHANGED_ON_PASTE:
+        pasted = project_shape(read_bundle(case / "program"))
+        if pasted is None:
+            raise SystemExit(f"{case.name}: program/ has a cell with no CSV text")
+        found.append(pasted)
     for save in SAVES:
         files = sorted((case / save).glob("Scr*.tmp"), key=lambda p: int(p.stem[3:]))
         if files:
