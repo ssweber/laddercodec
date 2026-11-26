@@ -412,7 +412,14 @@ def from_tags(
         # (see laddercodec.operands.unchecked).  A refusal that no instruction can keep
         # still raises, and then the blob stays raw.
         return None
-    if dest != stored_dest or internal != stored_internal:
+    # Older laddercodec wrote the H prefix only on a decimal constant, and a hex Math
+    # refuses decimal constants.  So only a decimal Math is checked.
+    findings = _legacy_findings(stored_internal) if mode == "decimal" else []
+    if findings:
+        # The Math keeps no blob, so encoding it writes each constant in the form that CLICK
+        # runs as its value.
+        object.__setattr__(math, "_legacy_findings", findings)
+    elif dest != stored_dest or internal != stored_internal:
         # CLICK saved the result or an address in the formula as the user typed it, not in
         # display form.  Mark the Math so that encoding it writes the bytes CLICK stored.
         read_in_another_form(math)
@@ -420,11 +427,6 @@ def from_tags(
         # CLICK saved a real in a text other than the one that laddercodec writes, such as
         # 3.0E+38 for 3E+38.  Mark the Math so that encoding it writes the bytes CLICK stored.
         read_in_another_form(math)
-    # Older laddercodec wrote the H prefix only on a decimal constant, and a hex Math
-    # refuses decimal constants.  So only a decimal Math is checked.
-    findings = _legacy_findings(stored_internal) if mode == "decimal" else []
-    if findings:
-        object.__setattr__(math, "_legacy_findings", findings)
     return math
 
 

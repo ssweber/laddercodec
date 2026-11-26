@@ -65,6 +65,8 @@ There are two cases:
   `decode_program()` does not warn for it.
 
 To store the rung as CLICK does, encode it again with this laddercodec and paste it.
+A Math with a 16-bit constant such as `H70000` encodes in laddercodec's form, even if
+you leave it unchanged and it holds an address or a real that was saved as typed.
 
 The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or
 `None`) and `program` (for `decode_program()`). For a flag field that was stored
@@ -179,10 +181,12 @@ An address typed with fewer digits than its display form (`Y1`) is left raw. So 
 a typed address in any other field.
 
 CLICK saves some reals in a decimal Math formula as you typed them, such as
-`3.0E+38` or `1.50`. Such a Math decodes with laddercodec's form of the real
-(`3E+38`, `1.5`), and the CSV holds that form. CLICK reads both forms as the same
+`3.0E+38` or `1.50`. Such a Math decodes with the real in laddercodec's form
+(`3E+38`, `1.5`). `write_csv` writes that form. CLICK reads both forms as the same
 value. If you encode the Math unchanged, you get back the bytes CLICK saved. If you
-change it, or read it back from the CSV, it encodes in laddercodec's form.
+change it, or read it back from the CSV, it encodes in laddercodec's form. An older
+laddercodec also wrote some reals as typed, and a Math that it wrote decodes and
+encodes in the same way.
 
 ### Wire tokens
 

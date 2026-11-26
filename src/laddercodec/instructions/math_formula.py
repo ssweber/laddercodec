@@ -1720,8 +1720,8 @@ def stored_reals_written(expression: str) -> str:
 
 
 def rewrites_stored_reals(expression: str) -> bool:
-    """Return whether laddercodec writes a real of a decimal formula that CLICK stored in a
-    text other than the stored one.
+    """Return True if laddercodec writes any real of *expression*, a decimal formula that
+    CLICK stored, in a text other than CLICK's.
 
     For each real, laddercodec writes :attr:`MathReal.stored` of the text that
     :func:`stored_reals_written` holds for it. CLICK stores ``3.0E+38`` and ``1.50`` as
