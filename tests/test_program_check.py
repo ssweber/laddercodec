@@ -411,6 +411,19 @@ def test_a_break_after_an_undecoded_marker_gets_no_finding() -> None:
     assert [f.code for f in found] == [Code.UNDECODED_RUNG]
 
 
+@pytest.mark.parametrize(
+    "stop",
+    [marker_rung(Undecoded("why", 1)), _rung(RawInstruction("Call", b"\x00"))],
+    ids=["marker", "raw-call"],
+)
+def test_a_stop_in_main_hides_the_loops_around_a_later_call(stop: Rung) -> None:
+    # The Call after the stop sits inside the loop, but the walk of main does not reach it.
+    main = [_for("X001"), stop, _call("Sub1"), NEXT, END]
+    sub1 = [BREAK, CONTINUE, NEXT, RET]
+    found = [f for f in check(_project(main, Sub1=sub1)) if f.code in PROGRAM_CODES]
+    assert found == []
+
+
 def test_a_program_alone_gets_no_call_without_subroutine() -> None:
     assert check(read_bundle(CLICK / "q6a" / "program").main) == []
 

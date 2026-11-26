@@ -457,13 +457,20 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
     `break-outside-loop` or `continue-outside-loop`.
   - A Break or a Continue in a subroutine that Main calls outside any loop, or that Main does not call.
     `check()` reports it, as in Main (q7).
-  - A Break or a Continue after the last Next of a loop, inside a loop that a For past the depth limit
-    did not open, or after an undecoded marker. `check()` reports the first, reports nothing for the
-    second (the loops around the refused For are open), and reads nothing after a marker.
+  - A Break or a Continue after the last Next of a loop. `check()` reports it.
+  - A Break or a Continue after a For that gets `for-nesting-depth`. That For opens no loop, but the 3
+    loops around it are still open, so `check()` reports nothing.
+  - A Break or a Continue after an undecoded marker. `check()` reads nothing after the marker.
+  - A Next, a Break or a Continue in a subroutine, when the reading of Main stops at an undecoded marker
+    or at a raw For, Next, Return, End or Call. A Call after the stop may sit inside loops, so `check()`
+    reports none of these outside the subroutine's own loops. It still reports `for-nesting-depth` and
+    `oneshot-inside-loop` from the loops that it read, and misses those that loops after the stop
+    would add.
   - A Call to a missing subroutine inside a loop, or in a project that has other subroutines. `check()`
     reports `call-without-subroutine`, as in q6a. Main's Calls after an undecoded marker get nothing.
   - A Call to a missing subroutine in a `Program` checked alone. It has no list of subroutines, so
     `check()` reports nothing.
+  - A Call in Main whose `subroutine` is not text. `check()` reports no `call-without-subroutine` for it.
   - Shapes near an answered case. Each is a project whose main is `Main Program`. `check()` gives each the
     findings that its rules give, with no CLICK id. `tests/test_program_check.py` holds them in `UNANSWERED`.
     - An End inside 2 open loops: `For, For, X2 -> End, Next, Next, End`. `check()` reports

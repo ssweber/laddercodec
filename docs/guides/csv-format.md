@@ -552,8 +552,9 @@ refuses these shapes:
 - loops nested more than three deep (C010D)
 
 `read_csv` checks none of these rules, and neither does `check()` on rungs alone.
-`check()` on a `Program` or a `Project` reports the last two, as
-`break-outside-loop`, `continue-outside-loop` and `for-nesting-depth`.
+`check()` on a `Program` or a `Project` reports a `break()` or `continue()` outside
+a loop as `break-outside-loop` or `continue-outside-loop`. It reports loops nested
+more than three deep as `for-nesting-depth`.
 
 ## AF token format (canonical)
 

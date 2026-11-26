@@ -553,7 +553,8 @@ what to change.
 - **Call names.** A Call names the first subroutine whose name matches
   `Call.subroutine` without regard to case. In a `Project`, a Call in the main program
   that names no subroutine gets `call-without-subroutine`. A `Program` alone has no
-  list of subroutines, so it gets none. A Call in a subroutine gets only
+  list of subroutines. So a main `Program` alone gets no `call-without-subroutine`,
+  even in the shape of a project that CLICK checked. A Call in a subroutine gets only
   `nested-call`. When main calls a subroutine from loops of different depths,
   `check()` counts the deepest.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
@@ -565,8 +566,11 @@ what to change.
 - **Undecoded markers.** `check()` reads no For, Next, Return, End, Call, Break or
   Continue after a program's first undecoded marker, because the rung that the marker
   stands for may hold a For or a Next. A `RawInstruction` of class For, Next, Return,
-  End or Call stops the reading in the same way. A For that is open where the reading stops gets no `for-without-next`
-  finding.
+  End or Call stops the reading in the same way. A For that is open where the
+  reading stops gets no `for-without-next` finding. When the reading of the main
+  program stops, the loops around a later Call are not known. In that project, a
+  Next, a Break or a Continue in a subroutine gets no finding when the subroutine has
+  no open For of its own.
 
 A program finding has `captured=True` and its `click_id` only on the exact shapes
 that CLICK answered. The whole project must have the shape of a project that CLICK

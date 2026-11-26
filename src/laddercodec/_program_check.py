@@ -21,8 +21,12 @@ those loops, and gets no finding.
 
 The rules read no For, Next, Return, End, Call, Break or Continue after a program's first
 undecoded marker, because the rung that the marker stands for may hold a For or a Next.  A
-``RawInstruction`` of class For, Next, Return, End or Call stops the walk in the same way.  A For that is open where the walk
-stops gets no finding.
+``RawInstruction`` of class For, Next, Return, End or Call stops the walk in the same way.
+A For that is open where the walk stops gets no finding.
+
+When the walk of the main program stops, the loops around a later Call are not known.  In
+that project, a Next, a Break or a Continue in a subroutine gets no finding when the
+subroutine has no open For of its own.
 
 Whether a finding is captured does not depend on the walk.  ``answers()`` looks up the
 shape of the whole project in the table of the projects that CLICK checked.
@@ -112,13 +116,15 @@ class _Place:
     """Where a program sits in what ``check()`` was given.
 
     ``carried`` is the number of loops around main's Call to the program, and ``site`` is
-    the deepest such Call.
+    the deepest such Call.  ``unknown`` is true when the walk of main stopped, so that a
+    Call after that point may sit inside more loops.
     """
 
     is_main: bool
     carried: int = 0
     site: _CallSite | None = None
     main_name: str = "the main program"
+    unknown: bool = False
 
 
 _MAIN = _Place(is_main=True)
@@ -235,7 +241,7 @@ class _Walk:
             self.loops.pop()
         elif self.carried:
             self.carried -= 1
-        else:
+        elif not self.place.unknown:
             self.add(
                 rung,
                 row,
@@ -272,7 +278,7 @@ class _Walk:
         )
 
     def leave(self, rung: int, row: int, token: Break | Continue) -> None:
-        if self.loops or self.carried:
+        if self.loops or self.carried or self.place.unknown:
             return
         if isinstance(token, Break):
             name, code = "Break", Code.BREAK_OUTSIDE_LOOP
@@ -365,7 +371,9 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
 
     A Call names the first subroutine whose name matches without regard to case.  A Call
     in main whose name matches no subroutine gets a finding.  A subroutine that main calls
-    inside loops is walked with the most loops that any of its Calls sits inside.
+    inside loops is walked with the most loops that any of its Calls sits inside.  When the
+    walk of main stops, a Next, a Break or a Continue in a subroutine with no open For of its
+    own gets no finding.
     """
     main = _run(project.main, _MAIN)
     by_name: dict[str, int] = {}
@@ -390,6 +398,7 @@ def check_project(project: Project) -> list[tuple[Program, list[ProgramFinding]]
             carried=site.loops if site else 0,
             site=site,
             main_name=project.main.name,
+            unknown=main.stopped,
         )
         out.append((sub, _sorted(_run(sub, place).found)))
     return out
