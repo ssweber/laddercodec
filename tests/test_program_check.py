@@ -2,7 +2,8 @@
 
 ``fixtures/program_check/click/`` holds CLICK v4.00's answers.  Each case holds the program
 that was pasted, CLICK's saves of it, and its Syntax Check output.  ``check()`` on those saves
-gives each error that CLICK printed, as a captured finding with CLICK's id.
+gives each error that CLICK printed, as a captured finding with CLICK's id.  A program finding
+is captured only on a project of the same shape as one of these cases.
 
 ``fixtures/program_check/own/`` holds bundles that CLICK did not check.  ``OWN`` holds the
 findings that laddercodec's rules give for them.  The README says what each one holds.
@@ -10,8 +11,10 @@ findings that laddercodec's rules give for them.  The README says what each one 
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -31,10 +34,14 @@ from laddercodec import (
     Undecoded,
     check,
     decode_program,
+    RawInstruction,
     marker_rung,
     read_bundle,
 )
+from laddercodec._program_check import answers
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
+
+ROOT = Path(__file__).resolve().parents[1]
 
 FIX = Path(__file__).parent / "fixtures" / "program_check"
 CLICK = FIX / "click"
@@ -138,6 +145,34 @@ def test_check_on_the_pasted_program_gives_clicks_errors(case: str) -> None:
     findings = check(read_bundle(CLICK / case / "program"))
     assert _errors(findings, programs) == expected
     assert all(f.captured for f in findings)
+
+
+def _load_generator() -> ModuleType:
+    path = ROOT / "devtools" / "gen_program_answers.py"
+    spec = importlib.util.spec_from_file_location("gen_program_answers", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_table_of_answers_is_current() -> None:
+    gen = _load_generator()
+    text = gen.TABLE.read_bytes().decode("utf-8")
+    assert text == gen.render(), "run make program-answers"
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_every_case_is_answered_from_its_program_and_its_saves(case: str) -> None:
+    _, errors = _click_errors(case)
+    ids = {"C0101", "C0102", "C010D", "C0111", "C0115"}
+    expected = {(e[0], e[1], e[3]) for e in errors if e[2] in ids}
+    projects = [read_bundle(CLICK / case / "program")]
+    projects += [_scr_project(CLICK / case / s) for s in SAVES if (CLICK / case / s).is_dir()]
+    for project in projects:
+        found = answers(project)
+        assert found is not None
+        assert {(program, rung, row) for program, rung, row, _ in found} == expected
 
 
 @pytest.mark.parametrize("case", sorted(DROPPED_CALL))
@@ -358,11 +393,9 @@ def test_inside_a_called_loop_only_the_answered_shapes_are_captured() -> None:
 
 
 def test_each_for_past_the_third_gets_a_finding() -> None:
-    # Only the first For past the limit, as in q2a, is captured.  With two Fors past it,
-    # neither stray Next is captured.
     main = [_for("X001"), _for(), _for(), _for(), _for(), OUT, *[NEXT] * 5, END]
     assert _found(check(_project(main))) == [
-        (MAIN, 3, Code.FOR_NESTING_DEPTH, "C010D"),
+        (MAIN, 3, Code.FOR_NESTING_DEPTH, None),
         (MAIN, 4, Code.FOR_NESTING_DEPTH, None),
         (MAIN, 9, Code.NEXT_WITHOUT_FOR, None),
         (MAIN, 10, Code.NEXT_WITHOUT_FOR, None),
@@ -379,7 +412,7 @@ def test_two_open_loops_at_the_end() -> None:
     main = [_for("X001"), _for("X002"), OUT, END]
     findings = check(_project(main))
     assert _found(findings) == [
-        (MAIN, 3, Code.RETURN_INSIDE_LOOP, "C0115"),
+        (MAIN, 3, Code.RETURN_INSIDE_LOOP, None),
         (MAIN, 3, Code.FOR_WITHOUT_NEXT, None),
     ]
     assert "the loop that starts on rung 1 from 0" in findings[1].message
@@ -388,10 +421,86 @@ def test_two_open_loops_at_the_end() -> None:
 def test_every_end_after_an_open_for_is_inside_the_loop() -> None:
     main = [_for("X001"), _rung(End(), "X002"), OUT, END]
     assert _found(check(_project(main))) == [
-        (MAIN, 1, Code.RETURN_INSIDE_LOOP, "C0115"),
-        (MAIN, 3, Code.RETURN_INSIDE_LOOP, "C0115"),
-        (MAIN, 3, Code.FOR_WITHOUT_NEXT, "C0102"),
+        (MAIN, 1, Code.RETURN_INSIDE_LOOP, None),
+        (MAIN, 3, Code.RETURN_INSIDE_LOOP, None),
+        (MAIN, 3, Code.FOR_WITHOUT_NEXT, None),
     ]
+
+
+X2_END = _rung(End(), "X002")
+X2_RET = _rung(Return(), "X002")
+
+#: Projects near an answered case that CLICK has not checked, as (main, subroutines).
+UNANSWERED: dict[str, tuple[list[Rung], dict[str, list[Rung]]]] = {
+    # An End inside 2 open loops.
+    "b1a": ([_for("X001"), _for(), X2_END, NEXT, NEXT, END], {}),
+    # 2 loops open at the last End.
+    "b1b": ([_for("X001"), _for(), OUT, END], {}),
+    # A Return inside a loop in main.
+    "b1c": ([_for("X001"), X2_RET, NEXT, END], {}),
+    # A loop open at a Return in main.
+    "b1d": ([_for("X001"), OUT, RET], {}),
+    # An End inside a loop in a subroutine.
+    "b1e": ([_call("Sub1", "X001"), END], {"Sub1": [_for(), X2_END, NEXT, RET]}),
+    # A loop open at an End in a subroutine.
+    "b1f": ([_call("Sub1", "X001"), END], {"Sub1": [_for(), OUT, END]}),
+    # 2 loops open at the End, and a Next after it.
+    "b1g": ([_for("X001"), _for(), END, NEXT], {}),
+    # One Shot on a subroutine's second For.
+    "b1h": (
+        [_call("Sub1", "X001"), END],
+        {"Sub1": [_for(), _for(oneshot=True), OUT, NEXT, NEXT, RET]},
+    ),
+    # A refused 4th For in main before the Call.
+    "b1i": (
+        [_for("X001"), _for(), _for(), _for(), _call("Sub1"), *[NEXT] * 4, END],
+        {"Sub1": [_for(), OUT, NEXT, RET]},
+    ),
+    # A 5th For after a refused 4th.
+    "reading10": ([_for("X001"), _for(), _for(), _for(), _for(), OUT, *[NEXT] * 5, END], {}),
+    # A Call that names Sub1 with other case, inside 3 loops.
+    "reading12": (
+        [_for("X001"), _for(), _for(), _call("SUB1"), NEXT, NEXT, NEXT, END],
+        {"Sub1": [_for(), OUT, NEXT, RET]},
+    ),
+    # Two Calls to Sub1 inside 3 loops.
+    "two_calls": (
+        [_for("X001"), _for(), _for(), _call("Sub1"), _call("Sub1", "X005"), *[NEXT] * 3, END],
+        {"Sub1": [_for(), OUT, NEXT, RET]},
+    ),
+    # A rung after the End that is inside a loop.
+    "after_stop": ([_for("X001"), END, OUT], {}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(UNANSWERED))
+def test_a_shape_that_click_did_not_answer_has_no_click_id(case: str) -> None:
+    main, subs = UNANSWERED[case]
+    project = _project(main, **subs)
+    findings = [f for f in check(project) if f.code in PROGRAM_CODES]
+    assert findings
+    assert answers(project) is None
+    assert [(f.click_id, f.captured) for f in findings] == [(None, False)] * len(findings)
+    assert all("(CLICK's response to this shape is not captured)" in f.message for f in findings)
+
+
+def test_the_table_reads_only_findings_that_click_reported() -> None:
+    # q1a's shape, with a finding that CLICK did not report in it.
+    found = answers(read_bundle(CLICK / "q1a" / "program"))
+    assert found is not None
+    assert ("Main Program", 0, 0, "next-without-for") not in found
+
+
+def test_a_raw_for_or_next_stops_the_walk() -> None:
+    raw = _rung(RawInstruction("For", b"\x00"))
+    assert _found(check(_project([raw, NEXT, END]))) == []
+    raw = _rung(RawInstruction("Next", b"\x00"))
+    assert _found(check(_project([_for("X001"), raw, OUT, END]))) == []
+
+
+def test_a_nested_call_says_it_has_no_click_id() -> None:
+    (finding,) = check(read_bundle(CLICK / "q5b" / "program"))
+    assert "drops it (no CLICK id). Call Sub1 from Main Program." in finding.message
 
 
 def test_the_walk_stops_at_an_undecoded_marker() -> None:

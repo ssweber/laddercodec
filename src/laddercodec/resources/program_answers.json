@@ -1,0 +1,28 @@
+{
+ "about": "Written by devtools/gen_program_answers.py from tests/fixtures/program_check/click/. Do not edit.",
+ "cases": [
+  {"case":"q1a","shape":[["Main Program",[[true,["for"]],[false,["other"]],[false,["end"]]]],[]],"errors":[["Main Program",2,0,"for-without-next"],["Main Program",2,0,"return-inside-loop"]]},
+  {"case":"q1b","shape":[["Main Program",[[false,["other"]],[false,["next"]],[false,["end"]]]],[]],"errors":[["Main Program",1,0,"next-without-for"]]},
+  {"case":"q1c","shape":[["Main Program",[[true,["for"]],[false,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[false,["next"]],[false,["return"]]]]]],"errors":[["Main Program",2,0,"for-without-next"],["Main Program",2,0,"return-inside-loop"]]},
+  {"case":"q1d","shape":[["Main Program",[[true,["for"]],[true,["for"]],[false,["other"]],[false,["next"]],[false,["end"]]]],[]],"errors":[["Main Program",4,0,"for-without-next"],["Main Program",4,0,"return-inside-loop"]]},
+  {"case":"q2a","shape":[["Main Program",[[true,["for"]],[false,["for"]],[false,["for"]],[false,["for"]],[false,["other"]],[false,["next"]],[false,["next"]],[false,["next"]],[false,["next"]],[false,["end"]]]],[]],"errors":[["Main Program",3,0,"for-nesting-depth"],["Main Program",8,0,"next-without-for"]]},
+  {"case":"q2b","shape":[["Main Program",[[true,["for"]],[false,["for"]],[false,["for"]],[false,["call:Sub1"]],[false,["next"]],[false,["next"]],[false,["next"]],[false,["end"]]]],[["Sub1",[[false,["for"]],[false,["other"]],[false,["next"]],[false,["return"]]]]]],"errors":[["Sub1",0,0,"for-nesting-depth"]]},
+  {"case":"q2c","shape":[["Main Program",[[true,["for"]],[false,["for"]],[false,["call:Sub1"]],[false,["next"]],[false,["next"]],[false,["end"]]]],[["Sub1",[[false,["for"]],[false,["other"]],[false,["next"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q2d","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[false,["for"]],[false,["for"]],[false,["for"]],[false,["for"]],[false,["other"]],[false,["next"]],[false,["next"]],[false,["next"]],[false,["next"]],[false,["return"]]]]]],"errors":[["Sub1",3,0,"for-nesting-depth"],["Sub1",8,0,"next-without-for"]]},
+  {"case":"q3a","shape":[["Main Program",[[true,["for"]],[false,["for-oneshot"]],[false,["other"]],[false,["next"]],[false,["next"]],[false,["end"]]]],[]],"errors":[["Main Program",1,0,"for-oneshot-inside-loop"]]},
+  {"case":"q3b","shape":[["Main Program",[[true,["for-oneshot"]],[false,["for"]],[false,["other"]],[false,["next"]],[false,["next"]],[false,["end"]]]],[]],"errors":[]},
+  {"case":"q3c","shape":[["Main Program",[[true,["for"]],[false,["call:Sub1"]],[false,["next"]],[false,["end"]]]],[["Sub1",[[true,["for-oneshot"]],[false,["other"]],[false,["next"]],[false,["return"]]]]]],"errors":[["Sub1",0,0,"for-oneshot-inside-loop"]]},
+  {"case":"q4a","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["for"]],[true,["return"]],[false,["next"]],[false,["return"]]]]]],"errors":[["Sub1",1,0,"return-inside-loop"]]},
+  {"case":"q4b","shape":[["Main Program",[[true,["for"]],[true,["end"]],[false,["next"]],[false,["end"]]]],[]],"errors":[["Main Program",1,0,"return-inside-loop"]]},
+  {"case":"q4c","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["for"]],[true,["return"]],[false,["other"]],[false,["return"]]]]]],"errors":[["Sub1",1,0,"return-inside-loop"],["Sub1",3,0,"for-without-next"],["Sub1",3,0,"return-inside-loop"]]},
+  {"case":"q5a","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["call:Sub2"]],[false,["return"]]]],["Sub2",[[false,["other"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q5a","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["nop"]],[false,["return"]]]],["Sub2",[[false,["other"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q5b","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["call:Sub1"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q5b","shape":[["Main Program",[[true,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["nop"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q6a","shape":[["Main Program",[[true,["call:Nothing"]],[false,["end"]]]],[]],"errors":[]},
+  {"case":"q6b","shape":[["Main Program",[[true,["call:sub1"]],[false,["end"]]]],[["Sub1",[[false,["return"]]]]]],"errors":[]},
+  {"case":"q7","shape":[["Main Program",[[true,["break"]],[true,["continue"]],[false,["end"]]]],[]],"errors":[]},
+  {"case":"q8","shape":[["Main Program",[[true,["other"]],[true,["other",""]],[false,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["other"]],[false,["return"]]]]]],"errors":[]},
+  {"case":"q8c","shape":[["Main Program",[[true,["other"]],[true,["other",""]],[false,["call:Sub1"]],[false,["end"]]]],[["Sub1",[[true,["other"]],[false,["return"]]]]]],"errors":[]}
+ ]
+}

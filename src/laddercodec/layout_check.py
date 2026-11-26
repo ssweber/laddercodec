@@ -27,7 +27,7 @@ from ._layout.tree import (
     reachable,
     reduce,
 )
-from ._program_check import ProgramFinding, check_program, check_project
+from ._program_check import Answer, ProgramFinding, answers, check_program, check_project
 from .codes import CLICK_IDS, Code
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .encode import COMMENT_MAX_BYTES, MAX_ROWS, _comment_bytes
@@ -208,21 +208,29 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
     from .decode import Rung  # decode imports csv, which imports decode
 
     if isinstance(rungs, Project):
+        answered = answers(rungs)
         return [
             finding
             for program, found in check_project(rungs)
-            for finding in _check_program(program, found)
+            for finding in _check_program(program, found, answered)
         ]
     if isinstance(rungs, Program):
-        return _check_program(rungs, check_program(rungs))
+        # A main program alone is a project with no subroutines.
+        answered = answers(Project(rungs)) if rungs.prog_idx == 1 else None
+        return _check_program(rungs, check_program(rungs), answered)
     if isinstance(rungs, Rung):
         rungs = [rungs]
     return [finding for index, rung in enumerate(rungs) for finding in _check_rung(index, rung)]
 
 
-def _check_program(program: Program, found: list[ProgramFinding]) -> list[Finding]:
+def _check_program(
+    program: Program, found: list[ProgramFinding], answered: frozenset[Answer] | None
+) -> list[Finding]:
     """Return the findings of each rung of *program*, each followed by the rung's program
     findings in *found*.
+
+    *answered* holds the program findings that CLICK reported for a project of the same
+    shape, or is ``None`` when CLICK checked no project of that shape.
     """
     by_rung: dict[int, list[ProgramFinding]] = {}
     for f in found:
@@ -231,13 +239,20 @@ def _check_program(program: Program, found: list[ProgramFinding]) -> list[Findin
     out: list[Finding] = []
     for index, rung in enumerate(program.rungs):
         out += [replace(f, program=name) for f in _check_rung(index, rung)]
-        out += [_program_finding(index, f, name) for f in by_rung.get(index, ())]
+        out += [_program_finding(index, f, name, answered) for f in by_rung.get(index, ())]
     return out
 
 
-def _program_finding(rung: int, f: ProgramFinding, program: str) -> Finding:
-    click_id = CLICK_IDS[f.code][0] if f.captured else None
-    why = f"CLICK: {click_id}" if click_id else _UNKNOWN
+def _program_finding(
+    rung: int, f: ProgramFinding, program: str, answered: frozenset[Answer] | None
+) -> Finding:
+    ids = CLICK_IDS.get(f.code, ())
+    captured = bool(ids) and answered is not None and (program, rung, f.row, f.code) in answered
+    click_id = ids[0] if captured else None
+    if click_id:
+        why = f"CLICK: {click_id}"
+    else:
+        why = _UNKNOWN if ids else "no CLICK id"
     where = f"row {f.row} from 0, column {OUTPUT_COLUMN}"
     message = f"{where}: {f.what} ({why}). {f.then}"
     return Finding(rung, f.code, click_id, click_id is not None, f.row, AF_X, message, program)
