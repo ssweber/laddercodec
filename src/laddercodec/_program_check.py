@@ -411,8 +411,7 @@ def _without_stop(walk: _Walk) -> list[ProgramFinding]:
             None,
             code,
             f"{what} that always runs",
-            f"Add a rung with no contact after the last rung: a - wire in each column from A "
-            f"to AE, and {token} in AF.",
+            f"Add a rung after the last rung, with only - wires from A to AE and {token} in AF.",
         )
     ]
 

@@ -572,13 +572,13 @@ and `missing-return`. Each message ends with what to change.
   `check()` counts the deepest.
 - **End and Return.** In a `Project`, the main program needs an End that always runs,
   and each subroutine needs a Return that always runs. An End or Return always runs
-  when every condition cell of its row is a `-` or `T` wire, with no contact. It can
-  be on any rung. A program without one gets `missing-end` or `missing-return` at the
-  rung after its last rung. That finding's `rung` is `len(program.rungs)`, and its
-  `row` and `column` are `None`. An End does not count in a subroutine, and a Return
-  does not count in main. A `Program` checked alone gets neither finding. A
-  `Program` is often a few rungs of a larger program, and a finding on each one would
-  hide the other findings.
+  when every condition cell of its row is a `-` or `T` wire. It can be on any rung. A
+  program without one gets `missing-end` or `missing-return` at the rung after its
+  last rung. That finding's `rung` is `len(program.rungs)`, and its `row` and `column`
+  are `None`. An End does not count in a subroutine, and a Return does not count in
+  main. A `Program` checked alone gets neither finding. A `Program` is often a few
+  rungs cut from a larger program. A `missing-end` finding on every such `Program`
+  would hide its other findings.
 - **Main.** In a `Project`, the main program is `project.main`. For a `Program`
   alone, it is the program with `prog_idx` 1. `check()` reads any other `Program`
   alone as a subroutine that main calls outside any loop.

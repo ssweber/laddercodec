@@ -6,7 +6,8 @@ only when its syntax check runs.  laddercodec encodes and writes these rungs as 
 ``check()`` reports them.  ``check()`` also reports a rung that needs more than 32 rows.
 CLICK can't hold such a rung.  ``check()`` also reports a rung comment that ``encode()``
 refuses as too long.  On a ``Program`` or a ``Project``, it also reports the rules of For/Next
-loops and of Calls (``_program_check.py``).
+loops and of Calls.  On a ``Project``, it also reports a missing End or Return
+(``_program_check.py``).
 """
 
 from __future__ import annotations
@@ -157,8 +158,9 @@ def check(rungs: Rung | Iterable[Rung] | Program | Project) -> list[Finding]:
       End that always runs, and each subroutine needs a Return that always runs.  An End or
       a Return always runs when every condition cell of its row is a ``-`` or ``T`` wire.  It
       can be on any rung.  A program without one gets a finding at the rung after its last
-      rung.  A ``Program`` alone gets neither finding.  A ``Program`` is often a few rungs of
-      a larger program, and a finding on each one would hide the other findings.
+      rung.  A ``Program`` alone gets neither finding.  A ``Program`` is often a few rungs
+      cut from a larger program.  A ``"missing-end"`` finding on every such ``Program`` would
+      hide its other findings.
 
     In a ``Project``, the loops around a Call in the main program count in the subroutine
     that the Call names.  They count for its depth and for One Shot.  In that subroutine, a

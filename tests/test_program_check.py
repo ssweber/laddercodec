@@ -440,8 +440,8 @@ def test_missing_end_and_missing_return_are_at_the_rung_after_the_last() -> None
         None,
     )
     assert end.message == (
-        "Main Program has no End that always runs (CLICK: C0201). Add a rung with no contact "
-        "after the last rung: a - wire in each column from A to AE, and end() in AF."
+        "Main Program has no End that always runs (CLICK: C0201). Add a rung after the last "
+        "rung, with only - wires from A to AE and end() in AF."
     )
     (ret,) = check(_scr_project(CLICK / "e5" / "checked"))
     assert (ret.program, ret.rung, ret.code, ret.row, ret.column) == (
@@ -452,8 +452,8 @@ def test_missing_end_and_missing_return_are_at_the_rung_after_the_last() -> None
         None,
     )
     assert ret.message == (
-        "Sub1 has no Return that always runs (CLICK: C0105). Add a rung with no contact after "
-        "the last rung: a - wire in each column from A to AE, and return() in AF."
+        "Sub1 has no Return that always runs (CLICK: C0105). Add a rung after the last rung, "
+        "with only - wires from A to AE and return() in AF."
     )
 
 
