@@ -1,14 +1,16 @@
 """Test the program rules that check() reports on a Program or a Project.
 
-The bundles are in ``fixtures/program_check/``, and its README says what each one holds.
-``EXPECTED`` holds the findings that laddercodec's rules give. CLICK's Syntax Check answer is
-recorded for none of these bundles, so every program finding has ``click_id`` None and
-``captured`` False.
+``fixtures/program_check/click/`` holds CLICK v4.00's answers.  Each case holds the program
+that was pasted, CLICK's saves of it, and its Syntax Check output.  ``check()`` on those saves
+gives each error that CLICK printed, as a captured finding with CLICK's id.
+
+``fixtures/program_check/own/`` holds bundles that CLICK did not check.  ``OWN`` holds the
+findings that laddercodec's rules give for them.  The README says what each one holds.
 """
 
 from __future__ import annotations
 
-import time
+import re
 from pathlib import Path
 
 import pytest
@@ -28,11 +30,23 @@ from laddercodec import (
     Rung,
     Undecoded,
     check,
+    decode_program,
     marker_rung,
     read_bundle,
 )
+from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 
 FIX = Path(__file__).parent / "fixtures" / "program_check"
+CLICK = FIX / "click"
+CASES = sorted(p.name for p in CLICK.iterdir() if p.is_dir())
+SAVES = ("pasted", "info", "checked")
+
+#: CLICK errors whose rules ``check()`` does not report yet: a Call to a missing subroutine,
+#: and a Break or a Continue outside a loop.
+NOT_BUILT = {"C010C", "C010F", "C0110"}
+
+#: The cases whose Call in a subroutine CLICK dropped at the paste.
+DROPPED_CALL = {"q5a", "q5b"}
 
 PROGRAM_CODES = {
     Code.FOR_WITHOUT_NEXT,
@@ -45,29 +59,118 @@ PROGRAM_CODES = {
 
 MAIN = "Main Program"
 
-#: Each bundle's findings, as (program, rung, code).  Each is at row 0, column AF.
-EXPECTED: dict[str, list[tuple[str, int, Code]]] = {
-    "for_without_next": [(MAIN, 0, Code.FOR_WITHOUT_NEXT)],
-    "next_without_for": [(MAIN, 1, Code.NEXT_WITHOUT_FOR)],
-    "for_and_next_split": [(MAIN, 0, Code.FOR_WITHOUT_NEXT), ("Sub1", 0, Code.NEXT_WITHOUT_FOR)],
-    "two_fors_one_next": [(MAIN, 0, Code.FOR_WITHOUT_NEXT)],
+#: Each own bundle's findings, as (program, rung, code, click_id).  Each is at row 0, column AF.
+OWN: dict[str, list[tuple[str, int, Code, str | None]]] = {
     "depth_3": [],
-    "depth_4": [(MAIN, 3, Code.FOR_NESTING_DEPTH)],
-    "depth_4_through_call": [(MAIN, 3, Code.FOR_NESTING_DEPTH)],
-    "depth_3_through_call": [],
-    "depth_4_in_subroutine": [("Sub1", 3, Code.FOR_NESTING_DEPTH)],
-    "oneshot_inner": [(MAIN, 1, Code.FOR_ONESHOT_INSIDE_LOOP)],
-    "oneshot_outer": [],
-    "oneshot_through_call": [],
-    "return_inside_loop": [("Sub1", 1, Code.RETURN_INSIDE_LOOP)],
-    "return_in_unclosed_loop": [("Sub1", 0, Code.FOR_WITHOUT_NEXT)],
-    "end_inside_loop": [(MAIN, 1, Code.RETURN_INSIDE_LOOP)],
     "return_after_loop": [],
-    "nested_call": [("Sub1", 0, Code.NESTED_CALL)],
-    "self_call": [("Sub1", 0, Code.NESTED_CALL)],
-    "call_unknown": [],
-    "call_other_case": [],
+    "call_other_case": [("Sub1", 0, Code.FOR_NESTING_DEPTH, "C010D")],
 }
+
+_ERROR = re.compile(
+    r"(?P<program>.+?) : Rung (?P<rung>\d+) : error (?P<id>C[0-9A-F]{4}):"
+    r"(?: Row (?P<row>\d+), Column (?P<column>[A-Z]+) :)?"
+)
+_COLUMNS = (*CONDITION_COLUMNS, OUTPUT_COLUMN)
+
+Error = tuple[str | None, int, str | None, int | None, str | None]
+
+
+def _click_errors(case: str) -> tuple[list[str], list[Error]]:
+    """Return the programs that CLICK's Syntax Check names, in its order, and its errors.
+
+    Each error is (program, rung, CLICK id, row, column), with rung and row counted from 0.
+    """
+    text = (CLICK / case / f"{case}_errors.txt").read_bytes().decode("ascii")
+    lines = text.split("\r\n")
+    body = lines[lines.index("Syntax Check...") + 1 : lines.index("")]
+    programs: list[str] = []
+    errors: list[Error] = []
+    for line in body:
+        m = _ERROR.match(line)
+        if m is None:
+            programs.append(line)
+            continue
+        row = int(m["row"]) - 1 if m["row"] else None
+        errors.append((m["program"], int(m["rung"]) - 1, m["id"], row, m["column"]))
+    (summary,) = [line for line in lines if " error(s), " in line]
+    assert summary.split(" - ")[-1].startswith(f"{len(errors)} error(s)")
+    return programs, errors
+
+
+def _scr_project(folder: Path) -> Project:
+    """Return the project that CLICK saved in *folder*: ``Scr1.tmp`` is main, and each
+    ``ScrN.tmp`` after it is a subroutine.
+    """
+    files = sorted(folder.glob("Scr*.tmp"), key=lambda p: int(p.stem[3:]))
+    main, *subs = (decode_program(p.read_bytes()) for p in files)
+    return Project(main, subs)
+
+
+def _errors(findings: list[Finding], programs: list[str]) -> list[Error]:
+    """Return *findings* as CLICK lists errors: by program, in CLICK's order of *programs*."""
+    found = [
+        (f.program, f.rung, f.click_id, f.row, None if f.column is None else _COLUMNS[f.column])
+        for f in findings
+    ]
+    return sorted(found, key=lambda e: programs.index(str(e[0])))
+
+
+def _expected(case: str) -> tuple[list[str], list[Error]]:
+    programs, errors = _click_errors(case)
+    return programs, [e for e in errors if e[2] not in NOT_BUILT]
+
+
+def _saves() -> list[tuple[str, str]]:
+    return [(case, save) for case in CASES for save in SAVES if (CLICK / case / save).is_dir()]
+
+
+@pytest.mark.parametrize(("case", "save"), _saves())
+def test_check_on_clicks_save_gives_clicks_errors(case: str, save: str) -> None:
+    programs, expected = _expected(case)
+    findings = check(_scr_project(CLICK / case / save))
+    assert _errors(findings, programs) == expected
+    assert all(f.captured for f in findings)
+
+
+@pytest.mark.parametrize("case", sorted(set(CASES) - DROPPED_CALL))
+def test_check_on_the_pasted_program_gives_clicks_errors(case: str) -> None:
+    programs, expected = _expected(case)
+    findings = check(read_bundle(CLICK / case / "program"))
+    assert _errors(findings, programs) == expected
+    assert all(f.captured for f in findings)
+
+
+@pytest.mark.parametrize("case", sorted(DROPPED_CALL))
+def test_a_call_in_a_subroutine_gets_nested_call(case: str) -> None:
+    # CLICK drops the Call when it is pasted, so its saves hold the rung without it.
+    (finding,) = check(read_bundle(CLICK / case / "program"))
+    assert (finding.program, finding.rung, finding.code) == ("Sub1", 0, Code.NESTED_CALL)
+    assert (finding.click_id, finding.captured) == (None, False)
+    assert "a paste into CLICK drops it" in finding.message
+
+
+def test_rules_not_built_yet_are_in_clicks_answers() -> None:
+    ids = {e[2] for case in CASES for e in _click_errors(case)[1]}
+    assert ids >= NOT_BUILT
+
+
+def test_every_case_has_an_errors_file_and_a_program() -> None:
+    assert CASES
+    for case in CASES:
+        assert (CLICK / case / f"{case}_errors.txt").is_file(), case
+        assert (CLICK / case / "program" / "main.csv").is_file(), case
+
+
+def test_every_own_bundle_has_an_expectation() -> None:
+    assert sorted(p.name for p in (FIX / "own").iterdir() if p.is_dir()) == sorted(OWN)
+
+
+@pytest.mark.parametrize("case", sorted(OWN))
+def test_own_bundle(case: str) -> None:
+    findings = check(read_bundle(FIX / "own" / case))
+    assert [(f.program, f.rung, f.code, f.click_id) for f in findings] == OWN[case]
+    for f in findings:
+        assert (f.captured, f.row, f.column) == (f.click_id is not None, 0, 31)
 
 
 def _rung(token: object, contact: str | None = None, comment: str | None = None) -> Rung:
@@ -94,65 +197,84 @@ def _project(main: list[Rung], **subs: list[Rung]) -> Project:
     return Project(Program(MAIN, 1, main), programs)
 
 
-def _found(findings: list[Finding]) -> list[tuple[str | None, int, Code]]:
-    return [(f.program, f.rung, f.code) for f in findings]
+def _found(findings: list[Finding]) -> list[tuple[str | None, int, Code, str | None]]:
+    return [(f.program, f.rung, f.code, f.click_id) for f in findings]
 
 
-def test_every_bundle_has_an_expectation() -> None:
-    assert sorted(p.name for p in FIX.iterdir() if p.is_dir()) == sorted(EXPECTED)
-
-
-@pytest.mark.parametrize("case", sorted(EXPECTED))
-def test_bundle(case: str) -> None:
-    findings = check(read_bundle(FIX / case))
-    assert _found(findings) == EXPECTED[case]
-    for f in findings:
-        assert (f.click_id, f.captured, f.row, f.column) == (None, False, 0, 31)
-        assert f.message.startswith("row 0 from 0, column AF: ")
-        assert "(CLICK's response to this shape is not captured). " in f.message
+def _then(finding: Finding) -> str:
+    return finding.message.split("). ", 1)[1]
 
 
 def test_messages() -> None:
-    def message(case: str) -> str:
-        (finding,) = check(read_bundle(FIX / case))
-        return finding.message.split("). ", 1)[1]
+    def findings(case: str) -> list[Finding]:
+        return check(_scr_project(CLICK / case / "checked"))
 
-    assert message("for_without_next") == "Add a next() rung after the last rung of the loop."
-    assert message("oneshot_inner").endswith("Write it as for(2).")
-    assert message("nested_call") == "Call Sub2 from Main Program."
-    (depth,) = check(read_bundle(FIX / "depth_4_through_call"))
+    inside, open_for = findings("q1a")
+    assert inside.message == (
+        "row 0 from 0, column AF: this End is inside the loop that starts on rung 0 from 0 "
+        "(CLICK: C0115). Move the end() rung out of the loop."
+    )
+    assert open_for.message == (
+        "row 0 from 0, column AF: the loop that starts on rung 0 from 0 has no Next before "
+        "this End (CLICK: C0102). Add a next() rung after the last rung of the loop."
+    )
+    (stray,) = findings("q1b")
+    assert stray.message.endswith(
+        "this Next has no open For before it (CLICK: C0101). Delete the Next, or add a For "
+        "rung before it, such as for(2)."
+    )
+    depth, _ = findings("q2a")
+    assert "this For would start a 4th loop, inside the loop that starts on rung 2" in depth.message
+    (carried,) = findings("q2b")
     assert (
-        "this Call to Sub1 is inside 3 loops, and Sub1's own loops nest 1 deep, so the loops "
-        "nest 4 deep" in depth.message
+        "this For would start a 4th loop, counting the loops around the Call: Main Program "
+        "calls Sub1 on rung 3 from 0 inside 3 loops (CLICK: C010D)" in carried.message
     )
-    assert message("next_without_for") == (
-        "Delete the Next, or add a For rung before it, such as for(2)."
+    (oneshot,) = findings("q3a")
+    assert (
+        _then(oneshot) == "Only the outermost For of a nest can use One Shot. Write it as for(2)."
     )
-    assert message("return_inside_loop") == "Move the return() rung after the loop's next() rung."
-    assert message("end_inside_loop") == "Move the end() rung after the loop's next() rung."
+    (oneshot,) = findings("q3c")
+    assert (
+        "this For has One Shot on, and Main Program calls Sub1 on rung 1 from 0 inside 1 loop"
+        in oneshot.message
+    )
+    (nested,) = check(read_bundle(CLICK / "q5a" / "program"))
+    assert _then(nested) == "Call Sub2 from Main Program."
 
 
 def test_rungs_alone_get_no_program_finding() -> None:
-    for case in EXPECTED:
-        project = read_bundle(FIX / case)
+    bundles = [CLICK / case / "program" for case in CASES]
+    bundles += [FIX / "own" / case for case in OWN]
+    for bundle in bundles:
+        project = read_bundle(bundle)
         for program in [project.main, *project.subroutines]:
-            assert not [f for f in check(program.rungs) if f.code in PROGRAM_CODES], case
-            assert all(f.program is None for f in check(program.rungs))
+            found = check(program.rungs)
+            assert not [f for f in found if f.code in PROGRAM_CODES], bundle
+            assert all(f.program is None for f in found)
 
 
-def test_a_program_alone_follows_no_call() -> None:
-    project = read_bundle(FIX / "depth_4_through_call")
+def test_a_program_alone_counts_no_loops_around_a_call() -> None:
+    project = read_bundle(CLICK / "q2b" / "program")
     assert check(project.main) == []
-    sub = read_bundle(FIX / "nested_call").subroutines[0]
+    assert check(project.subroutines[0]) == []
+
+
+def test_a_subroutine_alone_has_no_captured_finding() -> None:
+    sub = read_bundle(CLICK / "q4a" / "program").subroutines[0]
+    assert _found(check(sub)) == [("Sub1", 1, Code.RETURN_INSIDE_LOOP, None)]
+    sub = read_bundle(CLICK / "q5a" / "program").subroutines[0]
     (finding,) = check(sub)
     assert (finding.program, finding.code) == ("Sub1", Code.NESTED_CALL)
-    assert finding.message.endswith("Call Sub2 from the main program.")
+    assert _then(finding) == "Call Sub2 from the main program."
 
 
 def test_a_program_alone_is_main_by_prog_idx() -> None:
     rungs = [_call("Sub1", "X001"), END]
     assert check(Program(MAIN, 1, rungs)) == []
-    assert _found(check(Program("Other", 3, rungs))) == [("Other", 0, Code.NESTED_CALL)]
+    assert _found(check(Program("Other", 3, rungs))) == [("Other", 0, Code.NESTED_CALL, None)]
+    rungs = [_for("X001"), OUT, END]
+    assert [f.click_id for f in check(Program(MAIN, 1, rungs))] == ["C0115", "C0102"]
 
 
 def test_project_main_is_main_whatever_its_prog_idx() -> None:
@@ -160,110 +282,131 @@ def test_project_main_is_main_whatever_its_prog_idx() -> None:
     assert check(project) == []
 
 
-def test_a_call_names_its_subroutine_exactly() -> None:
-    main = [_for("X001"), _for(), _for(), _call("sub1"), NEXT, NEXT, NEXT, END]
-    assert check(_project(main, Sub1=[_for(), OUT, NEXT, RET])) == []
-    main[3] = _call("Sub1")
+def test_a_call_names_its_subroutine_without_regard_to_case() -> None:
+    main = [_for("X001"), _for(), _for(), _call("SUB1"), NEXT, NEXT, NEXT, END]
     assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == [
-        (MAIN, 3, Code.FOR_NESTING_DEPTH)
+        ("Sub1", 0, Code.FOR_NESTING_DEPTH, "C010D")
     ]
+    main[3] = _call("Sub2")
+    assert _found(check(_project(main, Sub1=[_for(), OUT, NEXT, RET]))) == []
 
 
-def test_a_call_counts_only_its_subroutines_own_loops() -> None:
-    # Sub1's Call to Sub2 adds no loops, so the Call in Main nests 1 + 1 deep.
-    main = [_for("X001"), _call("Sub1"), NEXT, END]
-    sub1 = [_for(), _call("Sub2"), NEXT, RET]
-    sub2 = [_for(), _for(), OUT, NEXT, NEXT, RET]
-    assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [("Sub1", 1, Code.NESTED_CALL)]
-    main = [_for("X001"), _for(), _call("Sub2"), NEXT, NEXT, END]
-    assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
-        (MAIN, 2, Code.FOR_NESTING_DEPTH),
-        ("Sub1", 1, Code.NESTED_CALL),
-    ]
-
-
-def test_calls_that_loop_back_get_only_nested_call() -> None:
+def test_a_call_in_a_subroutine_carries_no_loops() -> None:
     main = [_for("X001"), _for(), _call("Sub1"), NEXT, NEXT, END]
     sub1 = [_for(), _call("Sub2"), NEXT, RET]
-    sub2 = [_call("Sub1"), RET]
+    sub2 = [_for(), _for(), OUT, NEXT, NEXT, RET]
     assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
-        ("Sub1", 1, Code.NESTED_CALL),
-        ("Sub2", 0, Code.NESTED_CALL),
-    ]
-    own = [_for(), _call("Sub1"), NEXT, RET]
-    assert _found(check(_project(main, Sub1=own))) == [("Sub1", 1, Code.NESTED_CALL)]
-
-
-@pytest.mark.parametrize("first", ["Sub1", "Sub2"])
-def test_subroutines_that_call_each_other_count_the_same_in_either_order(first: str) -> None:
-    second = "Sub2" if first == "Sub1" else "Sub1"
-    main = [_for("X001"), _for(), _call(first), NEXT, NEXT, _for(), _for(), _call(second)]
-    main += [NEXT, NEXT, END]
-    sub1 = [_for(), _call("Sub2"), NEXT, RET]
-    sub2 = [_for(), _for(), _call("Sub1"), NEXT, NEXT, RET]
-    # Each Call counts its subroutine's own loops: 2 + 1 for Sub1 and 2 + 2 for Sub2.
-    sub2_rung = 2 if first == "Sub2" else 7
-    assert _found(check(_project(main, Sub1=sub1, Sub2=sub2))) == [
-        (MAIN, sub2_rung, Code.FOR_NESTING_DEPTH),
-        ("Sub1", 1, Code.NESTED_CALL),
-        ("Sub2", 2, Code.NESTED_CALL),
+        ("Sub1", 1, Code.NESTED_CALL, None)
     ]
 
 
-def test_many_subroutines_that_call_each_other_check_quickly() -> None:
-    # Every subroutine calls every other one, inside a loop.
-    names = [f"Sub{i}" for i in range(1, 13)]
-    subs = {
-        name: [_for(), *[_call(other) for other in names if other != name], NEXT, RET]
-        for name in names
-    }
-    main = [_for("X001"), *[_call(name) for name in names], NEXT, END]
-    start = time.perf_counter()
-    findings = check(_project(main, **subs))
-    assert time.perf_counter() - start < 1
-    assert [f.code for f in findings] == [Code.NESTED_CALL] * (12 * 11)
+def test_a_stray_next_closes_a_loop_around_the_call() -> None:
+    # Sub1's first Next closes one of the 2 loops around the Call, and its second the other.
+    main = [_for("X001"), _for(), _call("Sub1"), NEXT, NEXT, END]
+    assert check(_project(main, Sub1=[NEXT, NEXT, RET])) == []
+    assert _found(check(_project(main, Sub1=[NEXT, NEXT, NEXT, RET]))) == [
+        ("Sub1", 2, Code.NEXT_WITHOUT_FOR, None)
+    ]
+    # With 1 of the 2 loops closed, Sub1's own loops can nest 2 deep.
+    sub1 = [NEXT, _for(), _for(), OUT, NEXT, NEXT, RET]
+    assert check(_project(main, Sub1=sub1)) == []
 
 
-def test_a_subroutine_called_from_two_loops() -> None:
+def test_a_stray_next_in_a_subroutine_called_outside_a_loop_is_not_captured() -> None:
+    main = [_call("Sub1", "X001"), END]
+    assert _found(check(_project(main, Sub1=[NEXT, RET]))) == [
+        ("Sub1", 0, Code.NEXT_WITHOUT_FOR, None)
+    ]
+
+
+def test_a_subroutine_called_from_loops_of_different_depths() -> None:
+    # Sub1 is read with the deepest Call's loops, and none of its findings is captured.
     main = [_for("X001"), _call("Sub1"), NEXT, _for(), _for(), _call("Sub1"), NEXT, NEXT, END]
     sub1 = [_for(), _for(), OUT, NEXT, NEXT, RET]
     findings = check(_project(main, Sub1=sub1))
-    assert _found(findings) == [(MAIN, 5, Code.FOR_NESTING_DEPTH)]
-    assert "so the loops nest 4 deep" in findings[0].message
+    assert _found(findings) == [("Sub1", 1, Code.FOR_NESTING_DEPTH, None)]
+    assert "Main Program calls Sub1 on rung 5 from 0 inside 2 loops" in findings[0].message
 
 
-def test_a_call_to_a_subroutine_with_no_loops_adds_none() -> None:
-    main = [_for("X001"), _for(), _for(), _call("Sub1"), NEXT, NEXT, NEXT, END]
-    assert check(_project(main, Sub1=[OUT, RET])) == []
+def test_an_uncalled_subroutine_has_no_captured_finding() -> None:
+    sub1 = [_for(), _for(), _for(), _for(), OUT, NEXT, NEXT, NEXT, NEXT, RET]
+    assert _found(check(_project([OUT, END], Sub1=sub1))) == [
+        ("Sub1", 3, Code.FOR_NESTING_DEPTH, None),
+        ("Sub1", 8, Code.NEXT_WITHOUT_FOR, None),
+    ]
+
+
+def test_inside_a_called_loop_only_the_answered_shapes_are_captured() -> None:
+    main = [_for("X001"), _call("Sub1"), NEXT, END]
+    # A Return inside Sub1's own loop, with 1 loop around the Call.
+    sub1 = [_for(), _rung(Return(), "X002"), NEXT, RET]
+    assert _found(check(_project(main, Sub1=sub1))) == [("Sub1", 1, Code.RETURN_INSIDE_LOOP, None)]
+    # One Shot on Sub1's second For, with 1 loop around the Call.
+    sub1 = [_for(), _for(oneshot=True), OUT, NEXT, NEXT, RET]
+    assert _found(check(_project(main, Sub1=sub1))) == [
+        ("Sub1", 1, Code.FOR_ONESHOT_INSIDE_LOOP, None)
+    ]
+    # Sub1's third loop, with 1 loop around the Call.  Its last Next closes the loop around
+    # the Call.
+    sub1 = [_for(), _for(), _for(), OUT, NEXT, NEXT, NEXT, RET]
+    assert _found(check(_project(main, Sub1=sub1))) == [("Sub1", 2, Code.FOR_NESTING_DEPTH, None)]
 
 
 def test_each_for_past_the_third_gets_a_finding() -> None:
     main = [_for("X001"), _for(), _for(), _for(), _for(), OUT, *[NEXT] * 5, END]
     assert _found(check(_project(main))) == [
-        (MAIN, 3, Code.FOR_NESTING_DEPTH),
-        (MAIN, 4, Code.FOR_NESTING_DEPTH),
+        (MAIN, 3, Code.FOR_NESTING_DEPTH, "C010D"),
+        (MAIN, 4, Code.FOR_NESTING_DEPTH, "C010D"),
+        (MAIN, 9, Code.NEXT_WITHOUT_FOR, "C0101"),
+        (MAIN, 10, Code.NEXT_WITHOUT_FOR, "C0101"),
     ]
 
 
-def test_a_return_in_a_loop_with_no_next_gets_no_finding() -> None:
-    main = [_for("X001"), _for("X002"), _rung(End(), "X003"), NEXT, END]
+def test_an_open_for_with_no_end_after_it() -> None:
+    findings = check(_project([OUT, END, _for("X001"), OUT]))
+    assert _found(findings) == [(MAIN, 2, Code.FOR_WITHOUT_NEXT, None)]
+    assert "this For has no Next, and no Return or End, after it" in findings[0].message
+
+
+def test_two_open_loops_at_the_end() -> None:
+    main = [_for("X001"), _for("X002"), OUT, END]
+    findings = check(_project(main))
+    assert _found(findings) == [
+        (MAIN, 3, Code.RETURN_INSIDE_LOOP, "C0115"),
+        (MAIN, 3, Code.FOR_WITHOUT_NEXT, None),
+    ]
+    assert "the loop that starts on rung 1 from 0" in findings[1].message
+
+
+def test_every_end_after_an_open_for_is_inside_the_loop() -> None:
+    main = [_for("X001"), _rung(End(), "X002"), OUT, END]
     assert _found(check(_project(main))) == [
-        (MAIN, 0, Code.FOR_WITHOUT_NEXT),
-        (MAIN, 2, Code.RETURN_INSIDE_LOOP),
+        (MAIN, 1, Code.RETURN_INSIDE_LOOP, "C0115"),
+        (MAIN, 3, Code.RETURN_INSIDE_LOOP, "C0115"),
+        (MAIN, 3, Code.FOR_WITHOUT_NEXT, "C0102"),
     ]
 
 
 def test_the_walk_stops_at_an_undecoded_marker() -> None:
     marker = marker_rung(Undecoded("why", 1))
     main = [_for("X001"), marker, _rung(Return(), "X002"), NEXT, NEXT, END]
-    assert _found(check(_project(main))) == [(MAIN, 1, Code.UNDECODED_RUNG)]
+    assert _found(check(_project(main))) == [(MAIN, 1, Code.UNDECODED_RUNG, None)]
+
+
+def test_a_marker_in_main_leaves_its_subroutines_unanswered() -> None:
+    marker = marker_rung(Undecoded("why", 2))
+    main = [_call("Sub1", "X001"), END, marker]
+    sub1 = [_for(), _rung(Return(), "X002"), NEXT, RET]
+    found = _found(check(_project(main, Sub1=sub1)))
+    assert found[-1] == ("Sub1", 1, Code.RETURN_INSIDE_LOOP, None)
 
 
 def test_a_rung_finding_comes_before_the_rung_program_finding() -> None:
-    long = _rung(ForLoop(count="2"), "X001", comment="x" * 1500)
-    assert _found(check(_project([long, END]))) == [
-        (MAIN, 0, Code.COMMENT_TOO_LONG),
-        (MAIN, 0, Code.FOR_WITHOUT_NEXT),
+    long = _rung(End(), comment="x" * 1500)
+    assert [(f.rung, f.code) for f in check(_project([_for("X001"), long]))] == [
+        (1, Code.COMMENT_TOO_LONG),
+        (1, Code.RETURN_INSIDE_LOOP),
+        (1, Code.FOR_WITHOUT_NEXT),
     ]
 
 

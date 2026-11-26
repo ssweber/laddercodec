@@ -147,8 +147,7 @@ class _Walk:
         site = self.place.site
         where = f" on rung {site.rung} from 0" if site is not None else ""
         return (
-            f"{self.place.main_name} calls {self.program.name}{where} inside "
-            f"{_loops(self.carried)}"
+            f"{self.place.main_name} calls {self.program.name}{where} inside {_loops(self.carried)}"
         )
 
     def for_(self, rung: int, row: int, token: ForLoop) -> None:
